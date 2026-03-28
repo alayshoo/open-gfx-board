@@ -1,0 +1,66 @@
+export interface Graphic {
+	id: number;
+	graphics_name: string;
+	graphics_path: string;
+	allow_ads: boolean;
+	program_id: number;
+}
+
+export interface ProgramAd {
+	id: number;
+	ad_id: number;
+	program_id: number;
+	ad_launch_type: 'automatic' | 'manual' | 'automatic_and_manual';
+	duration: number;
+	frequency: number;
+	ad: Advertisement;
+}
+
+export interface Program {
+	id: number;
+	name: string;
+	logo_path: string | null;
+	background_graphics_path: string | null;
+	graphics: Graphic[];
+	program_ads: ProgramAd[];
+	created_at: string;
+}
+
+export interface Advertisement {
+	id: number;
+	name: string;
+	sponsor_name: string;
+	image_path: string | null;
+	programs: { id: number; name: string }[];
+	created_at: string;
+}
+
+export interface ObsCommand {
+	id: number | null;
+	studio_id?: number;
+	obs_command_name: string;
+	obs_command_color: string;
+	obs_command_description: string;
+	obs_command_shortcut: string;
+}
+
+export interface Studio {
+	id: number;
+	name: string;
+	obs_browser_source_address: string;
+	commands: ObsCommand[];
+	created_at: string;
+}
+
+export interface StudioState {
+	studioId: number;
+	programId: number | null;
+	program: Program | null;
+	activeOverlay: { graphicId: number; graphicPath: string } | null;
+}
+
+export interface Toast {
+	id: number;
+	type: 'success' | 'error' | 'info';
+	message: string;
+}
