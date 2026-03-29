@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { ProgramAd } from '$lib/types';
-	import { imgUrl } from '$lib/api';
 	import { onMount } from 'svelte';
 
 	let {

@@ -1,16 +1,21 @@
-export interface Graphic {
+export interface Screen {
 	id: number;
 	graphics_name: string;
-	graphics_path: string;
+	graphics_path: string | null;
+	media_type: string;
 	allow_ads: boolean;
-	program_id: number;
+	comments: string;
+	created_at: string;
 }
+
+// Graphic is an alias for Screen for backward compat
+export type Graphic = Screen;
 
 export interface ProgramAd {
 	id: number;
 	ad_id: number;
 	program_id: number;
-	ad_launch_type: 'automatic' | 'manual' | 'automatic_and_manual';
+	ad_launch_type: 'automatic' | 'manual' | 'both' | 'filler';
 	duration: number;
 	frequency: number;
 	ad: Advertisement;
@@ -21,7 +26,7 @@ export interface Program {
 	name: string;
 	logo_path: string | null;
 	background_graphics_path: string | null;
-	graphics: Graphic[];
+	graphics: Screen[];
 	program_ads: ProgramAd[];
 	created_at: string;
 }
@@ -30,7 +35,9 @@ export interface Advertisement {
 	id: number;
 	name: string;
 	sponsor_name: string;
+	comments: string;
 	image_path: string | null;
+	media_type: string;
 	programs: { id: number; name: string }[];
 	created_at: string;
 }
@@ -38,16 +45,25 @@ export interface Advertisement {
 export interface ObsCommand {
 	id: number | null;
 	studio_id?: number;
+	preset_id?: number;
 	obs_command_name: string;
 	obs_command_color: string;
 	obs_command_description: string;
 	obs_command_shortcut: string;
 }
 
+export interface Preset {
+	id: number | null;
+	studio_id?: number;
+	name: string;
+	commands: ObsCommand[];
+}
+
 export interface Studio {
 	id: number;
 	name: string;
 	obs_browser_source_address: string;
+	presets: Preset[];
 	commands: ObsCommand[];
 	created_at: string;
 }

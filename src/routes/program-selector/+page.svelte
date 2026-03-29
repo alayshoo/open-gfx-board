@@ -3,8 +3,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import StatusDot from '$lib/components/StatusDot.svelte';
-	import { socket, connected } from '$lib/socket';
-	import { fetchPrograms, fetchStudios, imgUrl } from '$lib/api';
+	import { socket, connected } from '$lib/api/socket';
+	import { fetchPrograms, fetchStudios, imgUrl } from '$lib/api/api';
 	import { addToast } from '$lib/stores/toasts';
 	import type { Program, Studio } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
@@ -15,10 +15,11 @@
 	let studioName = $state<string>('');
 	let activeId = $state<number | null>(null);
 	let loading = $state(true);
+	let selectingId = $state<number | null>(null);
 
 	onMount(() => {
 		if (!studioId) {
-			goto('/studio-selector');
+			goto('/');
 			return;
 		}
 
@@ -58,7 +59,17 @@
 	});
 
 	function selectProgram(program: Program) {
+		if (selectingId !== null) return;
+		selectingId = program.id;
 		socket.emit('select-program', { studioId, programId: program.id });
+
+		// Fallback: if server confirmation never arrives, reset after 5s
+		setTimeout(() => {
+			if (selectingId === program.id) {
+				selectingId = null;
+				addToast('error', 'Failed to select program. Please try again.');
+			}
+		}, 5000);	
 	}
 </script>
 
@@ -88,9 +99,12 @@
 				{#each programs as program (program.id)}
 					{@const logo = imgUrl(program.logo_path)}
 					{@const isActive = program.id === activeId}
+					{@const isSelecting = program.id === selectingId}
 					<button
 						class="program-card"
 						class:active={isActive}
+						class:selecting={isSelecting}
+						disabled={selectingId !== null}
 						onclick={() => selectProgram(program)}
 					>
 						<div class="card-media">
@@ -104,7 +118,9 @@
 									</svg>
 								</div>
 							{/if}
-							{#if isActive}
+							{#if isSelecting}
+								<div class="active-badge selecting-badge">Selecting…</div>
+							{:else if isActive}
 								<div class="active-badge">Active</div>
 							{/if}
 						</div>
@@ -197,15 +213,25 @@
 		transition: all 0.15s;
 	}
 
-	.program-card:hover {
+	.program-card:hover:not(:disabled) {
 		border-color: var(--border-2);
 		transform: translateY(-2px);
 		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 	}
 
+	.program-card:disabled {
+		cursor: not-allowed;
+		opacity: 0.6;
+	}
+
 	.program-card.active {
 		border-color: var(--accent);
 		box-shadow: 0 0 0 1px var(--accent), 0 6px 20px rgba(56, 189, 248, 0.15);
+	}
+
+	.program-card.selecting {
+		border-color: var(--accent);
+		opacity: 1;
 	}
 
 	.card-media {
@@ -240,6 +266,11 @@
 		padding: 2px 8px;
 		border-radius: 999px;
 		letter-spacing: 0.05em;
+	}
+
+	.selecting-badge {
+		background: var(--border-2);
+		color: var(--text-1);
 	}
 
 	.card-foot {

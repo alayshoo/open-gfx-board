@@ -1,16 +1,56 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import StatusDot from '$lib/components/StatusDot.svelte';
+	import { socket, connected } from '$lib/api/socket';
+	import { fetchStudios } from '$lib/api/api';
+	import { getBackendUrl, getLocalIp } from '$lib/bridge';
+	import type { Studio } from '$lib/types';
+  import { IS_TAURI } from '$lib/bridge';
+    import TitleBarWeb from '$lib/components/TitleBarWeb.svelte';
+
+	let studios = $state<Studio[]>([]);
+	let loading = $state(true);
+	let studioPrograms = $state<Record<number, { name: string } | null>>({});
+	let localIp = $state<string | null>(null);
+
+	onMount(() => {
+		fetchStudios().then((data) => {
+			studios = data;
+			loading = false;
+		});
+
+		// Poll until the LAN IP is resolved (initBackendUrl may still be in-flight)
+		const ipInterval = setInterval(() => {
+			const ip = getLocalIp();
+			if (ip) {
+				localIp = ip;
+				clearInterval(ipInterval);
+			}
+		}, 200);
+		setTimeout(() => clearInterval(ipInterval), 5000);
+
+		socket.on('studio-state', (data: any) => {
+			if (data.program) {
+				studioPrograms = { ...studioPrograms, [data.studioId]: data.program };
+			}
+		});
+
+		return () => {
+			socket.off('studio-state');
+		};
+	});
+
+	function selectStudio(studio: Studio) {
+		goto(`/control?studio=${studio.id}`);
+	}
+</script>
+
 <div class="page">
   <!-- Top bar -->
-  <header class="topbar">
-    <span class="brand">OBS Manager</span>
-    <div class="topbar-right">
-      <a class="topbar-link" href="/program-editor">Programs</a>
-      <a class="topbar-link" href="/ad-editor">Ads</a>
-      <a class="topbar-link" href="/studio-editor">Studios</a>
-      <a class="topbar-link" href="/import-export">Import/Export</a>
-      <div style="width: 10px;"></div>
-      <StatusDot connected={$connected} />
-    </div>
-  </header>
+  {#if !IS_TAURI}
+		<TitleBarWeb back={{ href: '/', label: 'Studios' }} />
+	{/if}
 
   <!-- Main content -->
   <main class="content">
@@ -66,6 +106,21 @@
       </div>
     {/if}
   </main>
+
+  <footer class="ext-info">
+    <span class="ext-label">External pages (OBS browser sources):</span>
+    <code class="ext-url">{getBackendUrl()}/obs-background?studio=&#123;id&#125;</code>
+    <span class="ext-sep">·</span>
+    <code class="ext-url">{getBackendUrl()}/obs-overlay?studio=&#123;id&#125;</code>
+    <span class="ext-sep">·</span>
+    <span class="ext-note">hosted on port <strong>{new URL(getBackendUrl()).port || '80'}</strong></span>
+    {#if localIp}
+      <span class="ext-sep">·</span>
+      <span class="ext-note">LAN IP: <strong>{localIp}</strong></span>
+      <span class="ext-sep">·</span>
+      <span class="ext-note lan-hint">access from other devices at <code class="ext-url">{localIp}:{new URL(getBackendUrl()).port || '80'}</code></span>
+    {/if}
+  </footer>
 </div>
 
 <style>
@@ -74,46 +129,6 @@
     display: flex;
     flex-direction: column;
     background: var(--bg);
-  }
-
-  /* Top bar */
-  .topbar {
-    height: 50px;
-    padding: 0 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border-1);
-    background: var(--surface-1);
-    flex-shrink: 0;
-  }
-
-  .brand {
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-1);
-  }
-
-  .topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .topbar-link {
-    font-size: 16px;
-    color: var(--text-3);
-    padding: 4px 10px;
-    border-radius: var(--r-sm);
-    text-decoration: none;
-    transition: all 0.15s;
-  }
-
-  .topbar-link:hover {
-    color: var(--text-1);
-    background: var(--surface-2);
   }
 
   /* Content */
@@ -254,6 +269,41 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+  }
+
+  /* External pages info footer */
+  .ext-info {
+    padding: 14px 32px;
+    border-top: 1px solid var(--border-1);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+
+  .ext-label {
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .ext-url {
+    background: var(--surface-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-sm);
+    padding: 2px 7px;
+    font-size: 11px;
+    color: var(--accent);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  .ext-sep {
+    color: var(--border-2);
+  }
+
+  .ext-note strong {
+    color: var(--text-2);
   }
 
   @keyframes pulse {

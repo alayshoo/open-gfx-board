@@ -1,6 +1,6 @@
 <script lang="ts">
 	import StatusDot from './StatusDot.svelte';
-	import { connected } from '$lib/socket';
+	import { connected } from '$lib/api/socket';
 
 	let {
 		back,
@@ -24,7 +24,8 @@
 			<a href="/program-editor">Programs</a>
 			<a href="/ad-editor">Ads</a>
 			<a href="/studio-editor">Studios</a>
-			<a href="/import-export">Import/Export</a>
+			<a href="/screen-editor">Screens</a>
+			<a href="/import-export">Settings</a>
 		</div>
 		<StatusDot connected={$connected} />
 	</div>

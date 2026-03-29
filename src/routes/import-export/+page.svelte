@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import TopNav from '$lib/components/TopNav.svelte';
-	import { hasData } from '$lib/api';
-	import { BACKEND_URL } from '$lib/socket';
+	import TopNav from '$lib/components/TitleBarWeb.svelte';
+	import { hasData } from '$lib/api/api';
+	import { BACKEND_URL } from '$lib/api/socket';
 	import { addToast } from '$lib/stores/toasts';
+	import { IS_TAURI } from '$lib/bridge';
 
 	let canExport = $state(false);
 	let importing = $state(false);
@@ -79,7 +80,9 @@
 </script>
 
 <div class="page-wrap">
-	<TopNav back={{ href: '/studio-selector', label: 'Studios' }} />
+	{#if !IS_TAURI}
+		<TopNav back={{ href: '/', label: 'Control' }} />
+	{/if}
 	<main class="page-content">
 		<div class="center-content">
 			<div class="card-panel">
