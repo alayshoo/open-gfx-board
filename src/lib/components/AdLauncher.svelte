@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { ProgramAd } from '$lib/types';
-	import { onMount } from 'svelte';
+	import type { ProgramAd } from "$lib/types";
+	import { onMount } from "svelte";
 
 	let {
 		programAds = [],
@@ -14,7 +14,9 @@
 		onTrigger?: (ad: ProgramAd) => void;
 	} = $props();
 
-	const manualAds = $derived(programAds.filter((pa) => pa.ad_launch_type === 'manual'));
+	const manualAds = $derived(
+		programAds.filter((pa) => pa.ad_launch_type === "manual"),
+	);
 
 	let container: HTMLDivElement;
 	let cols = $state(1);
@@ -58,7 +60,11 @@
 		<span class="panel-label">Ads</span>
 		<span class="count">{manualAds.length}</span>
 	</div>
-	<div class="grid" bind:this={container} style="grid-template-columns: repeat({cols}, 1fr)">
+	<div
+		class="grid"
+		bind:this={container}
+		style="grid-template-columns: repeat({cols}, 1fr)"
+	>
 		{#each manualAds as pa (pa.id)}
 			<button
 				class="ad-btn"
@@ -67,13 +73,15 @@
 				onclick={() => onTrigger?.(pa)}
 				title={pa.ad?.name}
 			>
-				{#if pa.ad?.sponsor_name}
-					<span class="ad-sponsor">{pa.ad.sponsor_name}</span>
-				{/if}
 				<div class="ad-info">
 					<span class="ad-name">{pa.ad?.name}</span>
 				</div>
-				<span class="ad-dur">{pa.duration}s</span>
+				<div class="ad-sec-info">
+					<span class="ad-dur">{pa.duration}s</span>
+					{#if pa.ad?.sponsor_name}
+						<span class="ad-sponsor">{pa.ad.sponsor_name}</span>
+					{/if}
+				</div>
 				{#if activeAdId === pa.ad_id}
 					<span class="live-pip"></span>
 				{/if}
@@ -183,8 +191,19 @@
 		color: var(--warn);
 	}
 
+	.ad-sec-info {
+		display: flex;
+		flex-direction: row;
+		gap: 6px;
+		align-items: center;
+
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		font-size: 14px;
+	}
+
 	.ad-sponsor {
-		font-size: clamp(0.5rem, 6cqi, 1.2rem);
 		color: var(--text-3);
 		font-weight: 500;
 		text-transform: uppercase;
@@ -193,10 +212,6 @@
 	}
 
 	.ad-dur {
-		position: absolute;
-		top: 8px;
-		left: 8px;
-		font-size: 14px;
 		color: var(--warn);
 		background: var(--warn-dim);
 		padding: 2px 6px;
@@ -219,8 +234,13 @@
 	}
 
 	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.4; }
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.4;
+		}
 	}
 
 	.empty-state {
