@@ -200,7 +200,15 @@ async fn upload_program_image(
     });
 
     match update_result {
-        Ok(_) => Json(json!({ "success": true, "imagePath": rel_path })).into_response(),
+        Ok(_) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("update-programs", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "imagePath": rel_path })).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }
