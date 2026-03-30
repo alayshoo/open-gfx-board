@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "open-gfx-board",
+        "title": "Open GFX Board",
         "width": 1000,
         "height": 800,
         "decorations": false,
