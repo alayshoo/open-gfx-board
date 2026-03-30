@@ -73,14 +73,15 @@
 				onclick={() => onTrigger?.(pa)}
 				title={pa.ad?.name}
 			>
-				<div class="ad-info">
-					<span class="ad-name">{pa.ad?.name}</span>
-				</div>
 				<div class="ad-sec-info">
 					<span class="ad-dur">{pa.duration}s</span>
 					{#if pa.ad?.sponsor_name}
 						<span class="ad-sponsor">{pa.ad.sponsor_name}</span>
 					{/if}
+				</div>
+				<div style="height: 10px;"></div>
+				<div class="ad-info">
+					<span class="ad-name">{pa.ad?.name}</span>
 				</div>
 				{#if activeAdId === pa.ad_id}
 					<span class="live-pip"></span>
@@ -137,7 +138,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		justify-content: flex-end;
+		justify-content: space-between;
 		padding: 10px 12px;
 		background: var(--surface-2);
 		border: 1px solid var(--border-1);
@@ -194,13 +195,10 @@
 	.ad-sec-info {
 		display: flex;
 		flex-direction: row;
+		width: calc(100% - 16px);
 		gap: 6px;
 		align-items: center;
-
-		position: absolute;
-		top: 8px;
-		left: 8px;
-		font-size: 14px;
+		font-size: 11px;
 	}
 
 	.ad-sponsor {
@@ -209,6 +207,8 @@
 		text-transform: uppercase;
 		margin-bottom: 0.1rem;
 		letter-spacing: 0.05em;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.ad-dur {
@@ -216,7 +216,7 @@
 		background: var(--warn-dim);
 		padding: 2px 6px;
 		border-radius: 4px;
-		font-weight: 800;
+		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
