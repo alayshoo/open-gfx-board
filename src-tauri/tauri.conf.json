@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "open-gfx-board",
+  "productName": "Open GFX Board",
   "version": "0.1.0",
   "identifier": "com.alayshoo.open-gfx-board",
   "build": {
