@@ -5,6 +5,7 @@ pub mod socket_handlers;
 
 use std::path::PathBuf;
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
@@ -45,6 +46,7 @@ pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
         .route("/export", get(system::export_handler))
         .route("/import", post(system::import_handler))
         .route("/media/{*path}", get(system::serve_media))
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB
         .layer(cors)
         .with_state(app_state);
 
