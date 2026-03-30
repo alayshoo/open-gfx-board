@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { uploadImage, imgUrl } from '$lib/api';
-	import { addToast } from '$lib/stores/toasts';
+	import { uploadImage, imgUrl } from '$lib/api/api';
+	import { addToast } from '$lib/toasts';
 	import MediaPreview from './MediaPreview.svelte';
 
 	let {

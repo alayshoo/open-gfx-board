@@ -4,7 +4,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchPrograms, fetchAdvertisements, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
-	import { addToast } from '$lib/stores/toasts';
+	import { addToast } from '$lib/toasts';
 	import type { Program, Advertisement, Screen, ProgramAd } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';

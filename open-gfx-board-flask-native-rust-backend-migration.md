@@ -436,13 +436,13 @@ Note: Since Axum always runs at localhost:5000 even in the desktop app, the brid
 
 ### OBS Overlay Pages to create
 
-`**src/routes/obs-overlay/+page.svelte`**
+`**src/routes/obs/+page.svelte`**
 
 - Connects via Socket.IO (same `socket` import)
 - Listens for `overlay-activated` / `overlay-deactivated` events
 - Renders `<img>` or `<video>` based on `media_type`
 - Full-screen, `background: transparent` (for OBS chroma key / transparent BG)
-- OBS browser source URL: `http://{machine-ip}:5000/obs-overlay?studio={id}`
+- OBS browser source URL: `http://{machine-ip}:5000/obs?studio={id}`
 
 `**src/routes/obs-background/+page.svelte**`
 
@@ -457,7 +457,7 @@ Ensure `svelte.config.js` has:
 adapter({ fallback: 'index.html' })
 ```
 
-This enables the SPA fallback so Axum's `ServeDir` correctly serves `/obs-overlay`, `/control`, etc.
+This enables the SPA fallback so Axum's `ServeDir` correctly serves `/obs`, `/control`, etc.
 
 ---
 
@@ -494,7 +494,7 @@ Axum serves `/media/*` via `ServeDir` pointing at `{app_data_dir}/media/`.
 | `src/lib/api/types.ts`                    | Update — Preset, filler, comments                |
 | `src/lib/api/socket.ts`                   | Update — import BACKEND_URL from bridge          |
 | `src/routes/studio-editor/+page.svelte`   | Update — Presets layer UI                        |
-| `src/routes/obs-overlay/+page.svelte`     | Create — OBS graphic overlay page                |
+| `src/routes/obs/+page.svelte`     | Create — OBS graphic overlay page                |
 | `src/routes/obs-background/+page.svelte`  | Create — OBS background page                     |
 | `src/routes/control/+page.svelte`         | Fix goto('/studio-selector') → goto('/')         |
 
@@ -507,7 +507,7 @@ Axum serves `/media/*` via `ServeDir` pointing at `{app_data_dir}/media/`.
 2. `npm run tauri dev` — app launches, Axum starts on :5000, webview loads
 3. Open `http://localhost:5000` in a browser — same UI, same data as desktop (remote parity)
 4. Create a studio with a preset and commands → verify in DB with `sqlite3 app.db`
-5. Open `http://localhost:5000/obs-overlay?studio=1` in browser / OBS — trigger overlay from control page → overlay updates in real time
+5. Open `http://localhost:5000/obs?studio=1` in browser / OBS — trigger overlay from control page → overlay updates in real time
 6. Trigger an OBS command from a remote browser → verify F13-F24 keypress fires on host machine
 7. Export → wipe DB → import → verify data restored
 

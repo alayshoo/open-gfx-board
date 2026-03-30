@@ -8,23 +8,29 @@
 	import StatusDot from "$lib/components/StatusDot.svelte";
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
-	import { addToast } from "$lib/stores/toasts";
+	import { addToast } from "$lib/toasts";
 	import type {
 		Program,
 		StudioState,
 		ObsCommand,
 		Graphic,
 		ProgramAd,
+		ActiveAd,
 	} from "$lib/types";
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
+    import { IS_TAURI } from "$lib/bridge";
 
 	const studioId = $derived(Number($page.url.searchParams.get("studio")));
+	const presetId = $derived(
+		Number($page.url.searchParams.get("preset")) || null,
+	);
 
 	let program = $state<Program | null>(null);
 	let activeGraphicId = $state<number | null>(null);
 	let activeAdId = $state<number | null>(null);
 	let studioCommands = $state<ObsCommand[]>([]);
 	let isAdPlaying = $state(false);
+	let adEndTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const graphics = $derived<Graphic[]>(program?.graphics ?? []);
 	const programAds = $derived<ProgramAd[]>(program?.program_ads ?? []);
@@ -45,16 +51,26 @@
 		socket.emit("join-studio-room", { studioId });
 		socket.emit("get-studio-state", { studioId });
 
-		socket.on("studio-state", (data: StudioState) => {
+		// Named handlers prevent removing every global listener on cleanup
+		function onStudioState(data: StudioState) {
 			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
-		});
+			if (data.activeAd) {
+				isAdPlaying = true;
+				activeAdId = data.activeAd.adId;
+			} else {
+				isAdPlaying = false;
+				activeAdId = null;
+			}
+		}
 
-		socket.on("program-selected", (data: any) => {
+		function onProgramSelected(data: any) {
 			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
+			isAdPlaying = false;
+			activeAdId = null;
 
 			// Auto-activate first graphic if no overlay is active and program has graphics
 			if (
@@ -62,73 +78,116 @@
 				program?.graphics &&
 				program.graphics.length > 0
 			) {
-				const firstGraphic = program.graphics[0];
-				triggerOverlay(firstGraphic);
+				triggerOverlay(program.graphics[0]);
 			}
-		});
+		}
 
-		socket.on("program-cleared", (data: any) => {
+		function onProgramCleared(data: any) {
 			if (data.studioId !== studioId) return;
 			program = null;
 			activeGraphicId = null;
-		});
-
-		socket.on("overlay-activated", (data: any) => {
-			activeGraphicId = data.graphicId;
-		});
-
-		socket.on("overlay-deactivated", () => {
-			activeGraphicId = null;
-		});
-
-		socket.on("ad-started", (data: any) => {
-			isAdPlaying = true;
-			activeAdId = data.adId;
-		});
-
-		socket.on("ad-ended", () => {
 			isAdPlaying = false;
 			activeAdId = null;
-		});
+		}
 
-		// Fetch studio commands
+		function onOverlayActivated(data: any) {
+			if (data.studioId !== studioId) return;
+			activeGraphicId = data.graphicId;
+		}
+
+		function onOverlayDeactivated(data: any) {
+			if (data.studioId !== studioId) return;
+			activeGraphicId = null;
+		}
+
+		function onAdStarted(data: any) {
+			if (data.studioId !== studioId) return;
+			isAdPlaying = true;
+			activeAdId = data.adId;
+		}
+
+		function onAdEnded(data: any) {
+			if (data.studioId !== studioId) return;
+			isAdPlaying = false;
+			activeAdId = null;
+		}
+
+		socket.on("studio-state", onStudioState);
+		socket.on("program-selected", onProgramSelected);
+		socket.on("program-cleared", onProgramCleared);
+		socket.on("overlay-activated", onOverlayActivated);
+		socket.on("overlay-deactivated", onOverlayDeactivated);
+		socket.on("ad-started", onAdStarted);
+		socket.on("ad-ended", onAdEnded);
+
+		// Fetch studio commands for selected preset
 		fetch(`${BACKEND_URL}/studios`)
 			.then((r) => r.json())
 			.then((d) => {
 				const studio = d.studios?.find((s: any) => s.id === studioId);
-				if (studio) studioCommands = studio.commands ?? [];
+				if (studio) {
+					if (presetId) {
+						const preset = studio.presets?.find(
+							(p: any) => p.id === presetId,
+						);
+						studioCommands = preset?.commands ?? [];
+					} else {
+						studioCommands = studio.commands ?? [];
+					}
+				}
 			});
 
 		return () => {
-			socket.off("studio-state");
-			socket.off("program-selected");
-			socket.off("program-cleared");
-			socket.off("overlay-activated");
-			socket.off("overlay-deactivated");
-			socket.off("ad-started");
-			socket.off("ad-ended");
+			socket.off("studio-state", onStudioState);
+			socket.off("program-selected", onProgramSelected);
+			socket.off("program-cleared", onProgramCleared);
+			socket.off("overlay-activated", onOverlayActivated);
+			socket.off("overlay-deactivated", onOverlayDeactivated);
+			socket.off("ad-started", onAdStarted);
+			socket.off("ad-ended", onAdEnded);
 			socket.emit("leave-studio-room", { studioId });
+			if (adEndTimer) clearTimeout(adEndTimer);
 		};
 	});
 
 	function triggerOverlay(graphic: Graphic) {
-		socket.emit("trigger-overlay", {
-			studioId,
-			programId: program!.id,
-			graphicId: graphic.id,
-			graphicPath: graphic.graphics_path,
-			allowAds: graphic.allow_ads,
-		});
+		if (activeGraphicId === graphic.id) {
+			// Clicking the active overlay deactivates it
+			socket.emit("deactivate-overlay", { studioId });
+		} else {
+			socket.emit("trigger-overlay", {
+				studioId,
+				programId: program!.id,
+				graphicId: graphic.id,
+				graphicPath: graphic.graphics_path,
+				allowAds: graphic.allow_ads,
+			});
+		}
 	}
 
 	function triggerAd(pa: ProgramAd) {
-		socket.emit("trigger-ad", {
-			studioId,
-			programId: program!.id,
-			adId: pa.ad_id,
-			imagePath: pa.ad?.image_path,
-			duration: pa.duration,
-		});
+		if (adEndTimer) {
+			clearTimeout(adEndTimer);
+			adEndTimer = null;
+		}
+
+		if (activeAdId === pa.ad_id) {
+			// Clicking the active ad stops it early
+			socket.emit("end-ad", { studioId });
+		} else {
+			socket.emit("trigger-ad", {
+				studioId,
+				programId: program!.id,
+				adId: pa.ad_id,
+				imagePath: pa.ad?.image_path,
+				duration: pa.duration,
+			});
+			// Auto-end after the ad's duration has elapsed
+			adEndTimer = setTimeout(() => {
+				socket.emit("end-ad", { studioId });
+				adEndTimer = null;
+			}, pa.duration * 1000);
+		}
 	}
 
 	function triggerCommand(cmd: ObsCommand) {
@@ -157,6 +216,24 @@
 
 	function onDragEnd() {
 		dragging = false;
+	}
+
+	/* Fullscreen */
+
+	function toggleFullscreen() {
+		const doc = document.documentElement;
+
+		if (!document.fullscreenElement) {
+			// Enter fullscreen
+			if (doc.requestFullscreen) {
+				doc.requestFullscreen();
+			}
+		} else {
+			// Exit fullscreen
+			if (document.exitFullscreen) {
+				document.exitFullscreen();
+			}
+		}
 	}
 </script>
 
@@ -198,7 +275,10 @@
 			<div class="header-right">
 				<StatusDot connected={$connected} />
 				<div class="header-links">
-					<a class="nav-link" href="/">Switch Studio</a>
+					{#if !IS_TAURI}
+						<button class="nav-link" onclick={toggleFullscreen}>Fullscreen</button>
+					{/if}
+					<a class="nav-link" href="/">Switch Preset</a>
 				</div>
 			</div>
 		</header>
@@ -232,7 +312,9 @@
 		onpointerup={onDragEnd}
 		role="separator"
 		aria-valuenow={splitPct}
-	><span>.</span><span>.</span><span>.</span></div>
+	>
+		<span>.</span><span>.</span><span>.</span>
+	</div>
 
 	<!-- RIGHT: Command panel -->
 	<div class="cmd-panel" style="width: {100 - splitPct}%">

@@ -45,6 +45,7 @@ async fn create_program(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("program-created", &json!({ "success": true, "program": &program })).await;
+                    let _ = io.emit("update-programs", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "program": program })).into_response()
@@ -102,6 +103,7 @@ async fn update_program(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("program-updated", &json!({ "success": true, "program": &program })).await;
+                    let _ = io.emit("update-programs", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "program": program })).into_response()
@@ -122,6 +124,7 @@ async fn delete_program(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("program-deleted", &json!({ "success": true, "id": id })).await;
+                    let _ = io.emit("update-programs", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "id": id })).into_response()

@@ -34,7 +34,7 @@ pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let mut router = Router::new()
+        let mut api_router = Router::new()
         .nest("/studios", studios::router())
         .nest("/programs", programs::router())
         .nest("/advertisements", advertisements::router())
@@ -46,17 +46,16 @@ pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
         .route("/import", post(system::import_handler))
         .route("/media/{*path}", get(system::serve_media))
         .layer(cors)
-        .with_state(app_state)
-        .layer(socket_layer);
+        .with_state(app_state);
 
     if let Some(dir) = build_dir {
         if dir.exists() {
             let index = dir.join("index.html");
-            router = router.fallback_service(
+            api_router = api_router.fallback_service(
                 ServeDir::new(&dir).not_found_service(ServeFile::new(index))
             );
         }
     }
 
-    router
+    api_router.layer(socket_layer)
 }

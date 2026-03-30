@@ -25,6 +25,7 @@ pub fn run() {
             let db_path = app_data_dir.join("app.db");
             let conn = rusqlite::Connection::open(&db_path)?;
             db::schema::run_migrations(&conn)?;
+            db::studios::ensure_default_studio(&conn)?;
 
             let app_state = AppState {
                 db: Arc::new(Mutex::new(conn)),

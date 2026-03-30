@@ -4,7 +4,7 @@
 	import ImageUpload from '$lib/components/ImageUpload.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchAdvertisements, imgUrl } from '$lib/api/api';
-	import { addToast } from '$lib/stores/toasts';
+	import { addToast } from '$lib/toasts';
 	import type { Advertisement } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl, IS_TAURI } from '$lib/bridge';

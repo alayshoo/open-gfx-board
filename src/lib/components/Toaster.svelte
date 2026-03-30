@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toasts } from '$lib/stores/toasts';
+	import { toasts } from '$lib/toasts';
 </script>
 
 <div class="toaster" aria-live="polite">

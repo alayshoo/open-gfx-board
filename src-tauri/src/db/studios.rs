@@ -73,7 +73,7 @@ pub fn create_studio(conn: &Connection, name: &str) -> Result<Studio> {
     )?;
     let id = conn.last_insert_rowid();
     // Update obs_browser_source_address with the actual id
-    let obs_addr = format!("/obs-overlay?studio={id}");
+    let obs_addr = format!("/obs?studio={id}");
     conn.execute(
         "UPDATE studios SET obs_browser_source_address = ?1 WHERE id = ?2",
         rusqlite::params![obs_addr, id],
@@ -129,6 +129,18 @@ pub fn update_studio(
 pub fn delete_studio(conn: &Connection, id: i64) -> Result<bool> {
     let rows = conn.execute("DELETE FROM studios WHERE id = ?1", [id])?;
     Ok(rows > 0)
+}
+
+pub fn ensure_default_studio(conn: &Connection) -> Result<()> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM studios",
+        [],
+        |r| r.get(0),
+    )?;
+    if count == 0 {
+        create_studio(conn, "Default Studio")?;
+    }
+    Ok(())
 }
 
 fn load_presets_for_studio(conn: &Connection, studio_id: i64) -> Result<Vec<Preset>> {

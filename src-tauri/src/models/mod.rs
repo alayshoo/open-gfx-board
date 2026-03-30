@@ -99,6 +99,8 @@ pub struct StudioState {
     pub program: Option<Program>,
     #[serde(rename = "activeOverlay")]
     pub active_overlay: Option<ActiveOverlay>,
+    #[serde(rename = "activeAd")]
+    pub active_ad: Option<ActiveAd>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,4 +109,15 @@ pub struct ActiveOverlay {
     pub graphic_id: i64,
     #[serde(rename = "graphicPath")]
     pub graphic_path: Option<String>,
+    #[serde(rename = "allowAds")]
+    pub allow_ads: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveAd {
+    #[serde(rename = "adId")]
+    pub ad_id: i64,
+    #[serde(rename = "imagePath")]
+    pub image_path: Option<String>,
+    pub duration: i64,
 }

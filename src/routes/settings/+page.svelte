@@ -3,7 +3,7 @@
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import { hasData } from '$lib/api/api';
 	import { BACKEND_URL } from '$lib/api/socket';
-	import { addToast } from '$lib/stores/toasts';
+	import { addToast } from '$lib/toasts';
 	import { IS_TAURI } from '$lib/bridge';
 
 	let canExport = $state(false);

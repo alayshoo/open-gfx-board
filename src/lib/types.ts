@@ -68,11 +68,24 @@ export interface Studio {
 	created_at: string;
 }
 
+export interface ActiveOverlay {
+	graphicId: number;
+	graphicPath: string | null;
+	allowAds: boolean;
+}
+
+export interface ActiveAd {
+	adId: number;
+	imagePath: string | null;
+	duration: number;
+}
+
 export interface StudioState {
 	studioId: number;
 	programId: number | null;
 	program: Program | null;
-	activeOverlay: { graphicId: number; graphicPath: string } | null;
+	activeOverlay: ActiveOverlay | null;
+	activeAd: ActiveAd | null;
 }
 
 export interface Toast {

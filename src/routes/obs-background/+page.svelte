@@ -15,25 +15,28 @@
 
 		socket.emit('join-studio-room', { studioId });
 
-		socket.on('program-selected', (data: any) => {
+		function onProgramSelected(data: any) {
 			if (data.studioId !== studioId) return;
 			const rawPath: string | null = data.program?.background_graphics_path ?? null;
 			bgPath = rawPath ? imgUrl(rawPath) : null;
 			const ext = rawPath?.split('.').pop()?.toLowerCase() ?? '';
 			bgType = ['mp4', 'webm'].includes(ext) ? 'video' : 'image';
 			visible = !!bgPath;
-		});
+		}
 
-		socket.on('program-cleared', (data: any) => {
+		function onProgramCleared(data: any) {
 			if (data && data.studioId !== studioId) return;
 			visible = false;
 			bgPath = null;
-		});
+		}
+
+		socket.on('program-selected', onProgramSelected);
+		socket.on('program-cleared', onProgramCleared);
 
 		return () => {
 			socket.emit('leave-studio-room', { studioId });
-			socket.off('program-selected');
-			socket.off('program-cleared');
+			socket.off('program-selected', onProgramSelected);
+			socket.off('program-cleared', onProgramCleared);
 		};
 	});
 </script>

@@ -5,7 +5,7 @@
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { socket, connected } from '$lib/api/socket';
 	import { fetchPrograms, fetchStudios, imgUrl } from '$lib/api/api';
-	import { addToast } from '$lib/stores/toasts';
+	import { addToast } from '$lib/toasts';
 	import type { Program, Studio } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 
@@ -36,24 +36,31 @@
 		socket.emit('join-studio-room', { studioId });
 		socket.emit('get-studio-state', { studioId });
 
-		socket.on('studio-state', (data: any) => {
+		// Named handlers so we only remove our own listeners on cleanup,
+		// not every listener registered globally for these events.
+		function onStudioState(data: any) {
 			if (data.studioId === studioId) activeId = data.programId ?? null;
-		});
+		}
 
-		socket.on('program-selected', (data: any) => {
+		function onProgramSelected(data: any) {
 			if (data.studioId === studioId) {
+				selectingId = null;
 				goto(`/control?studio=${studioId}`);
 			}
-		});
+		}
 
-		socket.on('update-programs', () => {
+		function onUpdatePrograms() {
 			fetchPrograms().then((data) => { programs = data; });
-		});
+		}
+
+		socket.on('studio-state', onStudioState);
+		socket.on('program-selected', onProgramSelected);
+		socket.on('update-programs', onUpdatePrograms);
 
 		return () => {
-			socket.off('studio-state');
-			socket.off('program-selected');
-			socket.off('update-programs');
+			socket.off('studio-state', onStudioState);
+			socket.off('program-selected', onProgramSelected);
+			socket.off('update-programs', onUpdatePrograms);
 			socket.emit('leave-studio-room', { studioId });
 		};
 	});

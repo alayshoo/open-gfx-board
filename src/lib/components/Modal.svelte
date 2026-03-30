@@ -1,3 +1,5 @@
+<!-- $lib/components/Modal.svelte -->
+
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 

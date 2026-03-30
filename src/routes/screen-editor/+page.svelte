@@ -3,7 +3,7 @@
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchScreens, imgUrl, uploadImage } from '$lib/api/api';
-	import { addToast } from '$lib/stores/toasts';
+	import { addToast } from '$lib/toasts';
 	import type { Screen } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';

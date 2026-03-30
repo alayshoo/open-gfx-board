@@ -15,7 +15,7 @@
 
 		socket.emit('join-studio-room', { studioId });
 
-		socket.on('overlay-activated', (data: any) => {
+		function onOverlayActivated(data: any) {
 			if (data.studioId !== studioId) return;
 			const rawPath: string | null = data.graphicPath ?? null;
 			activePath = rawPath ? imgUrl(rawPath) : null;
@@ -23,18 +23,21 @@
 			const ext = rawPath?.split('.').pop()?.toLowerCase() ?? '';
 			activeType = ['mp4', 'webm'].includes(ext) ? 'video' : 'image';
 			visible = true;
-		});
+		}
 
-		socket.on('overlay-deactivated', (data: any) => {
+		function onOverlayDeactivated(data: any) {
 			if (data && data.studioId !== studioId) return;
 			visible = false;
 			activePath = null;
-		});
+		}
+
+		socket.on('overlay-activated', onOverlayActivated);
+		socket.on('overlay-deactivated', onOverlayDeactivated);
 
 		return () => {
 			socket.emit('leave-studio-room', { studioId });
-			socket.off('overlay-activated');
-			socket.off('overlay-deactivated');
+			socket.off('overlay-activated', onOverlayActivated);
+			socket.off('overlay-deactivated', onOverlayDeactivated);
 		};
 	});
 </script>
