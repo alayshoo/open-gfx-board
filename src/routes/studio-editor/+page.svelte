@@ -83,6 +83,20 @@
 		editCommands = editCommands.filter((_, i) => i !== idx);
 	}
 
+	function moveCommandUp(i: number) {
+		if (i === 0) return;
+		const cmds = [...editCommands];
+		[cmds[i - 1], cmds[i]] = [cmds[i], cmds[i - 1]];
+		editCommands = cmds;
+	}
+
+	function moveCommandDown(i: number) {
+		if (i === editCommands.length - 1) return;
+		const cmds = [...editCommands];
+		[cmds[i], cmds[i + 1]] = [cmds[i + 1], cmds[i]];
+		editCommands = cmds;
+	}
+
 	async function savePreset() {
 		if (!studio) return;
 		if (!editPresetName.trim()) {
@@ -349,6 +363,7 @@
 							<table class="data-table">
 								<thead>
 									<tr>
+										<th style="width:52px"></th>
 										<th>Name</th>
 										<th style="width:100px">Shortcut</th>
 										<th style="width:100px">Color</th>
@@ -359,6 +374,14 @@
 								<tbody>
 									{#each editCommands as cmd, ci}
 										<tr>
+											<td class="reorder-cell">
+												<button class="btn-reorder" aria-label="Move up" disabled={ci === 0} onclick={() => moveCommandUp(ci)}>
+													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+												</button>
+												<button class="btn-reorder" aria-label="Move down" disabled={ci === editCommands.length - 1} onclick={() => moveCommandDown(ci)}>
+													<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+												</button>
+											</td>
 											<td>
 												<input class="form-input-inline" type="text" bind:value={cmd.obs_command_name} placeholder="Command name" />
 											</td>
@@ -429,7 +452,7 @@
 
 	/* ── Sidebar ── */
 	.sidebar {
-		width: 240px;
+		width: 260px;
 		flex-shrink: 0;
 		background: var(--surface-1);
 		border-right: 1px solid var(--border-1);
@@ -741,5 +764,38 @@
 		font-size: 13px;
 		color: var(--text-3);
 		margin-bottom: 6px;
+	}
+
+	/* ── Reorder buttons ── */
+	.reorder-cell {
+		width: 52px;
+		padding: 0 4px !important;
+		text-align: center;
+		white-space: nowrap;
+	}
+
+	.btn-reorder {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: 1px solid var(--border-1);
+		border-radius: 4px;
+		background: var(--surface-2);
+		color: var(--text-2);
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s, opacity 0.12s;
+	}
+
+	.btn-reorder:hover:not(:disabled) {
+		background: var(--surface-3);
+		color: var(--text-1);
+	}
+
+	.btn-reorder:disabled {
+		opacity: 0.25;
+		cursor: default;
 	}
 </style>

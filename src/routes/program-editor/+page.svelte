@@ -269,6 +269,36 @@
 	/* ─── Image file input refs ─────────────────────────────────── */
 	let logoInput = $state() as unknown as HTMLInputElement;
 	let bgInput = $state() as unknown as HTMLInputElement;
+
+	/* ─── Reorder: Screens ───────────────────────────────────────── */
+	function moveScreenUp(i: number) {
+		if (i === 0) return;
+		const ids = [...editScreenIds];
+		[ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+		editScreenIds = ids;
+	}
+
+	function moveScreenDown(i: number) {
+		if (i === editScreenIds.length - 1) return;
+		const ids = [...editScreenIds];
+		[ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
+		editScreenIds = ids;
+	}
+
+	/* ─── Reorder: Ads ───────────────────────────────────────────── */
+	function moveAdUp(i: number) {
+		if (i === 0) return;
+		const ads = [...editProgramAds];
+		[ads[i - 1], ads[i]] = [ads[i], ads[i - 1]];
+		editProgramAds = ads;
+	}
+
+	function moveAdDown(i: number) {
+		if (i === editProgramAds.length - 1) return;
+		const ads = [...editProgramAds];
+		[ads[i], ads[i + 1]] = [ads[i + 1], ads[i]];
+		editProgramAds = ads;
+	}
 </script>
 
 <div class="editor-wrap">
@@ -421,6 +451,7 @@
 										<table class="data-table">
 											<thead>
 												<tr>
+													<th style="width:52px"></th>
 													<th>Name</th>
 													<th style="width:110px">Preview</th>
 													<th style="width:90px">Type</th>
@@ -429,8 +460,16 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each editScreens as s (s.id)}
+												{#each editScreens as s, i (s.id)}
 													<tr>
+														<td class="reorder-cell">
+															<button class="btn-reorder" aria-label="Move up" disabled={i === 0} onclick={() => moveScreenUp(i)}>
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+															</button>
+															<button class="btn-reorder" aria-label="Move down" disabled={i === editScreens.length - 1} onclick={() => moveScreenDown(i)}>
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+															</button>
+														</td>
 														<td><span class="fw-medium">{s.graphics_name}</span></td>
 														<td class="preview-cell">
 															{#if s.graphics_path}
@@ -477,6 +516,7 @@
 										<table class="data-table ads-table">
 											<thead>
 												<tr>
+													<th style="width:52px"></th>
 													<th>Ad</th>
 													<th style="width:140px">Launch Type</th>
 													<th style="width:90px">Duration (s)</th>
@@ -485,9 +525,17 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each editProgramAds as pa (pa.ad_id)}
+												{#each editProgramAds as pa, i (pa.ad_id)}
 													{@const adDetails = allAds.find((a) => a.id === pa.ad_id) ?? pa.ad}
 													<tr>
+														<td class="reorder-cell">
+															<button class="btn-reorder" aria-label="Move up" disabled={i === 0} onclick={() => moveAdUp(i)}>
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+															</button>
+															<button class="btn-reorder" aria-label="Move down" disabled={i === editProgramAds.length - 1} onclick={() => moveAdDown(i)}>
+																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+															</button>
+														</td>
 														<td>
 															<div class="ad-row-info">
 																<div class="ad-thumb-wrap">
@@ -625,6 +673,39 @@
 </Modal>
 
 <style>
+	/* ── Reorder buttons ── */
+	.reorder-cell {
+		width: 52px;
+		padding: 0 4px !important;
+		text-align: center;
+		white-space: nowrap;
+	}
+
+	.btn-reorder {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: 1px solid var(--border-1);
+		border-radius: 4px;
+		background: var(--surface-2);
+		color: var(--text-2);
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s, opacity 0.12s;
+	}
+
+	.btn-reorder:hover:not(:disabled) {
+		background: var(--surface-3);
+		color: var(--text-1);
+	}
+
+	.btn-reorder:disabled {
+		opacity: 0.25;
+		cursor: default;
+	}
+
 	/* ── Layout ── */
 	.editor-wrap {
 		height: 100vh;
