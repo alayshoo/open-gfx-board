@@ -49,6 +49,7 @@ async fn create_screen(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("screen-created", &json!({ "success": true, "screen": &screen })).await;
+                    let _ = io.emit("update-screens", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "screen": screen })).into_response()
@@ -80,6 +81,7 @@ async fn update_screen(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("screen-updated", &json!({ "success": true, "screen": &screen })).await;
+                    let _ = io.emit("update-screens", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "screen": screen })).into_response()
@@ -100,6 +102,7 @@ async fn delete_screen(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("screen-deleted", &json!({ "success": true, "id": id })).await;
+                    let _ = io.emit("update-screens", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "id": id })).into_response()
@@ -157,7 +160,15 @@ async fn upload_screen_image(
     let db = state.db.lock().await;
     let rel_path_clone = rel_path.clone();
     match tokio::task::block_in_place(|| crate::db::screens::set_media_path(&db, id, &rel_path_clone)) {
-        Ok(_) => Json(json!({ "success": true, "imagePath": rel_path })).into_response(),
+        Ok(_) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("update-screens", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "imagePath": rel_path })).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

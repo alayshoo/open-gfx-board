@@ -13,6 +13,8 @@ pub struct StudioRuntimeState {
     pub active_ad_id: Option<i64>,
     pub active_ad_path: Option<String>,
     pub active_ad_duration: i64,
+    pub active_ad_direction: Option<String>,
+    pub active_ad_position: Option<i64>,
 }
 
 #[derive(Clone)]

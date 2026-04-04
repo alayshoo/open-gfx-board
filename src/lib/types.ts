@@ -38,6 +38,8 @@ export interface Advertisement {
 	comments: string;
 	image_path: string | null;
 	media_type: string;
+	direction: 'top' | 'bottom' | 'left' | 'right';
+	position: number;
 	programs: { id: number; name: string }[];
 	created_at: string;
 }
@@ -78,6 +80,8 @@ export interface ActiveAd {
 	adId: number;
 	imagePath: string | null;
 	duration: number;
+	direction: string;
+	position: number;
 }
 
 export interface StudioState {

@@ -569,6 +569,7 @@
 																type="number"
 																min="0"
 																value={pa.duration}
+																disabled={pa.ad_launch_type === 'filler'}
 																oninput={(e) => updateProgramAd(pa.ad_id, { duration: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
 														</td>
@@ -578,7 +579,7 @@
 																type="number"
 																min="0"
 																value={pa.frequency}
-																disabled={pa.ad_launch_type === 'manual'}
+																disabled={pa.ad_launch_type === 'manual' || pa.ad_launch_type === 'filler'}
 																oninput={(e) => updateProgramAd(pa.ad_id, { frequency: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
 														</td>

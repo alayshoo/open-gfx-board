@@ -32,6 +32,8 @@ struct CreateAdBody {
     name: String,
     sponsor_name: Option<String>,
     comments: Option<String>,
+    direction: Option<String>,
+    position: Option<i64>,
 }
 
 async fn create_ad(
@@ -41,12 +43,15 @@ async fn create_ad(
     let db = state.db.lock().await;
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
-    match tokio::task::block_in_place(|| crate::db::advertisements::create_ad(&db, &body.name, sponsor, comments)) {
+    let direction = body.direction.as_deref().unwrap_or("bottom");
+    let position = body.position.unwrap_or(50);
+    match tokio::task::block_in_place(|| crate::db::advertisements::create_ad(&db, &body.name, sponsor, comments, direction, position)) {
         Ok(ad) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("ad-created", &json!({ "success": true, "ad": &ad })).await;
+                    let _ = io.emit("update-ads", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "ad": ad })).into_response()
@@ -60,6 +65,8 @@ struct UpdateAdBody {
     name: String,
     sponsor_name: Option<String>,
     comments: Option<String>,
+    direction: Option<String>,
+    position: Option<i64>,
 }
 
 async fn update_ad(
@@ -70,12 +77,15 @@ async fn update_ad(
     let db = state.db.lock().await;
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
-    match tokio::task::block_in_place(|| crate::db::advertisements::update_ad(&db, id, &body.name, sponsor, comments)) {
+    let direction = body.direction.as_deref().unwrap_or("bottom");
+    let position = body.position.unwrap_or(50);
+    match tokio::task::block_in_place(|| crate::db::advertisements::update_ad(&db, id, &body.name, sponsor, comments, direction, position)) {
         Ok(Some(ad)) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("ad-updated", &json!({ "success": true, "ad": &ad })).await;
+                    let _ = io.emit("update-ads", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "ad": ad })).into_response()
@@ -96,6 +106,7 @@ async fn delete_ad(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("ad-deleted", &json!({ "success": true, "id": id })).await;
+                    let _ = io.emit("update-ads", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "id": id })).into_response()
@@ -153,7 +164,15 @@ async fn upload_ad_image(
     let db = state.db.lock().await;
     let rel_path_clone = rel_path.clone();
     match tokio::task::block_in_place(|| crate::db::advertisements::set_media_path(&db, id, &rel_path_clone)) {
-        Ok(_) => Json(json!({ "success": true, "imagePath": rel_path })).into_response(),
+        Ok(_) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("update-ads", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "imagePath": rel_path })).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

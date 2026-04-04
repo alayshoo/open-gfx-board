@@ -22,6 +22,8 @@
 	let editSponsor = $state('');
 	let editComments = $state('');
 	let editImagePath = $state<string | null>(null);
+	let editDirection = $state<'top' | 'bottom' | 'left' | 'right'>('bottom');
+	let editPosition = $state(50);
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
@@ -87,6 +89,8 @@
 		editSponsor = '';
 		editComments = '';
 		editImagePath = null;
+		editDirection = 'bottom';
+		editPosition = 50;
 	}
 
 	function selectAd(ad: Advertisement) {
@@ -97,6 +101,8 @@
 		editSponsor = ad.sponsor_name ?? '';
 		editComments = ad.comments ?? '';
 		editImagePath = ad.image_path;
+		editDirection = (ad.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
+		editPosition = ad.position ?? 50;
 	}
 
 	async function deleteCurrentAd() {
@@ -123,6 +129,8 @@
 						name: editName.trim(),
 						sponsor_name: editSponsor.trim(),
 						comments: editComments.trim(),
+						direction: editDirection,
+						position: editPosition,
 					}),
 				});
 				const data = await res.json();
@@ -145,6 +153,8 @@
 						name: editName.trim(),
 						sponsor_name: editSponsor.trim(),
 						comments: editComments.trim(),
+						direction: editDirection,
+						position: editPosition,
 					}),
 				});
 				const data = await res.json();
@@ -257,6 +267,39 @@
 							<div class="field-group span-2">
 								<label class="field-label" for="comments">Comments</label>
 								<input id="comments" class="form-input" type="text" bind:value={editComments} placeholder="Optional notes" />
+							</div>
+
+							<div class="field-group">
+								<label class="field-label" for="ad-direction">Slide-in Direction</label>
+								<select id="ad-direction" class="form-input form-select" bind:value={editDirection}>
+									<option value="bottom">Bottom → Up</option>
+									<option value="top">Top → Down</option>
+									<option value="left">Left → Right</option>
+									<option value="right">Right → Left</option>
+								</select>
+							</div>
+
+							<div class="field-group">
+								<label class="field-label" for="ad-position">
+									Position along edge <span class="field-hint">({editPosition}%)</span>
+								</label>
+								<div class="position-row">
+									<input
+										id="ad-position"
+										class="form-input position-number"
+										type="number"
+										min="0"
+										max="100"
+										bind:value={editPosition}
+									/>
+									<input
+										class="position-slider"
+										type="range"
+										min="0"
+										max="100"
+										bind:value={editPosition}
+									/>
+								</div>
 							</div>
 						</div>
 
@@ -630,5 +673,40 @@
 		font-size: 13px;
 		color: var(--text-3);
 		margin-bottom: 6px;
+	}
+
+	/* ── Position / Direction fields ── */
+	.form-select {
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 10px center;
+		padding-right: 30px;
+		cursor: pointer;
+	}
+
+	.field-hint {
+		font-weight: 400;
+		font-size: 10px;
+		color: var(--text-3);
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	.position-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.position-number {
+		width: 72px;
+		flex-shrink: 0;
+	}
+
+	.position-slider {
+		flex: 1;
+		accent-color: var(--accent);
+		cursor: pointer;
 	}
 </style>

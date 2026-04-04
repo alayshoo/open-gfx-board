@@ -112,6 +112,34 @@
 			activeAdId = null;
 		}
 
+		// ── Data-change listeners ─────────────────
+		function onUpdateData() {
+			socket.emit("get-studio-state", { studioId });
+		}
+
+		function fetchStudioCommands() {
+			fetch(`${BACKEND_URL}/studios`)
+				.then((r) => r.json())
+				.then((d) => {
+					const studio = d.studios?.find((s: any) => s.id === studioId);
+					if (studio) {
+						if (presetId) {
+							const preset = studio.presets?.find(
+								(p: any) => p.id === presetId,
+							);
+							studioCommands = preset?.commands ?? [];
+						} else {
+							studioCommands = studio.commands ?? [];
+						}
+					}
+				});
+		}
+
+		function onUpdateStudios() {
+			// Preset / command names may have changed – re-fetch studio list
+			fetchStudioCommands();
+		}
+
 		socket.on("studio-state", onStudioState);
 		socket.on("program-selected", onProgramSelected);
 		socket.on("program-cleared", onProgramCleared);
@@ -119,23 +147,13 @@
 		socket.on("overlay-deactivated", onOverlayDeactivated);
 		socket.on("ad-started", onAdStarted);
 		socket.on("ad-ended", onAdEnded);
+		socket.on("update-ads", onUpdateData);
+		socket.on("update-programs", onUpdateData);
+		socket.on("update-screens", onUpdateData);
+		socket.on("update-studios", onUpdateStudios);
 
 		// Fetch studio commands for selected preset
-		fetch(`${BACKEND_URL}/studios`)
-			.then((r) => r.json())
-			.then((d) => {
-				const studio = d.studios?.find((s: any) => s.id === studioId);
-				if (studio) {
-					if (presetId) {
-						const preset = studio.presets?.find(
-							(p: any) => p.id === presetId,
-						);
-						studioCommands = preset?.commands ?? [];
-					} else {
-						studioCommands = studio.commands ?? [];
-					}
-				}
-			});
+		fetchStudioCommands();
 
 		return () => {
 			socket.off("studio-state", onStudioState);
@@ -145,6 +163,10 @@
 			socket.off("overlay-deactivated", onOverlayDeactivated);
 			socket.off("ad-started", onAdStarted);
 			socket.off("ad-ended", onAdEnded);
+			socket.off("update-ads", onUpdateData);
+			socket.off("update-programs", onUpdateData);
+			socket.off("update-screens", onUpdateData);
+			socket.off("update-studios", onUpdateStudios);
 			socket.emit("leave-studio-room", { studioId });
 			if (adEndTimer) clearTimeout(adEndTimer);
 		};
@@ -175,11 +197,13 @@
 			// Clicking the active ad stops it early
 			socket.emit("end-ad", { studioId });
 		} else {
+				// Only send adId + duration — the server fetches image_path,
+			// direction, and position fresh from the database so that recent
+			// edits are always reflected regardless of which controller fires.
 			socket.emit("trigger-ad", {
 				studioId,
 				programId: program!.id,
 				adId: pa.ad_id,
-				imagePath: pa.ad?.image_path,
 				duration: pa.duration,
 			});
 			// Auto-end after the ad's duration has elapsed
@@ -211,7 +235,7 @@
 	function onDragMove(e: PointerEvent) {
 		if (!dragging) return;
 		const pct = (e.clientX / window.innerWidth) * 100;
-		splitPct = Math.min(Math.max(pct, 20), 80); // clamp between 20% and 80%
+		splitPct = Math.min(Math.max(pct, 25), 75); // clamp between 20% and 80%
 	}
 
 	function onDragEnd() {

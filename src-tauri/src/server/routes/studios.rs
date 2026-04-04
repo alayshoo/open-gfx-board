@@ -126,6 +126,7 @@ async fn update_studio(
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
                     let _ = io.emit("studio-updated", &json!({ "success": true, "studio": &studio })).await;
+                    let _ = io.emit("update-studios", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "studio": studio })).into_response()

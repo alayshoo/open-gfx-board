@@ -55,6 +55,8 @@ pub struct Advertisement {
     #[serde(rename = "image_path")]
     pub media_path: Option<String>,
     pub media_type: String,
+    pub direction: String,
+    pub position: i64,
     pub programs: Vec<AdProgram>,
     pub created_at: String,
 }
@@ -120,4 +122,6 @@ pub struct ActiveAd {
     #[serde(rename = "imagePath")]
     pub image_path: Option<String>,
     pub duration: i64,
+    pub direction: String,
+    pub position: i64,
 }

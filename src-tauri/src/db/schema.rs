@@ -89,13 +89,13 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
-    // Add future migrations here, e.g.:
-    // if version < 2 {
-    //     conn.execute_batch(
-    //         "ALTER TABLE screens ADD COLUMN some_new_col TEXT NOT NULL DEFAULT '';
-    //          INSERT INTO schema_version VALUES (2);",
-    //     )?;
-    // }
+    if version < 2 {
+        conn.execute_batch(
+            "ALTER TABLE advertisements ADD COLUMN direction TEXT NOT NULL DEFAULT 'bottom';
+             ALTER TABLE advertisements ADD COLUMN position INTEGER NOT NULL DEFAULT 50;
+             INSERT INTO schema_version VALUES (2);",
+        )?;
+    }
 
     Ok(())
 }

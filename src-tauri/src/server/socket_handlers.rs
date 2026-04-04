@@ -71,6 +71,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         ad_id: aid,
                         image_path: runtime.active_ad_path.clone(),
                         duration: runtime.active_ad_duration,
+                        direction: runtime.active_ad_direction.clone().unwrap_or_else(|| "bottom".to_string()),
+                        position: runtime.active_ad_position.unwrap_or(50),
                     });
 
                     let studio_state = StudioState {
@@ -110,6 +112,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         s.active_ad_id = None;
                         s.active_ad_path = None;
                         s.active_ad_duration = 0;
+                        s.active_ad_direction = None;
+                        s.active_ad_position = None;
                     }
 
                     let room = format!("studio:{studio_id}");
@@ -121,14 +125,44 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 crate::db::programs::get_program(&db, pid).ok().flatten()
                             })
                         };
+
+                        // Automatically activate the first screen overlay for the new program
+                        let first_overlay = program.as_ref()
+                            .and_then(|p| p.screens.first())
+                            .map(|s| ActiveOverlay {
+                                graphic_id: s.id,
+                                graphic_path: s.media_path.clone(),
+                                allow_ads: s.allow_ads,
+                            });
+
+                        if let Some(ref overlay) = first_overlay {
+                            let mut states = state_c.studio_states.lock().await;
+                            let s = states.entry(studio_id).or_default();
+                            s.active_screen_id = Some(overlay.graphic_id);
+                            s.active_screen_path = overlay.graphic_path.clone();
+                            s.active_screen_allow_ads = overlay.allow_ads;
+                        }
+
                         let payload = serde_json::json!({
                             "studioId": studio_id,
                             "programId": pid,
                             "program": program,
-                            "activeOverlay": null,
+                            "activeOverlay": first_overlay,
                             "activeAd": null,
                         });
                         let _ = io_cc.within(room).emit("program-selected", &payload).await;
+
+                        // Also emit overlay-activated so the OBS overlay page reacts immediately
+                        if let Some(ref overlay) = first_overlay {
+                            let overlay_payload = serde_json::json!({
+                                "studioId": studio_id,
+                                "graphicId": overlay.graphic_id,
+                                "graphicPath": overlay.graphic_path,
+                                "allowAds": overlay.allow_ads,
+                            });
+                            let overlay_room = format!("studio:{studio_id}");
+                            let _ = io_cc.within(overlay_room).emit("overlay-activated", &overlay_payload).await;
+                        }
                     } else {
                         // programId: null means the operator is clearing the active program
                         let payload = serde_json::json!({ "studioId": studio_id });
@@ -200,6 +234,9 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
         // ── trigger-ad ────────────────────────────────────────────────────
         // Uses io (not socket) so the triggering client also gets the event.
+        // Only adId + duration come from the client; image_path / direction /
+        // position are always fetched fresh from the database so that stale
+        // values held by any controller never reach the OBS overlay.
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
@@ -208,16 +245,32 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 let io_cc = io_cc.clone();
                 async move {
                     let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
-                    let ad_id = data.get("adId").and_then(|v| v.as_i64());
-                    let image_path = data.get("imagePath").and_then(|v| v.as_str()).map(String::from);
+                    let Some(ad_id) = data.get("adId").and_then(|v| v.as_i64()) else { return; };
                     let duration = data.get("duration").and_then(|v| v.as_i64()).unwrap_or(10);
+
+                    // Fetch fresh ad data from the database so direction / position /
+                    // image_path are always up-to-date regardless of which controller
+                    // triggered the ad.
+                    let ad = {
+                        let db = state_c.db.lock().await;
+                        tokio::task::block_in_place(|| {
+                            crate::db::advertisements::get_ad(&db, ad_id).ok().flatten()
+                        })
+                    };
+                    let Some(ad) = ad else { return; };
+
+                    let image_path = ad.media_path.clone();
+                    let direction = ad.direction.clone();
+                    let position = ad.position;
 
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(studio_id).or_default();
-                        s.active_ad_id = ad_id;
+                        s.active_ad_id = Some(ad_id);
                         s.active_ad_path = image_path.clone();
                         s.active_ad_duration = duration;
+                        s.active_ad_direction = Some(direction.clone());
+                        s.active_ad_position = Some(position);
                     }
 
                     let room = format!("studio:{studio_id}");
@@ -226,6 +279,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         "adId": ad_id,
                         "imagePath": image_path,
                         "duration": duration,
+                        "direction": direction,
+                        "position": position,
                     });
                     let _ = io_cc.within(room).emit("ad-started", &payload).await;
                 }
@@ -248,6 +303,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         s.active_ad_id = None;
                         s.active_ad_path = None;
                         s.active_ad_duration = 0;
+                        s.active_ad_direction = None;
+                        s.active_ad_position = None;
                     }
 
                     let room = format!("studio:{studio_id}");
