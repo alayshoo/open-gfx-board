@@ -67,6 +67,16 @@
 	let qrModalOpen = $state(false);
 	let qrDataUrl = $state<string | null>(null);
 
+	let obsModalOpen = $state(false);
+	let obsCopied = $state(false);
+
+	async function copyObsUrl() {
+		if (!networkUrl) return;
+		await navigator.clipboard.writeText(networkUrl);
+		obsCopied = true;
+		setTimeout(() => (obsCopied = false), 2000);
+	}
+
 	const networkUrl = $derived.by(() => {
 		const ip = getLocalIp();
 		if (!ip) return null;
@@ -150,6 +160,13 @@
 	<div class="drag-spacer" data-tauri-drag-region></div>
 
 
+	<!-- OBS Browser Source button -->
+	{#if networkUrl}
+		<button class="nav-links nav-link obs-btn" onclick={() => (obsModalOpen = true)} aria-label="OBS Browser Source Setup">
+			<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor"><path d="m380-340 280-180-280-180v360Zm-60 220v-80H160q-33 0-56.5-23.5T80-280v-480q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v480q0 33-23.5 56.5T800-200H640v80H320ZM160-280h640v-480H160v480Zm0 0v-480 480Z"/></svg>
+		</button>
+	{/if}
+
 	<!-- QR Code button -->
 	{#if networkUrl}
 		<button class="nav-links nav-link qr-btn" onclick={openQrModal} aria-label="Show QR Code">
@@ -219,6 +236,42 @@
 		</button>
 	</div>
 </header>
+
+<Modal bind:open={obsModalOpen} title="OBS Browser Source Setup" width="620px">
+	<div class="obs-layout">
+		<div class="obs-icon-wrap">
+			<svg xmlns="http://www.w3.org/2000/svg" height="48px" viewBox="0 -960 960 960" width="48px" fill="#e3e3e3"><path d="m380-340 280-180-280-180v360Zm-60 220v-80H160q-33 0-56.5-23.5T80-280v-480q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v480q0 33-23.5 56.5T800-200H640v80H320ZM160-280h640v-480H160v480Zm0 0v-480 480Z"/></svg>
+		</div>
+		<div class="obs-instructions">
+			<h3>Add a Browser Source in OBS</h3>
+			<ol>
+				<li>In OBS, click the <strong>+</strong> button under <strong>Sources</strong> and choose <strong>Browser</strong>.</li>
+				<li>Give it a name and click <strong>OK</strong>.</li>
+				<li>Paste the URL below into the <strong>URL</strong> field.</li>
+				<li>Set the <strong>Width</strong> and <strong>Height</strong> to match your canvas resolution.</li>
+				<li>Click <strong>OK</strong> — your graphics overlay will appear.</li>
+			</ol>
+			{#if networkUrl}
+				<div class="obs-url-section">
+					<div class="qr-url-box">
+						<span class="qr-url-label">Browser Source URL</span>
+						<div class="obs-url-row">
+							<code class="qr-url">{networkUrl}</code>
+							<button class="copy-btn" onclick={copyObsUrl} aria-label="Copy URL">
+								{#if obsCopied}
+									<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+								{/if}
+							</button>
+						</div>
+					</div>
+					<p class="obs-note">Make sure OBS is running on the <strong>same network</strong> as this computer, or use <code class="obs-localhost">http://localhost:{new URL(getBackendUrl()).port || '80'}</code> if OBS is on this machine.</p>
+				</div>
+			{/if}
+		</div>
+	</div>
+</Modal>
 
 <Modal bind:open={qrModalOpen} title="Connect a Device" width="800px">
 	<div class="qr-layout">
@@ -392,6 +445,12 @@
 		color: #fff;
 	}
 
+	/* ── OBS button ──────────────────────────────────────── */
+	.obs-btn {
+		width: 36px;
+		border-right: 1px solid var(--border-1);
+	}
+
 	/* ── QR button ───────────────────────────────────────── */
 	.qr-btn {
 		width: 36px;
@@ -476,5 +535,107 @@
 		color: var(--accent);
 		word-break: break-all;
 		font-family: var(--font-mono, monospace);
+	}
+
+	/* ── OBS modal layout ────────────────────────────────── */
+	.obs-layout {
+		display: flex;
+		gap: 24px;
+		align-items: flex-start;
+	}
+
+	.obs-icon-wrap {
+		flex-shrink: 0;
+		width: 80px;
+		height: 80px;
+		background: var(--accent-dim);
+		border-radius: var(--r-md);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--accent);
+	}
+
+	.obs-instructions {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.obs-instructions h3 {
+		font-size: 15px;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0 0 12px;
+	}
+
+	.obs-instructions ol {
+		margin: 0;
+		padding-left: 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.obs-instructions li {
+		font-size: 13px;
+		color: var(--text-2);
+		line-height: 1.5;
+	}
+
+	.obs-url-section {
+		margin-top: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.obs-note {
+		font-size: 12px;
+		color: var(--text-3);
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.obs-localhost {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--text-2);
+		font-family: var(--font-mono, monospace);
+	}
+
+	.obs-url-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.obs-url-row .qr-url {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.copy-btn {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border-radius: var(--r-sm);
+		border: 1px solid var(--border-1);
+		background: var(--surface-3);
+		color: var(--text-3);
+		cursor: pointer;
+		transition:
+			background 0.12s ease,
+			color 0.12s ease,
+			border-color 0.12s ease;
+	}
+
+	.copy-btn:hover {
+		background: var(--surface-4, var(--surface-3));
+		color: var(--text-1);
 	}
 </style>
