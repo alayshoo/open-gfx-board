@@ -408,6 +408,10 @@
 		fillerSuppressed = false;
 		overlayActive = false;
 		fillerIsActive = false;
+		// Dismiss any locally-managed ad (filler/auto) that may still be
+		// visible.  triggerAd's coalescing queue ensures that if a new ad
+		// is triggered right after, the latest request wins.
+		triggerAd(null);
 	}
 
 	// ── Socket ─────────────────────────────────────────────────────────────────
@@ -426,8 +430,9 @@
 
 			// Restore whatever is currently live so a page load / reconnect is not blank
 			if (data.activeOverlay) {
-				overlayActive = true;
-				fillerSuppressed = true;
+				const allowAds = data.activeOverlay.allowAds ?? false;
+				overlayActive = !allowAds;
+				fillerSuppressed = !allowAds;
 				const rawPath = data.activeOverlay.graphicPath ?? null;
 				const url = rawPath ? imgUrl(rawPath) : null;
 				const type = getType(rawPath);
@@ -483,10 +488,20 @@
 			const type = getType(rawPath);
 			if (url) preload(url, type);
 			show(url, type);
-			overlayActive = true;
-			fillerSuppressed = true;
-			stopFillers();
-			triggerAd(null); // hide any active ad when a graphic overlay takes over
+
+			const allowAds = data.allowAds ?? false;
+			overlayActive = !allowAds;
+
+			if (!allowAds) {
+				// Overlay does not allow ads – suppress everything
+				fillerSuppressed = true;
+				stopFillers();
+				triggerAd(null);
+			} else {
+				// Overlay allows ads – let fillers / auto ads keep running
+				fillerSuppressed = false;
+				startFillersIfNeeded();
+			}
 		}
 
 		function onOverlayDeactivated(data: any) {
