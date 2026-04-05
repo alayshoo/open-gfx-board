@@ -17,12 +17,8 @@
 
     :root {
       --bg: #09090b;
-      --surface-1: #111114;
-      --border-1: #27272f;
       --text-1: #f4f4f5;
-      --text-2: #a1a1aa;
       --text-3: #52525b;
-      --accent: #38bdf8;
       --r-lg: 12px;
     }
 
@@ -42,10 +38,6 @@
       justify-content: center;
       gap: 20px;
       padding: 32px;
-    }
-
-    .icon-wrap {
-      position: relative;
     }
 
     .icon {
@@ -77,35 +69,6 @@
       max-width: 260px;
       line-height: 1.5;
     }
-
-    .divider {
-      width: 40px;
-      height: 1px;
-      background: var(--border-1);
-    }
-
-    .loading-bar-track {
-      width: 160px;
-      height: 2px;
-      background: var(--border-1);
-      border-radius: 1px;
-      overflow: hidden;
-    }
-
-    .loading-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      border-radius: 1px;
-      animation: load 2s ease-out forwards;
-    }
-
-    @keyframes load {
-      0%   { width: 0%; }
-      60%  { width: 75%; }
-      85%  { width: 88%; }
-      100% { width: 95%; }
-    }
   </style>
 </head>
 <body>
@@ -113,10 +76,6 @@
   <div class="app-info">
     <span class="app-name">Open GFX Board</span>
     <span class="app-desc">Developed by Alayshoo</span>
-  </div>
-  <div class="divider"></div>
-  <div class="loading-bar-track">
-    <div class="loading-bar-fill"></div>
   </div>
 </body>
 </html>

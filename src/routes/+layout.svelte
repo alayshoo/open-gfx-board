@@ -14,6 +14,15 @@
 	const SPLASH_MIN_MS = 2000;
 
 	onMount(async () => {
+		if (import.meta.env.PROD) {
+			document.addEventListener('contextmenu', (e) => e.preventDefault());
+			document.addEventListener('keydown', (e) => {
+				if ((e.ctrlKey && e.shiftKey && e.key === 'I') || e.key === 'F12') {
+					e.preventDefault();
+				}
+			});
+		}
+
 		if (!IS_TAURI) return;
 		const { invoke } = await import('@tauri-apps/api/core');
 		const elapsed = performance.now();
