@@ -12,10 +12,23 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Open GFX Board",
         "width": 1200,
         "height": 800,
         "decorations": false,
+        "backgroundColor": "#000000",
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Open GFX Board",
+        "width": 420,
+        "height": 300,
+        "decorations": false,
+        "center": true,
+        "resizable": false,
+        "url": "splashscreen.html",
         "backgroundColor": "#000000"
       }
     ],

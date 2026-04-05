@@ -7,8 +7,20 @@
 	import Toaster from '$lib/components/Toaster.svelte';
 	import TitleBar from '$lib/components/TitleBarTauri.svelte';
 	import { IS_TAURI } from '$lib/bridge';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	const SPLASH_MIN_MS = 2000;
+
+	onMount(async () => {
+		if (!IS_TAURI) return;
+		const { invoke } = await import('@tauri-apps/api/core');
+		const elapsed = performance.now();
+		const remaining = SPLASH_MIN_MS - elapsed;
+		if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+		await invoke('close_splashscreen');
+	});
 </script>
 
 {#if IS_TAURI}
