@@ -4,7 +4,7 @@
 	import { goto } from "$app/navigation";
 	import CmdPanel from "$lib/components/Cmd-Panel.svelte";
 	import ScreenSelector from "$lib/components/GraphicsSelector.svelte";
-	import AdLauncher from "$lib/components/AdLauncher.svelte";
+	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
 	import StatusDot from "$lib/components/StatusDot.svelte";
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
@@ -14,8 +14,8 @@
 		StudioState,
 		ObsCommand,
 		Graphic,
-		ProgramAd,
-		ActiveAd,
+		ProgramPopUp,
+		ActivePopUp,
 	} from "$lib/types";
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
     import { IS_TAURI } from "$lib/bridge";
@@ -27,17 +27,17 @@
 
 	let program = $state<Program | null>(null);
 	let activeGraphicId = $state<number | null>(null);
-	let activeAdId = $state<number | null>(null);
+	let activePopUpId = $state<number | null>(null);
 	let studioCommands = $state<ObsCommand[]>([]);
-	let isAdPlaying = $state(false);
-	let adEndTimer: ReturnType<typeof setTimeout> | null = null;
+	let isPopUpPlaying = $state(false);
+	let popupEndTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const graphics = $derived<Graphic[]>(program?.graphics ?? []);
-	const programAds = $derived<ProgramAd[]>(program?.program_ads ?? []);
-	const allowAdsMode = $derived(
+	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
+	const allowPopUpsMode = $derived(
 		activeGraphicId !== null &&
 			(program?.graphics.find((g) => g.id === activeGraphicId)
-				?.allow_ads ??
+				?.allow_popups ??
 				false),
 	);
 	const logoUrl = $derived(imgUrl(program?.logo_path));
@@ -56,12 +56,12 @@
 			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
-			if (data.activeAd) {
-				isAdPlaying = true;
-				activeAdId = data.activeAd.adId;
+			if (data.activePopUp) {
+				isPopUpPlaying = true;
+				activePopUpId = data.activePopUp.popupId;
 			} else {
-				isAdPlaying = false;
-				activeAdId = null;
+				isPopUpPlaying = false;
+				activePopUpId = null;
 			}
 		}
 
@@ -69,8 +69,8 @@
 			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
-			isAdPlaying = false;
-			activeAdId = null;
+			isPopUpPlaying = false;
+			activePopUpId = null;
 
 			// Auto-activate first graphic if no overlay is active and program has graphics
 			if (
@@ -86,8 +86,8 @@
 			if (data.studioId !== studioId) return;
 			program = null;
 			activeGraphicId = null;
-			isAdPlaying = false;
-			activeAdId = null;
+			isPopUpPlaying = false;
+			activePopUpId = null;
 		}
 
 		function onOverlayActivated(data: any) {
@@ -100,16 +100,16 @@
 			activeGraphicId = null;
 		}
 
-		function onAdStarted(data: any) {
+		function onPopUpStarted(data: any) {
 			if (data.studioId !== studioId) return;
-			isAdPlaying = true;
-			activeAdId = data.adId;
+			isPopUpPlaying = true;
+			activePopUpId = data.popupId;
 		}
 
-		function onAdEnded(data: any) {
+		function onPopUpEnded(data: any) {
 			if (data.studioId !== studioId) return;
-			isAdPlaying = false;
-			activeAdId = null;
+			isPopUpPlaying = false;
+			activePopUpId = null;
 		}
 
 		// ── Data-change listeners ─────────────────
@@ -145,9 +145,9 @@
 		socket.on("program-cleared", onProgramCleared);
 		socket.on("overlay-activated", onOverlayActivated);
 		socket.on("overlay-deactivated", onOverlayDeactivated);
-		socket.on("ad-started", onAdStarted);
-		socket.on("ad-ended", onAdEnded);
-		socket.on("update-ads", onUpdateData);
+		socket.on("popup-started", onPopUpStarted);
+		socket.on("popup-ended", onPopUpEnded);
+		socket.on("update-popups", onUpdateData);
 		socket.on("update-programs", onUpdateData);
 		socket.on("update-screens", onUpdateData);
 		socket.on("update-studios", onUpdateStudios);
@@ -161,14 +161,14 @@
 			socket.off("program-cleared", onProgramCleared);
 			socket.off("overlay-activated", onOverlayActivated);
 			socket.off("overlay-deactivated", onOverlayDeactivated);
-			socket.off("ad-started", onAdStarted);
-			socket.off("ad-ended", onAdEnded);
-			socket.off("update-ads", onUpdateData);
+			socket.off("popup-started", onPopUpStarted);
+			socket.off("popup-ended", onPopUpEnded);
+			socket.off("update-popups", onUpdateData);
 			socket.off("update-programs", onUpdateData);
 			socket.off("update-screens", onUpdateData);
 			socket.off("update-studios", onUpdateStudios);
 			socket.emit("leave-studio-room", { studioId });
-			if (adEndTimer) clearTimeout(adEndTimer);
+			if (popupEndTimer) clearTimeout(popupEndTimer);
 		};
 	});
 
@@ -182,34 +182,34 @@
 				programId: program!.id,
 				graphicId: graphic.id,
 				graphicPath: graphic.graphics_path,
-				allowAds: graphic.allow_ads,
+				allowPopUps: graphic.allow_popups,
 			});
 		}
 	}
 
-	function triggerAd(pa: ProgramAd) {
-		if (adEndTimer) {
-			clearTimeout(adEndTimer);
-			adEndTimer = null;
+	function triggerPopUp(pa: ProgramPopUp) {
+		if (popupEndTimer) {
+			clearTimeout(popupEndTimer);
+			popupEndTimer = null;
 		}
 
-		if (activeAdId === pa.ad_id) {
-			// Clicking the active ad stops it early
-			socket.emit("end-ad", { studioId });
+		if (activePopUpId === pa.popup_id) {
+			// Clicking the active pop-up stops it early
+			socket.emit("end-popup", { studioId });
 		} else {
-				// Only send adId + duration — the server fetches image_path,
+			// Only send popupId + duration — the server fetches image_path,
 			// direction, and position fresh from the database so that recent
 			// edits are always reflected regardless of which controller fires.
-			socket.emit("trigger-ad", {
+			socket.emit("trigger-popup", {
 				studioId,
 				programId: program!.id,
-				adId: pa.ad_id,
+				popupId: pa.popup_id,
 				duration: pa.duration,
 			});
-			// Auto-end after the ad's duration has elapsed
-			adEndTimer = setTimeout(() => {
-				socket.emit("end-ad", { studioId });
-				adEndTimer = null;
+			// Auto-end after the pop-up's duration has elapsed
+			popupEndTimer = setTimeout(() => {
+				socket.emit("end-popup", { studioId });
+				popupEndTimer = null;
 			}, pa.duration * 1000);
 		}
 	}
@@ -316,13 +316,13 @@
 			/>
 		</section>
 
-		<!-- Ads -->
-		<section class="panel-section ad-section">
-			<AdLauncher
-				{programAds}
-				{activeAdId}
-				{allowAdsMode}
-				onTrigger={triggerAd}
+		<!-- PopUps -->
+		<section class="panel-section popup-section">
+			<PopUpLauncher
+				{programPopUps}
+				{activePopUpId}
+				{allowPopUpsMode}
+				onTrigger={triggerPopUp}
 			/>
 		</section>
 	</div>

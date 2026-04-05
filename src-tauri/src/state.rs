@@ -8,13 +8,13 @@ pub struct StudioRuntimeState {
     // Active overlay
     pub active_screen_id: Option<i64>,
     pub active_screen_path: Option<String>,
-    pub active_screen_allow_ads: bool,
-    // Active ad
-    pub active_ad_id: Option<i64>,
-    pub active_ad_path: Option<String>,
-    pub active_ad_duration: i64,
-    pub active_ad_direction: Option<String>,
-    pub active_ad_position: Option<i64>,
+    pub active_screen_allow_popups: bool,
+    // Active popup
+    pub active_popup_id: Option<i64>,
+    pub active_popup_path: Option<String>,
+    pub active_popup_duration: i64,
+    pub active_popup_direction: Option<String>,
+    pub active_popup_position: Option<i64>,
 }
 
 #[derive(Clone)]

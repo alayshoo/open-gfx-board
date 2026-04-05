@@ -3,13 +3,13 @@
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import ImageUpload from '$lib/components/ImageUpload.svelte';
 	import { socket } from '$lib/api/socket';
-	import { fetchAdvertisements, imgUrl } from '$lib/api/api';
+	import { fetchPopUps, imgUrl } from '$lib/api/api';
 	import { addToast } from '$lib/toasts';
-	import type { Advertisement } from '$lib/types';
+	import type { PopUp } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl, IS_TAURI } from '$lib/bridge';
 
-	let ads = $state<Advertisement[]>([]);
+	let popups = $state<PopUp[]>([]);
 	let saving = $state(false);
 
 	// Selection state
@@ -29,39 +29,39 @@
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
 
 	onMount(() => {
-		fetchAdvertisements().then((data) => { ads = data; });
+		fetchPopUps().then((data) => { popups = data; });
 
-		socket.on('ad-created', (data: any) => {
+		socket.on('popup-created', (data: any) => {
 			if (data.success) {
 				// Deduplicate: direct HTTP update may have already added it
-				if (!ads.some((a) => a.id === data.ad.id)) {
-					ads = [...ads, data.ad];
+				if (!popups.some((p) => p.id === data.popup.id)) {
+					popups = [...popups, data.popup];
 				}
-				addToast('success', 'Ad created.');
+				addToast('success', 'PopUp created.');
 				// Auto-select only if not already done by the HTTP handler
-				if (selectedId !== data.ad.id) {
+				if (selectedId !== data.popup.id) {
 					isCreatingNew = false;
-					selectedId = data.ad.id;
-					editId = data.ad.id;
-					editImagePath = data.ad.image_path;
+					selectedId = data.popup.id;
+					editId = data.popup.id;
+					editImagePath = data.popup.image_path;
 				}
 			}
 		});
 
-		socket.on('ad-updated', (data: any) => {
+		socket.on('popup-updated', (data: any) => {
 			if (data.success) {
-				ads = ads.map((a) => (a.id === data.ad.id ? data.ad : a));
-				addToast('success', 'Ad saved.');
-				if (selectedId === data.ad.id) {
-					editImagePath = data.ad.image_path;
+				popups = popups.map((p) => (p.id === data.popup.id ? data.popup : p));
+				addToast('success', 'PopUp saved.');
+				if (selectedId === data.popup.id) {
+					editImagePath = data.popup.image_path;
 				}
 			}
 		});
 
-		socket.on('ad-deleted', (data: any) => {
+		socket.on('popup-deleted', (data: any) => {
 			if (data.success) {
-				ads = ads.filter((a) => a.id !== data.id);
-				addToast('success', 'Ad deleted.');
+				popups = popups.filter((p) => p.id !== data.id);
+				addToast('success', 'PopUp deleted.');
 				if (selectedId === data.id) {
 					selectedId = null;
 					isCreatingNew = false;
@@ -69,15 +69,15 @@
 			}
 		});
 
-		socket.on('update-ads', () => {
-			fetchAdvertisements().then((data) => { ads = data; });
+		socket.on('update-popups', () => {
+			fetchPopUps().then((data) => { popups = data; });
 		});
 
 		return () => {
-			socket.off('ad-created');
-			socket.off('ad-updated');
-			socket.off('ad-deleted');
-			socket.off('update-ads');
+			socket.off('popup-created');
+			socket.off('popup-updated');
+			socket.off('popup-deleted');
+			socket.off('update-popups');
 		};
 	});
 
@@ -93,36 +93,36 @@
 		editPosition = 50;
 	}
 
-	function selectAd(ad: Advertisement) {
+	function selectPopUp(popup: PopUp) {
 		isCreatingNew = false;
-		selectedId = ad.id;
-		editId = ad.id;
-		editName = ad.name;
-		editSponsor = ad.sponsor_name ?? '';
-		editComments = ad.comments ?? '';
-		editImagePath = ad.image_path;
-		editDirection = (ad.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
-		editPosition = ad.position ?? 50;
+		selectedId = popup.id;
+		editId = popup.id;
+		editName = popup.name;
+		editSponsor = popup.sponsor_name ?? '';
+		editComments = popup.comments ?? '';
+		editImagePath = popup.image_path;
+		editDirection = (popup.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
+		editPosition = popup.position ?? 50;
 	}
 
-	async function deleteCurrentAd() {
-		const ad = ads.find((a) => a.id === selectedId);
-		if (!ad) return;
-		if (!confirm(`Delete ad "${ad.name}"?`)) return;
-		const res = await fetch(`${getBackendUrl()}/advertisements/${ad.id}`, { method: 'DELETE' });
+	async function deleteCurrentPopUp() {
+		const popup = popups.find((p) => p.id === selectedId);
+		if (!popup) return;
+		if (!confirm(`Delete pop-up "${popup.name}"?`)) return;
+		const res = await fetch(`${getBackendUrl()}/popups/${popup.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
 	}
 
 	async function save() {
 		if (!editName.trim()) {
-			addToast('error', 'Ad name is required.');
+			addToast('error', 'PopUp name is required.');
 			return;
 		}
 		saving = true;
 		try {
 			if (isNew) {
-				const res = await fetch(`${getBackendUrl()}/advertisements`, {
+				const res = await fetch(`${getBackendUrl()}/popups`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -135,18 +135,18 @@
 				});
 				const data = await res.json();
 				if (data.success) {
-					// Update list and auto-select the new ad immediately
-					ads = [...ads, data.ad];
+					// Update list and auto-select the new popup immediately
+					popups = [...popups, data.popup];
 					isCreatingNew = false;
-					selectedId = data.ad.id;
-					editId = data.ad.id;
-					editImagePath = data.ad.image_path;
+					selectedId = data.popup.id;
+					editId = data.popup.id;
+					editImagePath = data.popup.image_path;
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
-				// socket 'ad-created' event deduplicates if also received
+				// socket 'popup-created' event deduplicates if also received
 			} else {
-				const res = await fetch(`${getBackendUrl()}/advertisements/${editId}`, {
+				const res = await fetch(`${getBackendUrl()}/popups/${editId}`, {
 					method: 'PUT',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -178,8 +178,8 @@
 		<aside class="sidebar">
 			<div class="sidebar-header">
 				<span class="sidebar-title">
-					Advertisements
-					<span class="badge">{ads.length}</span>
+					PopUps
+					<span class="badge">{popups.length}</span>
 				</span>
 				<button class="btn btn-primary btn-sm" onclick={openNew}>
 					<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -195,34 +195,34 @@
 							<div class="item-thumb item-thumb-empty">—</div>
 						</div>
 						<div class="item-info">
-							<span class="item-name">New Ad…</span>
+							<span class="item-name">New PopUp…</span>
 						</div>
 					</div>
 				{/if}
-				{#each ads as ad (ad.id)}
+				{#each popups as popup (popup.id)}
 					<button
 						class="sidebar-item"
-						class:selected={selectedId === ad.id}
-						onclick={() => selectAd(ad)}
+						class:selected={selectedId === popup.id}
+						onclick={() => selectPopUp(popup)}
 					>
 						<div class="item-thumb-wrap">
-							{#if ad.image_path}
-								<MediaPreview class="item-thumb-img" src={imgUrl(ad.image_path)} alt={ad.name} />
+							{#if popup.image_path}
+								<MediaPreview class="item-thumb-img" src={imgUrl(popup.image_path)} alt={popup.name} />
 							{:else}
 								<div class="item-thumb item-thumb-empty">—</div>
 							{/if}
 						</div>
 						<div class="item-info">
-							<span class="item-name">{ad.name}</span>
+							<span class="item-name">{popup.name}</span>
 							<span class="item-meta">
-								{ad.sponsor_name || 'No sponsor'}
-								{#if ad.programs?.length}· {ad.programs.length} program{ad.programs.length !== 1 ? 's' : ''}{/if}
+								{popup.sponsor_name || 'No sponsor'}
+								{#if popup.programs?.length}· {popup.programs.length} program{popup.programs.length !== 1 ? 's' : ''}{/if}
 							</span>
 						</div>
 					</button>
 				{:else}
 					{#if !isCreatingNew}
-						<div class="sidebar-empty">No ads yet.<br/>Click "New" to get started.</div>
+						<div class="sidebar-empty">No pop-ups yet.<br/>Click "New" to get started.</div>
 					{/if}
 				{/each}
 			</div>
@@ -234,20 +234,20 @@
 				<div class="editor-panel">
 					<div class="panel-header">
 						<div class="panel-title-area">
-							<h1 class="panel-title">{isNew ? 'New Advertisement' : (editName || 'Untitled')}</h1>
+							<h1 class="panel-title">{isNew ? 'New PopUp' : (editName || 'Untitled')}</h1>
 							{#if !isNew}
 								<span class="panel-id">ID #{editId}</span>
 							{/if}
 						</div>
 						<div class="panel-actions">
 							{#if !isNew}
-								<button class="btn btn-danger btn-sm" onclick={deleteCurrentAd}>Delete</button>
+								<button class="btn btn-danger btn-sm" onclick={deleteCurrentPopUp}>Delete</button>
 							{/if}
 							<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
 								Cancel
 							</button>
 							<button class="btn btn-primary" onclick={save} disabled={saving}>
-								{saving ? 'Saving…' : isNew ? 'Create Ad' : 'Save Changes'}
+								{saving ? 'Saving…' : isNew ? 'Create PopUp' : 'Save Changes'}
 							</button>
 						</div>
 					</div>
@@ -255,8 +255,8 @@
 					<div class="form-body">
 						<div class="form-grid">
 							<div class="field-group">
-								<label class="field-label" for="ad-name">Ad Name</label>
-								<input id="ad-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Summer Campaign" />
+								<label class="field-label" for="popup-name">PopUp Name</label>
+								<input id="popup-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Summer Campaign" />
 							</div>
 
 							<div class="field-group">
@@ -270,8 +270,8 @@
 							</div>
 
 							<div class="field-group">
-								<label class="field-label" for="ad-direction">Slide-in Direction</label>
-								<select id="ad-direction" class="form-input form-select" bind:value={editDirection}>
+								<label class="field-label" for="popup-direction">Slide-in Direction</label>
+								<select id="popup-direction" class="form-input form-select" bind:value={editDirection}>
 									<option value="bottom">Bottom → Up</option>
 									<option value="top">Top → Down</option>
 									<option value="left">Left → Right</option>
@@ -280,12 +280,12 @@
 							</div>
 
 							<div class="field-group">
-								<label class="field-label" for="ad-position">
+								<label class="field-label" for="popup-position">
 									Position along edge <span class="field-hint">({editPosition}%)</span>
 								</label>
 								<div class="position-row">
 									<input
-										id="ad-position"
+										id="popup-position"
 										class="form-input position-number"
 										type="number"
 										min="0"
@@ -305,10 +305,10 @@
 
 						{#if !isNew}
 							<div class="field-group">
-								<span class="field-label">Ad Image / Media</span>
+								<span class="field-label">PopUp Image / Media</span>
 								<ImageUpload
-									inputId="ad-image-upload"
-									endpoint="/advertisements/upload-image"
+									inputId="popup-image-upload"
+									endpoint="/popups/upload-image"
 									id={editId!}
 									currentPath={editImagePath}
 									onuploaded={(path) => { editImagePath = path; }}
@@ -324,12 +324,12 @@
 								</div>
 							{/if}
 
-							{#if ads.find(a => a.id === editId)?.programs?.length}
-								{@const currentAd = ads.find(a => a.id === editId)!}
+							{#if popups.find(p => p.id === editId)?.programs?.length}
+								{@const currentPopUp = popups.find(p => p.id === editId)!}
 								<div class="field-group">
 									<span class="field-label">Used in Programs</span>
 									<div class="prog-pills">
-										{#each currentAd.programs as p}
+										{#each currentPopUp.programs as p}
 											<span class="prog-pill">{p.name}</span>
 										{/each}
 									</div>
@@ -343,13 +343,13 @@
 					<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" class="empty-icon">
 						<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/>
 					</svg>
-					<p class="empty-title">No ad selected</p>
-					<p class="empty-hint">Pick an ad from the sidebar, or create a new one.</p>
+					<p class="empty-title">No pop-up selected</p>
+					<p class="empty-hint">Pick a pop-up from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNew}>
 						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 							<path d="M12 5v14M5 12h14"/>
 						</svg>
-						New Ad
+						New PopUp
 					</button>
 				</div>
 			{/if}

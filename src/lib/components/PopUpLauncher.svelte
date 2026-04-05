@@ -1,21 +1,21 @@
 <script lang="ts">
-	import type { ProgramAd } from "$lib/types";
+	import type { ProgramPopUp } from "$lib/types";
 	import { onMount } from "svelte";
 
 	let {
-		programAds = [],
-		activeAdId = null,
-		allowAdsMode = false,
+		programPopUps = [],
+		activePopUpId = null,
+		allowPopUpsMode = false,
 		onTrigger,
 	}: {
-		programAds?: ProgramAd[];
-		activeAdId?: number | null;
-		allowAdsMode?: boolean;
-		onTrigger?: (ad: ProgramAd) => void;
+		programPopUps?: ProgramPopUp[];
+		activePopUpId?: number | null;
+		allowPopUpsMode?: boolean;
+		onTrigger?: (popup: ProgramPopUp) => void;
 	} = $props();
 
-	const manualAds = $derived(
-		programAds.filter((pa) => pa.ad_launch_type === "manual"),
+	const manualPopUps = $derived(
+		programPopUps.filter((pa) => pa.popup_launch_type === "manual"),
 	);
 
 	let container: HTMLDivElement;
@@ -23,7 +23,7 @@
 
 	function computeGrid() {
 		if (!container) return;
-		const N = manualAds.length;
+		const N = manualPopUps.length;
 		if (N === 0) return;
 		const W = container.clientWidth;
 		const targetH = window.innerWidth < 768 ? 90 : 140; // Target height for balanced buttons
@@ -49,52 +49,52 @@
 	});
 
 	$effect(() => {
-		// recompute when manualAds change
-		manualAds;
+		// recompute when manualPopUps change
+		manualPopUps;
 		computeGrid();
 	});
 </script>
 
-<div class="ad-launcher">
+<div class="popup-launcher">
 	<div class="panel-header">
-		<span class="panel-label">Ads</span>
-		<span class="count">{manualAds.length}</span>
+		<span class="panel-label">PopUps</span>
+		<span class="count">{manualPopUps.length}</span>
 	</div>
 	<div
 		class="grid"
 		bind:this={container}
 		style="grid-template-columns: repeat({cols}, 1fr)"
 	>
-		{#each manualAds as pa (pa.id)}
+		{#each manualPopUps as pa (pa.id)}
 			<button
-				class="ad-btn"
-				class:active={activeAdId === pa.ad_id}
-				disabled={!allowAdsMode}
+				class="popup-btn"
+				class:active={activePopUpId === pa.popup_id}
+				disabled={!allowPopUpsMode}
 				onclick={() => onTrigger?.(pa)}
-				title={pa.ad?.name}
+				title={pa.popup?.name}
 			>
-				<div class="ad-sec-info">
-					<span class="ad-dur">{pa.duration}s</span>
-					{#if pa.ad?.sponsor_name}
-						<span class="ad-sponsor">{pa.ad.sponsor_name}</span>
+				<div class="popup-sec-info">
+					<span class="popup-dur">{pa.duration}s</span>
+					{#if pa.popup?.sponsor_name}
+						<span class="popup-sponsor">{pa.popup.sponsor_name}</span>
 					{/if}
 				</div>
 				<div style="height: 10px;"></div>
-				<div class="ad-info">
-					<span class="ad-name">{pa.ad?.name}</span>
+				<div class="popup-info">
+					<span class="popup-name">{pa.popup?.name}</span>
 				</div>
-				{#if activeAdId === pa.ad_id}
+				{#if activePopUpId === pa.popup_id}
 					<span class="live-pip"></span>
 				{/if}
 			</button>
 		{:else}
-			<div class="empty-state">No manual ads</div>
+			<div class="empty-state">No manual pop-ups</div>
 		{/each}
 	</div>
 </div>
 
 <style>
-	.ad-launcher {
+	.popup-launcher {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
@@ -133,7 +133,7 @@
 		padding-right: 10px;
 	}
 
-	.ad-btn {
+	.popup-btn {
 		position: relative;
 		display: flex;
 		flex-direction: column;
@@ -151,23 +151,23 @@
 	}
 
 	@media (max-width: 767px) {
-		.ad-btn {
+		.popup-btn {
 			min-height: 90px;
 		}
 	}
 
-	.ad-btn:not(:disabled):hover {
+	.popup-btn:not(:disabled):hover {
 		background: var(--surface-3);
 		border-color: var(--border-2);
 	}
 
-	.ad-btn.active {
+	.popup-btn.active {
 		background: var(--warn-dim);
 		border-color: var(--warn);
 		box-shadow: inset 0 0 0 1px var(--warn);
 	}
 
-	.ad-btn:disabled {
+	.popup-btn:disabled {
 		opacity: 0.5;
 		filter: grayscale(1);
 		cursor: not-allowed;
@@ -175,12 +175,12 @@
 		border-color: var(--border-1);
 	}
 
-	.ad-info {
+	.popup-info {
 		display: flex;
 		flex-direction: column;
 	}
 
-	.ad-name {
+	.popup-name {
 		font-size: clamp(1rem, 12cqi, 3rem);
 		font-weight: 500;
 		color: var(--text-1);
@@ -188,11 +188,11 @@
 		word-break: break-word;
 	}
 
-	.active .ad-name {
+	.active .popup-name {
 		color: var(--warn);
 	}
 
-	.ad-sec-info {
+	.popup-sec-info {
 		display: flex;
 		flex-direction: row;
 		width: calc(100% - 16px);
@@ -201,7 +201,7 @@
 		font-size: 11px;
 	}
 
-	.ad-sponsor {
+	.popup-sponsor {
 		color: var(--text-3);
 		font-weight: 500;
 		text-transform: uppercase;
@@ -211,7 +211,7 @@
 		text-overflow: ellipsis;
 	}
 
-	.ad-dur {
+	.popup-dur {
 		color: var(--warn);
 		background: var(--warn-dim);
 		padding: 2px 6px;

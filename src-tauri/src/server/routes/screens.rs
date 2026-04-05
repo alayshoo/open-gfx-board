@@ -31,7 +31,7 @@ async fn list_screens(State(state): State<AppState>) -> impl IntoResponse {
 struct CreateScreenBody {
     name: String,
     comments: Option<String>,
-    allow_ads: Option<bool>,
+    allow_popups: Option<bool>,
     media_type: Option<String>,
 }
 
@@ -41,9 +41,9 @@ async fn create_screen(
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
     let comments = body.comments.as_deref().unwrap_or("");
-    let allow_ads = body.allow_ads.unwrap_or(true);
+    let allow_popups = body.allow_popups.unwrap_or(true);
     let media_type = body.media_type.as_deref().unwrap_or("image");
-    match tokio::task::block_in_place(|| crate::db::screens::create_screen(&db, &body.name, comments, allow_ads, media_type)) {
+    match tokio::task::block_in_place(|| crate::db::screens::create_screen(&db, &body.name, comments, allow_popups, media_type)) {
         Ok(screen) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
@@ -62,7 +62,7 @@ async fn create_screen(
 struct UpdateScreenBody {
     name: String,
     comments: Option<String>,
-    allow_ads: Option<bool>,
+    allow_popups: Option<bool>,
     media_type: Option<String>,
 }
 
@@ -73,9 +73,9 @@ async fn update_screen(
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
     let comments = body.comments.as_deref().unwrap_or("");
-    let allow_ads = body.allow_ads.unwrap_or(true);
+    let allow_popups = body.allow_popups.unwrap_or(true);
     let media_type = body.media_type.as_deref().unwrap_or("image");
-    match tokio::task::block_in_place(|| crate::db::screens::update_screen(&db, id, &body.name, comments, allow_ads, media_type)) {
+    match tokio::task::block_in_place(|| crate::db::screens::update_screen(&db, id, &body.name, comments, allow_popups, media_type)) {
         Ok(Some(screen)) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());

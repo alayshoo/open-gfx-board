@@ -12,23 +12,23 @@ use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_ads))
-        .route("/", post(create_ad))
-        .route("/upload-image", post(upload_ad_image))
-        .route("/{id}", put(update_ad))
-        .route("/{id}", delete(delete_ad))
+        .route("/", get(list_popups))
+        .route("/", post(create_popup))
+        .route("/upload-image", post(upload_popup_image))
+        .route("/{id}", put(update_popup))
+        .route("/{id}", delete(delete_popup))
 }
 
-async fn list_ads(State(state): State<AppState>) -> impl IntoResponse {
+async fn list_popups(State(state): State<AppState>) -> impl IntoResponse {
     let db = state.db.lock().await;
-    match tokio::task::block_in_place(|| crate::db::advertisements::get_all_ads(&db)) {
-        Ok(ads) => Json(json!({ "ads": ads })).into_response(),
+    match tokio::task::block_in_place(|| crate::db::popups::get_all_popups(&db)) {
+        Ok(popups) => Json(json!({ "popups": popups })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }
 
 #[derive(Deserialize)]
-struct CreateAdBody {
+struct CreatePopupBody {
     name: String,
     sponsor_name: Option<String>,
     comments: Option<String>,
@@ -36,32 +36,32 @@ struct CreateAdBody {
     position: Option<i64>,
 }
 
-async fn create_ad(
+async fn create_popup(
     State(state): State<AppState>,
-    Json(body): Json<CreateAdBody>,
+    Json(body): Json<CreatePopupBody>,
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
     let position = body.position.unwrap_or(50);
-    match tokio::task::block_in_place(|| crate::db::advertisements::create_ad(&db, &body.name, sponsor, comments, direction, position)) {
-        Ok(ad) => {
+    match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position)) {
+        Ok(popup) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
-                    let _ = io.emit("ad-created", &json!({ "success": true, "ad": &ad })).await;
-                    let _ = io.emit("update-ads", &json!({})).await;
+                    let _ = io.emit("popup-created", &json!({ "success": true, "popup": &popup })).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
                 }
             }
-            Json(json!({ "success": true, "ad": ad })).into_response()
+            Json(json!({ "success": true, "popup": popup })).into_response()
         }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }
 
 #[derive(Deserialize)]
-struct UpdateAdBody {
+struct UpdatePopupBody {
     name: String,
     sponsor_name: Option<String>,
     comments: Option<String>,
@@ -69,60 +69,60 @@ struct UpdateAdBody {
     position: Option<i64>,
 }
 
-async fn update_ad(
+async fn update_popup(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(body): Json<UpdateAdBody>,
+    Json(body): Json<UpdatePopupBody>,
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
     let position = body.position.unwrap_or(50);
-    match tokio::task::block_in_place(|| crate::db::advertisements::update_ad(&db, id, &body.name, sponsor, comments, direction, position)) {
-        Ok(Some(ad)) => {
+    match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position)) {
+        Ok(Some(popup)) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
-                    let _ = io.emit("ad-updated", &json!({ "success": true, "ad": &ad })).await;
-                    let _ = io.emit("update-ads", &json!({})).await;
+                    let _ = io.emit("popup-updated", &json!({ "success": true, "popup": &popup })).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
                 }
             }
-            Json(json!({ "success": true, "ad": ad })).into_response()
+            Json(json!({ "success": true, "popup": popup })).into_response()
         }
-        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Ad not found" }))).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Popup not found" }))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }
 
-async fn delete_ad(
+async fn delete_popup(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
-    match tokio::task::block_in_place(|| crate::db::advertisements::delete_ad(&db, id)) {
+    match tokio::task::block_in_place(|| crate::db::popups::delete_popup(&db, id)) {
         Ok(true) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
-                    let _ = io.emit("ad-deleted", &json!({ "success": true, "id": id })).await;
-                    let _ = io.emit("update-ads", &json!({})).await;
+                    let _ = io.emit("popup-deleted", &json!({ "success": true, "id": id })).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "id": id })).into_response()
         }
-        Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Ad not found" }))).into_response(),
+        Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Popup not found" }))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }
 
-async fn upload_ad_image(
+async fn upload_popup_image(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut file_ext = "bin".to_string();
-    let mut ad_id: Option<i64> = None;
+    let mut popup_id: Option<i64> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let field_name = field.name().unwrap_or("").to_string();
@@ -134,7 +134,7 @@ async fn upload_ad_image(
             }
             "id" => {
                 if let Ok(val) = field.text().await {
-                    ad_id = val.parse().ok();
+                    popup_id = val.parse().ok();
                 }
             }
             _ => {}
@@ -144,11 +144,11 @@ async fn upload_ad_image(
     let Some(bytes) = file_bytes else {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No image provided" }))).into_response();
     };
-    let Some(id) = ad_id else {
+    let Some(id) = popup_id else {
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "No id provided" }))).into_response();
     };
 
-    let rel_dir = format!("media/advertisements/{id}");
+    let rel_dir = format!("media/popups/{id}");
     let abs_dir = state.app_data_dir.join(&rel_dir);
     if let Err(e) = tokio::fs::create_dir_all(&abs_dir).await {
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response();
@@ -163,12 +163,12 @@ async fn upload_ad_image(
     let rel_path = format!("{rel_dir}/{filename}");
     let db = state.db.lock().await;
     let rel_path_clone = rel_path.clone();
-    match tokio::task::block_in_place(|| crate::db::advertisements::set_media_path(&db, id, &rel_path_clone)) {
+    match tokio::task::block_in_place(|| crate::db::popups::set_media_path(&db, id, &rel_path_clone)) {
         Ok(_) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {
-                    let _ = io.emit("update-ads", &json!({})).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
                 }
             }
             Json(json!({ "success": true, "imagePath": rel_path })).into_response()

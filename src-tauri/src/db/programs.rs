@@ -1,10 +1,10 @@
 use anyhow::Result;
 use rusqlite::Connection;
-use crate::models::{Program, ProgramAd, Screen};
-use crate::db::advertisements::get_ad;
+use crate::models::{Program, ProgramPopup, Screen};
+use crate::db::popups::get_popup;
 
-pub struct ProgramAdInput {
-    pub ad_id: i64,
+pub struct ProgramPopupInput {
+    pub popup_id: i64,
     pub trigger_type: String,
     pub duration: i64,
     pub frequency: i64,
@@ -21,14 +21,14 @@ pub fn get_all_programs(conn: &Connection) -> Result<Vec<Program>> {
     let mut programs = Vec::new();
     for (id, name, logo_path, bg_path, created_at) in rows {
         let screens = load_screens_for_program(conn, id)?;
-        let program_ads = load_program_ads(conn, id)?;
+        let program_popups = load_program_popups(conn, id)?;
         programs.push(Program {
             id,
             name,
             logo_path,
             bg_path,
             screens,
-            program_ads,
+            program_popups,
             created_at,
         });
     }
@@ -50,14 +50,14 @@ pub fn get_program(conn: &Connection, id: i64) -> Result<Option<Program>> {
     match result {
         Ok((pid, name, logo_path, bg_path, created_at)) => {
             let screens = load_screens_for_program(conn, pid)?;
-            let program_ads = load_program_ads(conn, pid)?;
+            let program_popups = load_program_popups(conn, pid)?;
             Ok(Some(Program {
                 id: pid,
                 name,
                 logo_path,
                 bg_path,
                 screens,
-                program_ads,
+                program_popups,
                 created_at,
             }))
         }
@@ -82,7 +82,7 @@ pub fn update_program(
     logo_path: Option<&str>,
     bg_path: Option<&str>,
     screen_ids: &[i64],
-    ads: &[ProgramAdInput],
+    popups: &[ProgramPopupInput],
 ) -> Result<Option<Program>> {
     let exists: bool = conn.query_row(
         "SELECT COUNT(*) FROM programs WHERE id = ?1",
@@ -108,12 +108,12 @@ pub fn update_program(
         )?;
     }
 
-    // Replace program ads
-    conn.execute("DELETE FROM program_ads WHERE program_id = ?1", [id])?;
-    for ad in ads {
+    // Replace program popups
+    conn.execute("DELETE FROM program_popups WHERE program_id = ?1", [id])?;
+    for popup in popups {
         conn.execute(
-            "INSERT INTO program_ads (program_id, ad_id, trigger_type, duration, frequency) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![id, ad.ad_id, ad.trigger_type, ad.duration, ad.frequency],
+            "INSERT INTO program_popups (program_id, popup_id, trigger_type, duration, frequency) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, popup.popup_id, popup.trigger_type, popup.duration, popup.frequency],
         )?;
     }
 
@@ -127,47 +127,47 @@ pub fn delete_program(conn: &Connection, id: i64) -> Result<bool> {
 
 fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_ads, s.created_at
+        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups, s.created_at
          FROM screens s
          JOIN program_screens ps ON ps.screen_id = s.id
          WHERE ps.program_id = ?1
          ORDER BY ps.id"
     )?;
     let screens: Vec<Screen> = stmt.query_map([program_id], |row| {
-        let allow_ads_int: i64 = row.get(5)?;
+        let allow_popups_int: i64 = row.get(5)?;
         Ok(Screen {
             id: row.get(0)?,
             name: row.get(1)?,
             comments: row.get(2)?,
             media_path: row.get(3)?,
             media_type: row.get(4)?,
-            allow_ads: allow_ads_int != 0,
+            allow_popups: allow_popups_int != 0,
             created_at: row.get(6)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(screens)
 }
 
-fn load_program_ads(conn: &Connection, program_id: i64) -> Result<Vec<ProgramAd>> {
+fn load_program_popups(conn: &Connection, program_id: i64) -> Result<Vec<ProgramPopup>> {
     let mut stmt = conn.prepare(
-        "SELECT id, ad_id, trigger_type, duration, frequency FROM program_ads WHERE program_id = ?1 ORDER BY id"
+        "SELECT id, popup_id, trigger_type, duration, frequency FROM program_popups WHERE program_id = ?1 ORDER BY id"
     )?;
     let rows: Vec<(i64, i64, String, i64, i64)> = stmt.query_map([program_id], |row| {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
 
-    let mut program_ads = Vec::new();
-    for (pa_id, ad_id, trigger_type, duration, frequency) in rows {
-        let ad = get_ad(conn, ad_id)?;
-        program_ads.push(ProgramAd {
-            id: pa_id,
+    let mut program_popups = Vec::new();
+    for (pp_id, popup_id, trigger_type, duration, frequency) in rows {
+        let popup = get_popup(conn, popup_id)?;
+        program_popups.push(ProgramPopup {
+            id: pp_id,
             program_id,
-            ad_id,
+            popup_id,
             trigger_type,
             duration,
             frequency,
-            ad,
+            popup,
         });
     }
-    Ok(program_ads)
+    Ok(program_popups)
 }

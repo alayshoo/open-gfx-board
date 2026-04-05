@@ -3,7 +3,7 @@ export interface Screen {
 	graphics_name: string;
 	graphics_path: string | null;
 	media_type: string;
-	allow_ads: boolean;
+	allow_popups: boolean;
 	comments: string;
 	created_at: string;
 }
@@ -11,14 +11,14 @@ export interface Screen {
 // Graphic is an alias for Screen for backward compat
 export type Graphic = Screen;
 
-export interface ProgramAd {
+export interface ProgramPopUp {
 	id: number;
-	ad_id: number;
+	popup_id: number;
 	program_id: number;
-	ad_launch_type: 'automatic' | 'manual' | 'both' | 'filler';
+	popup_launch_type: 'automatic' | 'manual' | 'both' | 'filler';
 	duration: number;
 	frequency: number;
-	ad: Advertisement;
+	popup: PopUp;
 }
 
 export interface Program {
@@ -27,11 +27,11 @@ export interface Program {
 	logo_path: string | null;
 	background_graphics_path: string | null;
 	graphics: Screen[];
-	program_ads: ProgramAd[];
+	program_popups: ProgramPopUp[];
 	created_at: string;
 }
 
-export interface Advertisement {
+export interface PopUp {
 	id: number;
 	name: string;
 	sponsor_name: string;
@@ -73,11 +73,11 @@ export interface Studio {
 export interface ActiveOverlay {
 	graphicId: number;
 	graphicPath: string | null;
-	allowAds: boolean;
+	allowPopUps: boolean;
 }
 
-export interface ActiveAd {
-	adId: number;
+export interface ActivePopUp {
+	popupId: number;
 	imagePath: string | null;
 	duration: number;
 	direction: string;
@@ -89,7 +89,7 @@ export interface StudioState {
 	programId: number | null;
 	program: Program | null;
 	activeOverlay: ActiveOverlay | null;
-	activeAd: ActiveAd | null;
+	activePopUp: ActivePopUp | null;
 }
 
 export interface Toast {

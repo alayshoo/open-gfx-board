@@ -97,5 +97,16 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    if version < 3 {
+        conn.execute_batch(
+            "ALTER TABLE advertisements RENAME TO popups;
+             ALTER TABLE program_ads RENAME TO program_popups;
+             ALTER TABLE program_popups RENAME COLUMN ad_id TO popup_id;
+             ALTER TABLE studio_state RENAME COLUMN active_ad_id TO active_popup_id;
+             ALTER TABLE screens RENAME COLUMN allow_ads TO allow_popups;
+             INSERT INTO schema_version VALUES (3);",
+        )?;
+    }
+
     Ok(())
 }

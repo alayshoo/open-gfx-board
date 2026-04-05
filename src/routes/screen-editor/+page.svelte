@@ -19,7 +19,7 @@
 	let editId = $state<number | null>(null);
 	let editName = $state('');
 	let editComments = $state('');
-	let editAllowAds = $state(true);
+	let editAllowPopUps = $state(true);
 	let editMediaType = $state('image');
 	let editMediaPath = $state<string | null>(null);
 
@@ -45,7 +45,7 @@
 					editId = data.screen.id;
 					editName = data.screen.graphics_name;
 					editComments = data.screen.comments ?? '';
-					editAllowAds = data.screen.allow_ads;
+					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
 				}
@@ -59,7 +59,7 @@
 				if (selectedId === data.screen.id) {
 					editName = data.screen.graphics_name;
 					editComments = data.screen.comments ?? '';
-					editAllowAds = data.screen.allow_ads;
+					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
 				}
@@ -90,7 +90,7 @@
 		editId = null;
 		editName = '';
 		editComments = '';
-		editAllowAds = true;
+		editAllowPopUps = true;
 		editMediaType = 'image';
 		editMediaPath = null;
 	}
@@ -101,7 +101,7 @@
 		editId = s.id;
 		editName = s.graphics_name;
 		editComments = s.comments ?? '';
-		editAllowAds = s.allow_ads;
+		editAllowPopUps = s.allow_popups;
 		editMediaType = s.media_type;
 		editMediaPath = s.graphics_path;
 	}
@@ -129,7 +129,7 @@
 					body: JSON.stringify({
 						name: editName.trim(),
 						comments: editComments.trim(),
-						allow_ads: editAllowAds,
+						allow_popups: editAllowPopUps,
 						media_type: editMediaType,
 					}),
 				});
@@ -143,7 +143,7 @@
 					editId = data.screen.id;
 					editName = data.screen.graphics_name;
 					editComments = data.screen.comments ?? '';
-					editAllowAds = data.screen.allow_ads;
+					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
 				} else {
@@ -156,7 +156,7 @@
 					body: JSON.stringify({
 						name: editName.trim(),
 						comments: editComments.trim(),
-						allow_ads: editAllowAds,
+						allow_popups: editAllowPopUps,
 						media_type: editMediaType,
 					}),
 				});
@@ -237,7 +237,7 @@
 						</div>
 						<div class="item-info">
 							<span class="item-name">{s.graphics_name}</span>
-							<span class="item-meta">{s.media_type} · {s.allow_ads ? 'Ads' : 'No ads'}</span>
+							<span class="item-meta">{s.media_type} · {s.allow_popups ? 'PopUps' : 'No PopUps'}</span>
 						</div>
 					</button>
 				{:else}
@@ -295,13 +295,13 @@
 
 						<div class="field-group">
 							<div class="toggle-row">
-								<span class="field-label">Allow Ads</span>
+								<span class="field-label">Allow PopUps</span>
 								<label class="toggle">
-									<input type="checkbox" bind:checked={editAllowAds} aria-label="Allow ads on this screen" />
+									<input type="checkbox" bind:checked={editAllowPopUps} aria-label="Allow pop-ups on this screen" />
 									<span class="toggle-track"></span>
 								</label>
 							</div>
-							<p class="helper-text">When active, ads can appear on top of this screen.</p>
+							<p class="helper-text">When active, pop-ups can appear on top of this screen.</p>
 						</div>
 
 						{#if !isNew}

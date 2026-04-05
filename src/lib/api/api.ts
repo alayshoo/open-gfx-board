@@ -1,5 +1,5 @@
 import { getBackendUrl } from '$lib/bridge';
-import type { Program, Advertisement, Studio, Screen } from '../types';
+import type { Program, PopUp, Studio, Screen } from '../types';
 
 export function getBaseUrl() {
 	return getBackendUrl();
@@ -19,10 +19,10 @@ export async function fetchStudios(): Promise<Studio[]> {
 	return data.studios ?? [];
 }
 
-export async function fetchAdvertisements(): Promise<Advertisement[]> {
-	const res = await fetch(`${getBaseUrl()}/advertisements`);
+export async function fetchPopUps(): Promise<PopUp[]> {
+	const res = await fetch(`${getBaseUrl()}/popups`);
 	const data = await res.json();
-	return data.ads ?? [];
+	return data.popups ?? [];
 }
 
 export async function fetchScreens(): Promise<Screen[]> {

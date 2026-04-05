@@ -42,12 +42,12 @@ pub struct Screen {
     #[serde(rename = "graphics_path")]
     pub media_path: Option<String>,
     pub media_type: String,
-    pub allow_ads: bool,
+    pub allow_popups: bool,
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Advertisement {
+pub struct Popup {
     pub id: i64,
     pub name: String,
     pub sponsor_name: String,
@@ -57,26 +57,26 @@ pub struct Advertisement {
     pub media_type: String,
     pub direction: String,
     pub position: i64,
-    pub programs: Vec<AdProgram>,
+    pub programs: Vec<PopupProgram>,
     pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdProgram {
+pub struct PopupProgram {
     pub id: i64,
     pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProgramAd {
+pub struct ProgramPopup {
     pub id: i64,
     pub program_id: i64,
-    pub ad_id: i64,
-    #[serde(rename = "ad_launch_type")]
+    pub popup_id: i64,
+    #[serde(rename = "popup_launch_type")]
     pub trigger_type: String,
     pub duration: i64,
     pub frequency: i64,
-    pub ad: Option<Advertisement>,
+    pub popup: Option<Popup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,7 +88,7 @@ pub struct Program {
     pub bg_path: Option<String>,
     #[serde(rename = "graphics")]
     pub screens: Vec<Screen>,
-    pub program_ads: Vec<ProgramAd>,
+    pub program_popups: Vec<ProgramPopup>,
     pub created_at: String,
 }
 
@@ -101,8 +101,8 @@ pub struct StudioState {
     pub program: Option<Program>,
     #[serde(rename = "activeOverlay")]
     pub active_overlay: Option<ActiveOverlay>,
-    #[serde(rename = "activeAd")]
-    pub active_ad: Option<ActiveAd>,
+    #[serde(rename = "activePopup")]
+    pub active_popup: Option<ActivePopup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,14 +111,14 @@ pub struct ActiveOverlay {
     pub graphic_id: i64,
     #[serde(rename = "graphicPath")]
     pub graphic_path: Option<String>,
-    #[serde(rename = "allowAds")]
-    pub allow_ads: bool,
+    #[serde(rename = "allowPopups")]
+    pub allow_popups: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveAd {
-    #[serde(rename = "adId")]
-    pub ad_id: i64,
+pub struct ActivePopup {
+    #[serde(rename = "popupId")]
+    pub popup_id: i64,
     #[serde(rename = "imagePath")]
     pub image_path: Option<String>,
     pub duration: i64,

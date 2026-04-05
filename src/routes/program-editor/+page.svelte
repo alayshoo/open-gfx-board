@@ -3,18 +3,18 @@
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { socket } from '$lib/api/socket';
-	import { fetchPrograms, fetchAdvertisements, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
+	import { fetchPrograms, fetchPopUps, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
 	import { addToast } from '$lib/toasts';
-	import type { Program, Advertisement, Screen, ProgramAd } from '$lib/types';
+	import type { Program, PopUp, Screen, ProgramPopUp } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
-	let allAds = $state<Advertisement[]>([]);
+	let allPopUps = $state<PopUp[]>([]);
 	let allScreens = $state<Screen[]>([]);
-	let addAdModalOpen = $state(false);
+	let addPopUpModalOpen = $state(false);
 	let addScreenModalOpen = $state(false);
 
 	// Selection state
@@ -27,7 +27,7 @@
 	let editLogoPath = $state<string | null>(null);
 	let editBgPath = $state<string | null>(null);
 	let editScreenIds = $state<number[]>([]);
-	let editProgramAds = $state<ProgramAd[]>([]);
+	let editProgramPopUps = $state<ProgramPopUp[]>([]);
 
 	let saving = $state(false);
 
@@ -40,9 +40,9 @@
 
 	/* ─── Lifecycle ──────────────────────────────────────────── */
 	onMount(() => {
-		Promise.all([fetchPrograms(), fetchAdvertisements(), fetchScreens()]).then(([p, a, s]) => {
+		Promise.all([fetchPrograms(), fetchPopUps(), fetchScreens()]).then(([p, a, s]) => {
 			programs = p;
-			allAds = a;
+			allPopUps = a;
 			allScreens = s;
 		});
 
@@ -61,7 +61,7 @@
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
 					editScreenIds = [];
-					editProgramAds = [];
+					editProgramPopUps = [];
 				}
 			}
 		});
@@ -105,7 +105,7 @@
 		editLogoPath = null;
 		editBgPath = null;
 		editScreenIds = [];
-		editProgramAds = [];
+		editProgramPopUps = [];
 	}
 
 	function selectProgram(p: Program) {
@@ -116,7 +116,7 @@
 		editLogoPath = p.logo_path;
 		editBgPath = p.background_graphics_path;
 		editScreenIds = p.graphics.map((g) => g.id);
-		editProgramAds = p.program_ads.map((pa) => ({ ...pa }));
+		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
 	}
 
 	/* ─── Program CRUD ───────────────────────────────────────── */
@@ -154,7 +154,7 @@
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
 					editScreenIds = [];
-					editProgramAds = [];
+					editProgramPopUps = [];
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -167,9 +167,9 @@
 						logo_path: editLogoPath,
 						background_graphics_path: editBgPath,
 						screen_ids: editScreenIds,
-						ads: editProgramAds.map((pa) => ({
-							ad_id: pa.ad_id,
-							ad_launch_type: pa.ad_launch_type,
+						popups: editProgramPopUps.map((pa) => ({
+							popup_id: pa.popup_id,
+							popup_launch_type: pa.popup_launch_type,
 							duration: pa.duration,
 							frequency: pa.frequency,
 						})),
@@ -232,38 +232,38 @@
 		}
 	}
 
-	/* ─── Ads helpers ────────────────────────────────────────── */
-	function addAdToProgram(ad: Advertisement) {
-		if (editProgramAds.some((pa) => pa.ad_id === ad.id)) return;
-		editProgramAds = [
-			...editProgramAds,
+	/* ─── PopUp helpers ──────────────────────────────────────── */
+	function addPopUpToProgram(popup: PopUp) {
+		if (editProgramPopUps.some((pa) => pa.popup_id === popup.id)) return;
+		editProgramPopUps = [
+			...editProgramPopUps,
 			{
 				id: -(Date.now()),
-				ad_id: ad.id,
+				popup_id: popup.id,
 				program_id: editId ?? 0,
-				ad_launch_type: 'manual',
+				popup_launch_type: 'manual',
 				duration: 10,
 				frequency: 1,
-				ad,
+				popup,
 			},
 		];
 	}
 
-	function removeAdFromProgram(adId: number) {
-		const pa = editProgramAds.find((a) => a.ad_id === adId);
-		const adName = pa?.ad?.name ?? `Ad ${adId}`;
-		if (!confirm(`Remove "${adName}" from this program?`)) return;
-		editProgramAds = editProgramAds.filter((a) => a.ad_id !== adId);
+	function removePopUpFromProgram(popupId: number) {
+		const pa = editProgramPopUps.find((a) => a.popup_id === popupId);
+		const popupName = pa?.popup?.name ?? `PopUp ${popupId}`;
+		if (!confirm(`Remove "${popupName}" from this program?`)) return;
+		editProgramPopUps = editProgramPopUps.filter((a) => a.popup_id !== popupId);
 	}
 
-	function updateProgramAd(adId: number, patch: Partial<ProgramAd>) {
-		editProgramAds = editProgramAds.map((pa) =>
-			pa.ad_id === adId ? { ...pa, ...patch } : pa
+	function updateProgramPopUp(popupId: number, patch: Partial<ProgramPopUp>) {
+		editProgramPopUps = editProgramPopUps.map((pa) =>
+			pa.popup_id === popupId ? { ...pa, ...patch } : pa
 		);
 	}
 
-	const availableAds = $derived(
-		allAds.filter((a) => !editProgramAds.some((pa) => pa.ad_id === a.id))
+	const availablePopUps = $derived(
+		allPopUps.filter((a) => !editProgramPopUps.some((pa) => pa.popup_id === a.id))
 	);
 
 	/* ─── Image file input refs ─────────────────────────────────── */
@@ -285,19 +285,19 @@
 		editScreenIds = ids;
 	}
 
-	/* ─── Reorder: Ads ───────────────────────────────────────────── */
-	function moveAdUp(i: number) {
+	/* ─── Reorder: PopUps ────────────────────────────────────────── */
+	function movePopUpUp(i: number) {
 		if (i === 0) return;
-		const ads = [...editProgramAds];
-		[ads[i - 1], ads[i]] = [ads[i], ads[i - 1]];
-		editProgramAds = ads;
+		const popups = [...editProgramPopUps];
+		[popups[i - 1], popups[i]] = [popups[i], popups[i - 1]];
+		editProgramPopUps = popups;
 	}
 
-	function moveAdDown(i: number) {
-		if (i === editProgramAds.length - 1) return;
-		const ads = [...editProgramAds];
-		[ads[i], ads[i + 1]] = [ads[i + 1], ads[i]];
-		editProgramAds = ads;
+	function movePopUpDown(i: number) {
+		if (i === editProgramPopUps.length - 1) return;
+		const popups = [...editProgramPopUps];
+		[popups[i], popups[i + 1]] = [popups[i + 1], popups[i]];
+		editProgramPopUps = popups;
 	}
 </script>
 
@@ -347,7 +347,7 @@
 						</div>
 						<div class="item-info">
 							<span class="item-name">{p.name}</span>
-							<span class="item-meta">{p.graphics.length} screens · {p.program_ads.length} ads</span>
+							<span class="item-meta">{p.graphics.length} screens · {p.program_popups.length} pop-ups</span>
 						</div>
 					</button>
 				{:else}
@@ -455,7 +455,7 @@
 													<th>Name</th>
 													<th style="width:110px">Preview</th>
 													<th style="width:90px">Type</th>
-													<th style="width:80px">Allow Ads</th>
+													<th style="width:80px">Allow PopUps</th>
 													<th style="width:44px"></th>
 												</tr>
 											</thead>
@@ -479,7 +479,7 @@
 															{/if}
 														</td>
 														<td><span class="badge-sm">{s.media_type}</span></td>
-														<td><span class="badge-sm">{s.allow_ads ? 'Yes' : 'No'}</span></td>
+														<td><span class="badge-sm">{s.allow_popups ? 'Yes' : 'No'}</span></td>
 														<td>
 															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove screen" onclick={() => removeScreenFromProgram(s.id)}>
 																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -495,29 +495,29 @@
 								</div>
 							</div>
 
-							<!-- Advertisements -->
+							<!-- PopUps -->
 							<div class="field-group">
 								<div class="field-group-header">
 									<span class="field-label">
-										Advertisements
-										<span class="badge-sm">{editProgramAds.length}</span>
+										PopUps
+										<span class="badge-sm">{editProgramPopUps.length}</span>
 									</span>
-									{#if availableAds.length > 0}
-										<button class="btn btn-secondary btn-sm" onclick={() => { addAdModalOpen = true; }}>
+									{#if availablePopUps.length > 0}
+										<button class="btn btn-secondary btn-sm" onclick={() => { addPopUpModalOpen = true; }}>
 											<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-											Add Ad…
+											Add PopUp…
 										</button>
-									{:else if allAds.length === 0}
-										<a href="/ad-editor" class="helper-link">Create ads first →</a>
+									{:else if allPopUps.length === 0}
+										<a href="/popup-editor" class="helper-link">Create pop-ups first →</a>
 									{/if}
 								</div>
 								<div class="sub-card">
-									{#if editProgramAds.length > 0}
-										<table class="data-table ads-table">
+									{#if editProgramPopUps.length > 0}
+										<table class="data-table popups-table">
 											<thead>
 												<tr>
 													<th style="width:52px"></th>
-													<th>Ad</th>
+													<th>PopUp</th>
 													<th style="width:140px">Launch Type</th>
 													<th style="width:90px">Duration (s)</th>
 													<th style="width:105px">Frequency (/hr)</th>
@@ -525,37 +525,37 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each editProgramAds as pa, i (pa.ad_id)}
-													{@const adDetails = allAds.find((a) => a.id === pa.ad_id) ?? pa.ad}
+												{#each editProgramPopUps as pa, i (pa.popup_id)}
+													{@const popupDetails = allPopUps.find((a) => a.id === pa.popup_id) ?? pa.popup}
 													<tr>
 														<td class="reorder-cell">
-															<button class="btn-reorder" aria-label="Move up" disabled={i === 0} onclick={() => moveAdUp(i)}>
+															<button class="btn-reorder" aria-label="Move up" disabled={i === 0} onclick={() => movePopUpUp(i)}>
 																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
 															</button>
-															<button class="btn-reorder" aria-label="Move down" disabled={i === editProgramAds.length - 1} onclick={() => moveAdDown(i)}>
+															<button class="btn-reorder" aria-label="Move down" disabled={i === editProgramPopUps.length - 1} onclick={() => movePopUpDown(i)}>
 																<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
 															</button>
 														</td>
 														<td>
-															<div class="ad-row-info">
-																<div class="ad-thumb-wrap">
-																	{#if adDetails?.image_path}
-																		<MediaPreview class="ad-thumb" src={imgUrl(adDetails.image_path)} alt={adDetails?.name} />
+															<div class="popup-row-info">
+																<div class="popup-thumb-wrap">
+																	{#if popupDetails?.image_path}
+																		<MediaPreview class="popup-thumb" src={imgUrl(popupDetails.image_path)} alt={popupDetails?.name} />
 																	{:else}
-																		<span class="ad-thumb-empty">—</span>
+																		<span class="popup-thumb-empty">—</span>
 																	{/if}
 																</div>
 																<div>
-																	<div class="ad-name-text">{adDetails?.name ?? `Ad ${pa.ad_id}`}</div>
-																	<div class="ad-sponsor-text">{adDetails?.sponsor_name || 'No sponsor'}</div>
+																	<div class="popup-name-text">{popupDetails?.name ?? `PopUp ${pa.popup_id}`}</div>
+																	<div class="popup-sponsor-text">{popupDetails?.sponsor_name || 'No sponsor'}</div>
 																</div>
 															</div>
 														</td>
 														<td>
 															<select
 																class="form-select"
-																value={pa.ad_launch_type}
-																onchange={(e) => updateProgramAd(pa.ad_id, { ad_launch_type: (e.target as HTMLSelectElement).value as any })}
+																value={pa.popup_launch_type}
+																onchange={(e) => updateProgramPopUp(pa.popup_id, { popup_launch_type: (e.target as HTMLSelectElement).value as any })}
 															>
 																<option value="manual">Manual</option>
 																<option value="automatic">Automatic</option>
@@ -569,8 +569,8 @@
 																type="number"
 																min="0"
 																value={pa.duration}
-																disabled={pa.ad_launch_type === 'filler'}
-																oninput={(e) => updateProgramAd(pa.ad_id, { duration: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
+																disabled={pa.popup_launch_type === 'filler'}
+																oninput={(e) => updateProgramPopUp(pa.popup_id, { duration: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
 														</td>
 														<td>
@@ -579,12 +579,12 @@
 																type="number"
 																min="0"
 																value={pa.frequency}
-																disabled={pa.ad_launch_type === 'manual' || pa.ad_launch_type === 'filler'}
-																oninput={(e) => updateProgramAd(pa.ad_id, { frequency: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
+																disabled={pa.popup_launch_type === 'manual' || pa.popup_launch_type === 'filler'}
+																oninput={(e) => updateProgramPopUp(pa.popup_id, { frequency: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
 														</td>
 														<td>
-															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove ad" onclick={() => removeAdFromProgram(pa.ad_id)}>
+															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove pop-up" onclick={() => removePopUpFromProgram(pa.popup_id)}>
 																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
 															</button>
 														</td>
@@ -593,7 +593,7 @@
 											</tbody>
 										</table>
 									{:else}
-										<p class="sub-empty">No ads added yet. Use "Add Ad…" above.</p>
+										<p class="sub-empty">No pop-ups added yet. Use "Add PopUp…" above.</p>
 									{/if}
 								</div>
 							</div>
@@ -636,7 +636,7 @@
 				</div>
 				<div class="picker-info">
 					<div class="picker-name">{s.graphics_name}</div>
-					<div class="picker-sub">{s.media_type} · {s.allow_ads ? 'Ads OK' : 'No Ads'}</div>
+					<div class="picker-sub">{s.media_type} · {s.allow_popups ? 'PopUps OK' : 'No PopUps'}</div>
 				</div>
 				<div class="picker-add-btn">Add</div>
 			</button>
@@ -646,29 +646,29 @@
 	</div>
 </Modal>
 
-<!-- Add Ad Picker Modal -->
-<Modal bind:open={addAdModalOpen} title="Add Advertisements" width="700px">
+<!-- Add PopUp Picker Modal -->
+<Modal bind:open={addPopUpModalOpen} title="Add PopUps" width="700px">
 	{#snippet footer()}
-		<button class="btn btn-ghost" onclick={() => { addAdModalOpen = false; }}>Done</button>
+		<button class="btn btn-ghost" onclick={() => { addPopUpModalOpen = false; }}>Done</button>
 	{/snippet}
 	<div class="picker-grid">
-		{#each availableAds as ad (ad.id)}
-			<button class="picker-card" onclick={() => addAdToProgram(ad)} aria-label="Add {ad.name}">
+		{#each availablePopUps as popup (popup.id)}
+			<button class="picker-card" onclick={() => addPopUpToProgram(popup)} aria-label="Add {popup.name}">
 				<div class="picker-img-wrap">
-					{#if ad.image_path}
-						<MediaPreview class="picker-img" src={imgUrl(ad.image_path)} alt={ad.name} />
+					{#if popup.image_path}
+						<MediaPreview class="picker-img" src={imgUrl(popup.image_path)} alt={popup.name} />
 					{:else}
 						<span class="picker-empty">—</span>
 					{/if}
 				</div>
 				<div class="picker-info">
-					<div class="picker-name">{ad.name}</div>
-					<div class="picker-sub">{ad.sponsor_name || 'No sponsor'}</div>
+					<div class="picker-name">{popup.name}</div>
+					<div class="picker-sub">{popup.sponsor_name || 'No sponsor'}</div>
 				</div>
 				<div class="picker-add-btn">Add</div>
 			</button>
 		{:else}
-			<p class="picker-empty-msg">No more ads available to add.</p>
+			<p class="picker-empty-msg">No more pop-ups available to add.</p>
 		{/each}
 	</div>
 </Modal>
@@ -1044,7 +1044,7 @@
 		gap: 8px;
 	}
 
-	/* ── Sub-card (screens/ads container) ── */
+	/* ── Sub-card (screens/popups container) ── */
 	.sub-card {
 		background: var(--surface-1);
 		border: 1px solid var(--border-1);
@@ -1081,14 +1081,14 @@
 		color: var(--text-1);
 	}
 
-	/* ── Ads table ── */
-	.ad-row-info {
+	/* ── PopUps table ── */
+	.popup-row-info {
 		display: flex;
 		align-items: center;
 		gap: 10px;
 	}
 
-	.ad-thumb-wrap {
+	.popup-thumb-wrap {
 		width: 72px;
 		height: 40px;
 		background: rgba(255, 255, 255, 0.05);
@@ -1100,33 +1100,33 @@
 		flex-shrink: 0;
 	}
 
-	:global(.ad-thumb) {
+	:global(.popup-thumb) {
 		max-width: 100%;
 		max-height: 100%;
 		object-fit: contain;
 	}
 
-	.ad-thumb-empty {
+	.popup-thumb-empty {
 		color: var(--text-3);
 		font-size: 1rem;
 	}
 
-	.ad-name-text {
+	.popup-name-text {
 		font-weight: 600;
 		font-size: 13px;
 		color: var(--text-1);
 	}
 
-	.ad-sponsor-text {
+	.popup-sponsor-text {
 		font-size: 11px;
 		color: var(--text-3);
 	}
 
-	.ads-table :global(td) {
+	.popups-table :global(td) {
 		vertical-align: middle;
 	}
 
-	/* ── Picker grid (Add Screen / Add Ad modals) ── */
+	/* ── Picker grid (Add Screen / Add PopUp modals) ── */
 	.picker-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

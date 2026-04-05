@@ -15,7 +15,7 @@ use tower_http::{
 };
 use socketioxide::SocketIo;
 use crate::state::AppState;
-use routes::{studios, programs, advertisements, screens, system};
+use routes::{studios, programs, popups, screens, system};
 
 pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
     let (socket_layer, io) = SocketIo::builder()
@@ -38,7 +38,7 @@ pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
         let mut api_router = Router::new()
         .nest("/studios", studios::router())
         .nest("/programs", programs::router())
-        .nest("/advertisements", advertisements::router())
+        .nest("/popups", popups::router())
         .nest("/screens", screens::router())
         .route("/has-data", get(system::has_data_handler))
         .route("/health", get(system::health_handler))

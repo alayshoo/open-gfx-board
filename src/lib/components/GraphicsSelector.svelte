@@ -64,8 +64,8 @@
 				onclick={() => onTrigger?.(g)}
 				title={g.graphics_name}
 			>
-				{#if g.allow_ads}
-					<span class="ad-badge">ADS</span>
+				{#if g.allow_popups}
+					<span class="popup-badge">POPUPS</span>
 				{/if}
 				<span class="g-name">{g.graphics_name}</span>
 				{#if activeGraphicId === g.id}
@@ -166,7 +166,7 @@
 		color: var(--accent);
 	}
 
-	.ad-badge {
+	.popup-badge {
 		position: absolute;
 		top: 8px;
 		left: 8px;

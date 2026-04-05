@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
-use crate::db::programs::ProgramAdInput;
+use crate::db::programs::ProgramPopupInput;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -55,9 +55,9 @@ async fn create_program(
 }
 
 #[derive(Deserialize)]
-struct ProgramAdBody {
-    ad_id: i64,
-    #[serde(rename = "ad_launch_type")]
+struct ProgramPopupBody {
+    popup_id: i64,
+    #[serde(rename = "popup_launch_type")]
     trigger_type: Option<String>,
     duration: Option<i64>,
     frequency: Option<i64>,
@@ -70,7 +70,7 @@ struct UpdateProgramBody {
     #[serde(rename = "background_graphics_path")]
     bg_path: Option<String>,
     screen_ids: Option<Vec<i64>>,
-    ads: Option<Vec<ProgramAdBody>>,
+    popups: Option<Vec<ProgramPopupBody>>,
 }
 
 async fn update_program(
@@ -80,11 +80,11 @@ async fn update_program(
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
     let screen_ids = body.screen_ids.unwrap_or_default();
-    let ads: Vec<ProgramAdInput> = body.ads.unwrap_or_default().into_iter().map(|a| ProgramAdInput {
-        ad_id: a.ad_id,
-        trigger_type: a.trigger_type.unwrap_or_else(|| "manual".to_string()),
-        duration: a.duration.unwrap_or(10),
-        frequency: a.frequency.unwrap_or(1),
+    let popups: Vec<ProgramPopupInput> = body.popups.unwrap_or_default().into_iter().map(|p| ProgramPopupInput {
+        popup_id: p.popup_id,
+        trigger_type: p.trigger_type.unwrap_or_else(|| "manual".to_string()),
+        duration: p.duration.unwrap_or(10),
+        frequency: p.frequency.unwrap_or(1),
     }).collect();
 
     match tokio::task::block_in_place(|| {
@@ -95,7 +95,7 @@ async fn update_program(
             body.logo_path.as_deref(),
             body.bg_path.as_deref(),
             &screen_ids,
-            &ads,
+            &popups,
         )
     }) {
         Ok(Some(program)) => {

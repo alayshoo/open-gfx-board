@@ -2,7 +2,7 @@ use socketioxide::extract::{Data, SocketRef, State};
 use socketioxide::SocketIo;
 use serde_json::Value;
 use crate::state::AppState;
-use crate::models::{ActiveOverlay, ActiveAd, StudioState};
+use crate::models::{ActiveOverlay, ActivePopup, StudioState};
 
 pub fn register_handlers(io: &SocketIo, state: AppState) {
     let io_c = io.clone();
@@ -64,15 +64,15 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     let active_overlay = runtime.active_screen_id.map(|gid| ActiveOverlay {
                         graphic_id: gid,
                         graphic_path: runtime.active_screen_path.clone(),
-                        allow_ads: runtime.active_screen_allow_ads,
+                        allow_popups: runtime.active_screen_allow_popups,
                     });
 
-                    let active_ad = runtime.active_ad_id.map(|aid| ActiveAd {
-                        ad_id: aid,
-                        image_path: runtime.active_ad_path.clone(),
-                        duration: runtime.active_ad_duration,
-                        direction: runtime.active_ad_direction.clone().unwrap_or_else(|| "bottom".to_string()),
-                        position: runtime.active_ad_position.unwrap_or(50),
+                    let active_popup = runtime.active_popup_id.map(|pid| ActivePopup {
+                        popup_id: pid,
+                        image_path: runtime.active_popup_path.clone(),
+                        duration: runtime.active_popup_duration,
+                        direction: runtime.active_popup_direction.clone().unwrap_or_else(|| "bottom".to_string()),
+                        position: runtime.active_popup_position.unwrap_or(50),
                     });
 
                     let studio_state = StudioState {
@@ -80,7 +80,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         program_id: runtime.program_id,
                         program,
                         active_overlay,
-                        active_ad,
+                        active_popup,
                     };
 
                     let _ = socket.emit("studio-state", &studio_state);
@@ -101,19 +101,19 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let program_id = data.get("programId").and_then(|v| v.as_i64());
 
-                    // Update runtime state; changing program always resets overlay / ad
+                    // Update runtime state; changing program always resets overlay / popup
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(studio_id).or_default();
                         s.program_id = program_id;
                         s.active_screen_id = None;
                         s.active_screen_path = None;
-                        s.active_screen_allow_ads = false;
-                        s.active_ad_id = None;
-                        s.active_ad_path = None;
-                        s.active_ad_duration = 0;
-                        s.active_ad_direction = None;
-                        s.active_ad_position = None;
+                        s.active_screen_allow_popups = false;
+                        s.active_popup_id = None;
+                        s.active_popup_path = None;
+                        s.active_popup_duration = 0;
+                        s.active_popup_direction = None;
+                        s.active_popup_position = None;
                     }
 
                     let room = format!("studio:{studio_id}");
@@ -132,7 +132,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                             .map(|s| ActiveOverlay {
                                 graphic_id: s.id,
                                 graphic_path: s.media_path.clone(),
-                                allow_ads: s.allow_ads,
+                                allow_popups: s.allow_popups,
                             });
 
                         if let Some(ref overlay) = first_overlay {
@@ -140,7 +140,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                             let s = states.entry(studio_id).or_default();
                             s.active_screen_id = Some(overlay.graphic_id);
                             s.active_screen_path = overlay.graphic_path.clone();
-                            s.active_screen_allow_ads = overlay.allow_ads;
+                            s.active_screen_allow_popups = overlay.allow_popups;
                         }
 
                         let payload = serde_json::json!({
@@ -148,7 +148,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                             "programId": pid,
                             "program": program,
                             "activeOverlay": first_overlay,
-                            "activeAd": null,
+                            "activePopup": null,
                         });
                         let _ = io_cc.within(room).emit("program-selected", &payload).await;
 
@@ -158,7 +158,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 "studioId": studio_id,
                                 "graphicId": overlay.graphic_id,
                                 "graphicPath": overlay.graphic_path,
-                                "allowAds": overlay.allow_ads,
+                                "allowPopups": overlay.allow_popups,
                             });
                             let overlay_room = format!("studio:{studio_id}");
                             let _ = io_cc.within(overlay_room).emit("overlay-activated", &overlay_payload).await;
@@ -185,14 +185,14 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let graphic_id = data.get("graphicId").and_then(|v| v.as_i64());
                     let graphic_path = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
-                    let allow_ads = data.get("allowAds").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let allow_popups = data.get("allowPopups").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(studio_id).or_default();
                         s.active_screen_id = graphic_id;
                         s.active_screen_path = graphic_path.clone();
-                        s.active_screen_allow_ads = allow_ads;
+                        s.active_screen_allow_popups = allow_popups;
                     }
 
                     let room = format!("studio:{studio_id}");
@@ -200,7 +200,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         "studioId": studio_id,
                         "graphicId": graphic_id,
                         "graphicPath": graphic_path,
-                        "allowAds": allow_ads,
+                        "allowPopups": allow_popups,
                     });
                     let _ = io_cc.within(room).emit("overlay-activated", &payload).await;
                 }
@@ -222,7 +222,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         let s = states.entry(studio_id).or_default();
                         s.active_screen_id = None;
                         s.active_screen_path = None;
-                        s.active_screen_allow_ads = false;
+                        s.active_screen_allow_popups = false;
                     }
 
                     let room = format!("studio:{studio_id}");
@@ -232,66 +232,66 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
             });
         }
 
-        // ── trigger-ad ────────────────────────────────────────────────────
+        // ── trigger-popup ─────────────────────────────────────────────────
         // Uses io (not socket) so the triggering client also gets the event.
-        // Only adId + duration come from the client; image_path / direction /
+        // Only popupId + duration come from the client; image_path / direction /
         // position are always fetched fresh from the database so that stale
         // values held by any controller never reach the OBS overlay.
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("trigger-ad", move |_socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("trigger-popup", move |_socket: SocketRef, Data(data): Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
                     let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
-                    let Some(ad_id) = data.get("adId").and_then(|v| v.as_i64()) else { return; };
+                    let Some(popup_id) = data.get("popupId").and_then(|v| v.as_i64()) else { return; };
                     let duration = data.get("duration").and_then(|v| v.as_i64()).unwrap_or(10);
 
-                    // Fetch fresh ad data from the database so direction / position /
+                    // Fetch fresh popup data from the database so direction / position /
                     // image_path are always up-to-date regardless of which controller
-                    // triggered the ad.
-                    let ad = {
+                    // triggered the popup.
+                    let popup = {
                         let db = state_c.db.lock().await;
                         tokio::task::block_in_place(|| {
-                            crate::db::advertisements::get_ad(&db, ad_id).ok().flatten()
+                            crate::db::popups::get_popup(&db, popup_id).ok().flatten()
                         })
                     };
-                    let Some(ad) = ad else { return; };
+                    let Some(popup) = popup else { return; };
 
-                    let image_path = ad.media_path.clone();
-                    let direction = ad.direction.clone();
-                    let position = ad.position;
+                    let image_path = popup.media_path.clone();
+                    let direction = popup.direction.clone();
+                    let position = popup.position;
 
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(studio_id).or_default();
-                        s.active_ad_id = Some(ad_id);
-                        s.active_ad_path = image_path.clone();
-                        s.active_ad_duration = duration;
-                        s.active_ad_direction = Some(direction.clone());
-                        s.active_ad_position = Some(position);
+                        s.active_popup_id = Some(popup_id);
+                        s.active_popup_path = image_path.clone();
+                        s.active_popup_duration = duration;
+                        s.active_popup_direction = Some(direction.clone());
+                        s.active_popup_position = Some(position);
                     }
 
                     let room = format!("studio:{studio_id}");
                     let payload = serde_json::json!({
                         "studioId": studio_id,
-                        "adId": ad_id,
+                        "popupId": popup_id,
                         "imagePath": image_path,
                         "duration": duration,
                         "direction": direction,
                         "position": position,
                     });
-                    let _ = io_cc.within(room).emit("ad-started", &payload).await;
+                    let _ = io_cc.within(room).emit("popup-started", &payload).await;
                 }
             });
         }
 
-        // ── end-ad ────────────────────────────────────────────────────────
+        // ── end-popup ─────────────────────────────────────────────────────
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("end-ad", move |_socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("end-popup", move |_socket: SocketRef, Data(data): Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
@@ -300,16 +300,16 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(studio_id).or_default();
-                        s.active_ad_id = None;
-                        s.active_ad_path = None;
-                        s.active_ad_duration = 0;
-                        s.active_ad_direction = None;
-                        s.active_ad_position = None;
+                        s.active_popup_id = None;
+                        s.active_popup_path = None;
+                        s.active_popup_duration = 0;
+                        s.active_popup_direction = None;
+                        s.active_popup_position = None;
                     }
 
                     let room = format!("studio:{studio_id}");
                     let payload = serde_json::json!({ "studioId": studio_id });
-                    let _ = io_cc.within(room).emit("ad-ended", &payload).await;
+                    let _ = io_cc.within(room).emit("popup-ended", &payload).await;
                 }
             });
         }

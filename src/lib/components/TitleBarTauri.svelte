@@ -40,7 +40,7 @@
 		{ href: "/studio-editor", label: "Presets" },
 		{ href: "/program-editor", label: "Programs" },
 		{ href: "/screen-editor", label: "Screens" },
-		{ href: "/ad-editor", label: "Ads" },
+		{ href: "/popup-editor", label: "PopUps" },
 	] as const;
 
 	$effect(() => {

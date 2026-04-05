@@ -134,7 +134,7 @@
 						<div class="card-foot">
 							<span class="card-name">{program.name}</span>
 							<span class="card-meta">
-								{program.graphics.length} graphics · {program.program_ads.length} ads
+								{program.graphics.length} graphics · {program.program_popups.length} pop-ups
 							</span>
 						</div>
 					</button>

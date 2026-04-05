@@ -4,17 +4,17 @@ use crate::models::Screen;
 
 pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, comments, media_path, media_type, allow_ads, created_at FROM screens ORDER BY id"
+        "SELECT id, name, comments, media_path, media_type, allow_popups, created_at FROM screens ORDER BY id"
     )?;
     let screens: Vec<Screen> = stmt.query_map([], |row| {
-        let allow_ads_int: i64 = row.get(5)?;
+        let allow_popups_int: i64 = row.get(5)?;
         Ok(Screen {
             id: row.get(0)?,
             name: row.get(1)?,
             comments: row.get(2)?,
             media_path: row.get(3)?,
             media_type: row.get(4)?,
-            allow_ads: allow_ads_int != 0,
+            allow_popups: allow_popups_int != 0,
             created_at: row.get(6)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
@@ -23,17 +23,17 @@ pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
 
 pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
     let result = conn.query_row(
-        "SELECT id, name, comments, media_path, media_type, allow_ads, created_at FROM screens WHERE id = ?1",
+        "SELECT id, name, comments, media_path, media_type, allow_popups, created_at FROM screens WHERE id = ?1",
         [id],
         |row| {
-            let allow_ads_int: i64 = row.get(5)?;
+            let allow_popups_int: i64 = row.get(5)?;
             Ok(Screen {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 comments: row.get(2)?,
                 media_path: row.get(3)?,
                 media_type: row.get(4)?,
-                allow_ads: allow_ads_int != 0,
+                allow_popups: allow_popups_int != 0,
                 created_at: row.get(6)?,
             })
         },
@@ -49,12 +49,12 @@ pub fn create_screen(
     conn: &Connection,
     name: &str,
     comments: &str,
-    allow_ads: bool,
+    allow_popups: bool,
     media_type: &str,
 ) -> Result<Screen> {
     conn.execute(
-        "INSERT INTO screens (name, comments, allow_ads, media_type) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![name, comments, allow_ads as i64, media_type],
+        "INSERT INTO screens (name, comments, allow_popups, media_type) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![name, comments, allow_popups as i64, media_type],
     )?;
     let id = conn.last_insert_rowid();
     Ok(get_screen(conn, id)?.expect("screen just inserted must exist"))
@@ -65,12 +65,12 @@ pub fn update_screen(
     id: i64,
     name: &str,
     comments: &str,
-    allow_ads: bool,
+    allow_popups: bool,
     media_type: &str,
 ) -> Result<Option<Screen>> {
     let rows = conn.execute(
-        "UPDATE screens SET name = ?1, comments = ?2, allow_ads = ?3, media_type = ?4 WHERE id = ?5",
-        rusqlite::params![name, comments, allow_ads as i64, media_type, id],
+        "UPDATE screens SET name = ?1, comments = ?2, allow_popups = ?3, media_type = ?4 WHERE id = ?5",
+        rusqlite::params![name, comments, allow_popups as i64, media_type, id],
     )?;
     if rows == 0 {
         return Ok(None);
