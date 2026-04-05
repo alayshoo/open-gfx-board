@@ -297,13 +297,20 @@
 			</a>
 
 			<div class="header-right">
-				<StatusDot connected={$connected} />
-				<div class="header-links">
-					{#if !IS_TAURI}
-						<button class="nav-link" onclick={toggleFullscreen}>Fullscreen</button>
-					{/if}
-					<a class="nav-link" href="/">Switch Preset</a>
+				<div class="header-stack">
+					<StatusDot connected={$connected} />
+					<a class="nav-link" href="/">Settings</a>
 				</div>
+				{#if !IS_TAURI}
+					<button class="nav-link fullscreen-btn" onclick={toggleFullscreen} title="Fullscreen">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<polyline points="15 3 21 3 21 9"></polyline>
+							<polyline points="9 21 3 21 3 15"></polyline>
+							<line x1="21" y1="3" x2="14" y2="10"></line>
+							<line x1="3" y1="21" x2="10" y2="14"></line>
+						</svg>
+					</button>
+				{/if}
 			</div>
 		</header>
 
@@ -436,22 +443,23 @@
 
 	.header-right {
 		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 12px;
+		flex-direction: row;
+		align-items: stretch;
+		gap: 8px;
 		flex-shrink: 0;
 	}
 
-	.header-links {
+	.header-stack {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
+		align-items: stretch;
 		gap: 8px;
-		justify-content: flex-end;
 	}
 
 	.nav-link {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 5px;
 		font-size: clamp(0.3rem, 4.5cqi, 0.6rem);
 		color: var(--text-3);
@@ -466,6 +474,17 @@
 	.nav-link:hover {
 		color: var(--text-1);
 		border-color: var(--border-2);
+	}
+
+	.fullscreen-btn {
+		align-self: stretch;
+		padding: 8px 12px;
+	}
+
+	.fullscreen-btn svg {
+		width: clamp(12px, 3cqi, 18px);
+		height: clamp(12px, 3cqi, 18px);
+		flex-shrink: 0;
 	}
 
 	/* Sections */

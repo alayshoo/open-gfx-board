@@ -330,7 +330,7 @@
 			fillerSuppressed = true;
 			const payload = buildPopUpPayload(pa);
 			if (payload) {
-				triggerPopUp(payload);
+				await triggerPopUp(payload); // wait for slide-in to complete before counting duration
 				await sleep(pa.duration * 1_000);
 				triggerPopUp(null);
 				await sleep(POPUP_SLIDE_MS + 100);
@@ -444,7 +444,6 @@
 				const url = rawPath ? imgUrl(rawPath) : null;
 				const type = getType(rawPath);
 				if (url) preload(url, type);
-				show(url, type);
 				if (url) {
 					triggerPopUp({
 						src: url,
@@ -457,9 +456,11 @@
 				show(null, "image");
 			}
 
-			// Always start auto pop-up schedulers; fillers only when nothing else is active
+			// Always start auto pop-up schedulers; fillers only when nothing else is active.
+			// Delay startFillersIfNeeded so any ongoing popup slide-out animation from
+			// stopAllScheduling() has time to complete before we check popupIsVisible.
 			if (currentProgram) startAutoPopUps(currentProgram);
-			startFillersIfNeeded();
+			setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
 		}
 
 		function onProgramSelected(data: any) {
@@ -469,7 +470,8 @@
 			currentProgram = data.program as Program;
 			if (currentProgram) {
 				startAutoPopUps(currentProgram);
-				startFillersIfNeeded();
+				// Delay until any slide-out animation from stopAllScheduling finishes.
+				setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
 			}
 		}
 
@@ -532,7 +534,9 @@
 			if (data && Number(data.studioId) !== studioId) return;
 			triggerPopUp(null);
 			fillerSuppressed = false;
-			if (!overlayActive) startFillersIfNeeded();
+			// Delay until the slide-out animation finishes so popupIsVisible is false
+			// before startFillersIfNeeded checks it.
+			if (!overlayActive) setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
 		}
 
 		// ── Data-change listeners ────────────────────────────────────────────

@@ -101,7 +101,7 @@ pub struct StudioState {
     pub program: Option<Program>,
     #[serde(rename = "activeOverlay")]
     pub active_overlay: Option<ActiveOverlay>,
-    #[serde(rename = "activePopup")]
+    #[serde(rename = "activePopUp")]
     pub active_popup: Option<ActivePopup>,
 }
 
@@ -111,7 +111,7 @@ pub struct ActiveOverlay {
     pub graphic_id: i64,
     #[serde(rename = "graphicPath")]
     pub graphic_path: Option<String>,
-    #[serde(rename = "allowPopups")]
+    #[serde(rename = "allowPopUps")]
     pub allow_popups: bool,
 }
 

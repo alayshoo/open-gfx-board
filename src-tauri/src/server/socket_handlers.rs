@@ -158,7 +158,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 "studioId": studio_id,
                                 "graphicId": overlay.graphic_id,
                                 "graphicPath": overlay.graphic_path,
-                                "allowPopups": overlay.allow_popups,
+                                "allowPopUps": overlay.allow_popups,
                             });
                             let overlay_room = format!("studio:{studio_id}");
                             let _ = io_cc.within(overlay_room).emit("overlay-activated", &overlay_payload).await;
@@ -185,7 +185,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let graphic_id = data.get("graphicId").and_then(|v| v.as_i64());
                     let graphic_path = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
-                    let allow_popups = data.get("allowPopups").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let allow_popups = data.get("allowPopUps").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     {
                         let mut states = state_c.studio_states.lock().await;
@@ -200,7 +200,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         "studioId": studio_id,
                         "graphicId": graphic_id,
                         "graphicPath": graphic_path,
-                        "allowPopups": allow_popups,
+                        "allowPopUps": allow_popups,
                     });
                     let _ = io_cc.within(room).emit("overlay-activated", &payload).await;
                 }
