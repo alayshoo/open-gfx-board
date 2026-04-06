@@ -15,8 +15,6 @@ jobs:
             platform: windows
           - os: macos-latest
             platform: macos
-          - os: ubuntu-latest
-            platform: linux
 
     runs-on: ${{ matrix.os }}
 
@@ -30,12 +28,6 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
         run: npm ci
@@ -61,18 +53,8 @@ jobs:
           name: macos-artifacts
           path: src-tauri/target/release/bundle/dmg/*.dmg
 
-      - name: Upload artifacts (Linux)
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-artifacts
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-
   create-release:
     needs: build
-    if: always() && contains(needs.build.result, 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,8 +66,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: '*-artifacts'
-          merge-multiple: false
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -97,8 +77,6 @@ jobs:
           body: |
             ## Release Notes
 
-            **macOS and Linux builds are community-tested. Please report any issues!**
-
-            Thank you for helping test these platforms! Your feedback is invaluable.
+            Thank you for using Open GFX Board!
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

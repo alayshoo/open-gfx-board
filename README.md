@@ -21,12 +21,9 @@ Open GFX Board is a desktop application that puts powerful graphics control at y
 1. **Head to [Releases](../../releases)** and download the latest installer for your platform:
    - **Windows**: `Open GFX Board_x.x.x_x64.msi`
    - **macOS**: `Open GFX Board_x.x.x_aarch64.dmg` (Apple Silicon) or Intel version
-   - **Linux**: `open-gfx-board_x.x.x_amd64.deb` (Debian/Ubuntu)
 2. **Run the installer** and follow the prompts
 3. **Launch Open GFX Board** from your desktop
 4. **Start controlling graphics!**
-
-> ⚠️ **Note on macOS & Linux**: These platforms are community-tested and may have minor issues. Please report any bugs via [Issues](../../issues)—your feedback helps improve compatibility! Windows is the primary, fully-tested platform.
 
 ### First Time Setup
 
