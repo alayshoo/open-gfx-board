@@ -45,7 +45,7 @@
 <style>
 	:global(html, body) {
 		font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
-		font-size: 16px;
+		font-size: 1rem;
 	}
 
 	:global(*) {
@@ -169,7 +169,7 @@
 		color: var(--text-1);
 		border-radius: var(--r-sm);
 		padding: 6px 10px;
-		font-size: 13px;
+		font-size: 0.875rem;
 		outline: none;
 		transition: border-color 0.15s;
 	}
@@ -204,12 +204,12 @@
 	:global(.data-table) {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 16px;
+		font-size: 1.125rem;
 	}
 	:global(.data-table th) {
 		text-align: left;
 		padding: 12px 16px;
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		letter-spacing: 0.07em;
 		text-transform: uppercase;
@@ -238,7 +238,7 @@
 		gap: 6px;
 		padding: 10px 18px;
 		border-radius: var(--r-sm);
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		font-family: inherit;
 		cursor: pointer;
@@ -289,7 +289,7 @@
 	}
 	:global(.btn-sm) {
 		padding: 7px 14px;
-		font-size: 13px;
+		font-size: 0.875rem;
 	}
 	:global(.btn-icon) {
 		padding: 10px;
@@ -338,7 +338,7 @@
 		margin-bottom: 16px;
 	}
 	:global(.section-title) {
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--text-2);
 		display: flex;

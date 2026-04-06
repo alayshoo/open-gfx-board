@@ -77,7 +77,7 @@
 	}
 
 	.nav-links a {
-		font-size: 16px;
+		font-size: 1.125rem;
 		color: var(--text-3);
 		padding: 4px 8px;
 		border-radius: var(--r-sm);

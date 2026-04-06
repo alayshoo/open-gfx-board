@@ -467,7 +467,7 @@
 	}
 
 	.sidebar-title {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -480,7 +480,7 @@
 	.badge {
 		background: var(--surface-3);
 		color: var(--text-2);
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 700;
 		border-radius: 999px;
 		padding: 1px 7px;
@@ -517,7 +517,7 @@
 	}
 
 	.item-name {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-1);
 		white-space: nowrap;
@@ -526,13 +526,13 @@
 	}
 
 	.item-meta {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
 	.sidebar-empty {
 		padding: 28px 16px;
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		text-align: center;
 		line-height: 1.7;
@@ -549,7 +549,7 @@
 	}
 
 	.studio-info-label {
-		font-size: 10px;
+		font-size: 0.6875rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -564,7 +564,7 @@
 
 	.studio-name-input {
 		flex: 1;
-		font-size: 12px;
+		font-size: 0.8125rem;
 		padding: 5px 8px;
 		background: var(--surface-2);
 		border: 1px solid var(--border-1);
@@ -580,13 +580,13 @@
 	}
 
 	.obs-url-label {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
 	.btn-xs {
 		padding: 4px 8px;
-		font-size: 11px;
+		font-size: 0.75rem;
 	}
 
 	/* ── Main editor area ── */
@@ -618,7 +618,7 @@
 	}
 
 	.preset-name-input {
-		font-size: 20px;
+		font-size: 1.375rem;
 		font-weight: 700;
 		color: var(--text-1);
 		background: transparent;
@@ -657,7 +657,7 @@
 	}
 
 	.commands-title {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -668,7 +668,7 @@
 	}
 
 	.badge-sm {
-		font-size: 10px;
+		font-size: 0.6875rem;
 		background: var(--surface-3);
 		color: var(--text-2);
 		border-radius: 4px;
@@ -681,7 +681,7 @@
 	.commands-empty {
 		padding: 32px;
 		text-align: center;
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		background: var(--surface-1);
 		border: 1px solid var(--border-1);
@@ -693,7 +693,7 @@
 		background: transparent;
 		border: 1px solid transparent;
 		color: var(--text-1);
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-family: inherit;
 		padding: 4px 6px;
 		border-radius: var(--r-sm);
@@ -711,7 +711,7 @@
 		background: var(--surface-3);
 		border: 1px solid var(--border-1);
 		color: var(--text-1);
-		font-size: 12px;
+		font-size: 0.8125rem;
 		font-family: inherit;
 		padding: 4px 6px;
 		border-radius: var(--r-sm);
@@ -727,7 +727,7 @@
 	}
 
 	.color-hex {
-		font-size: 10px;
+		font-size: 0.6875rem;
 		font-family: ui-monospace, monospace;
 		color: var(--text-3);
 	}
@@ -745,13 +745,13 @@
 	}
 
 	.empty-title {
-		font-size: 15px;
+		font-size: 1rem;
 		font-weight: 600;
 		color: var(--text-2);
 	}
 
 	.empty-hint {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		margin-bottom: 6px;
 	}

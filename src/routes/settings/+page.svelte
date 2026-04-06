@@ -396,7 +396,7 @@
 	}
 
 	.sidebar-title {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -446,7 +446,7 @@
 	}
 
 	.item-label {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-2);
 	}
@@ -484,7 +484,7 @@
 	}
 
 	.panel-title {
-		font-size: 20px;
+		font-size: 1.375rem;
 		font-weight: 700;
 		color: var(--text-1);
 	}
@@ -496,7 +496,7 @@
 	}
 
 	.section-desc {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		line-height: 1.7;
 		margin: 0;
@@ -563,13 +563,13 @@
 	}
 
 	.action-title {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--text-1);
 	}
 
 	.action-sub {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
@@ -577,7 +577,7 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--warn);
 		background: var(--warn-dim);
 		border: 1px solid rgba(245, 158, 11, 0.2);
@@ -590,7 +590,7 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 		background: var(--live-dim);
 		border: 1px solid rgba(239, 68, 68, 0.15);
@@ -610,12 +610,12 @@
 	}
 
 	.port-status-label {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 	}
 
 	.port-status-value {
-		font-size: 20px;
+		font-size: 1.375rem;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 		color: var(--accent);
@@ -629,13 +629,13 @@
 	}
 
 	.field-label {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--text-1);
 	}
 
 	.field-hint {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		line-height: 1.6;
 		margin: 0;
@@ -654,7 +654,7 @@
 		border: 1px solid var(--border-1);
 		border-radius: var(--r);
 		color: var(--text-1);
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-family: inherit;
 		font-variant-numeric: tabular-nums;
 		transition: border-color 0.15s;
@@ -712,7 +712,7 @@
 		border: 1px solid rgba(56, 189, 248, 0.25);
 		border-radius: var(--r);
 		color: var(--accent);
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		font-family: inherit;
 		cursor: pointer;
@@ -739,7 +739,7 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		background: var(--surface-2);
 		border: 1px solid var(--border-1);
@@ -763,16 +763,16 @@
 	}
 
 	.about-app-info .panel-title {
-		font-size: 32px;
+		font-size: 2rem;
 	}
 
 	.about-version {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 	}
 
 	.about-credit {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		margin: 0;
 	}

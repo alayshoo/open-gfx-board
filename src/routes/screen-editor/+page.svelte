@@ -378,7 +378,7 @@
 	}
 
 	.sidebar-title {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -391,7 +391,7 @@
 	.badge {
 		background: var(--surface-3);
 		color: var(--text-2);
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 700;
 		border-radius: 999px;
 		padding: 1px 7px;
@@ -447,7 +447,7 @@
 	}
 
 	.item-thumb-empty {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
@@ -460,7 +460,7 @@
 	}
 
 	.item-name {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-1);
 		white-space: nowrap;
@@ -469,7 +469,7 @@
 	}
 
 	.item-meta {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 		white-space: nowrap;
 		overflow: hidden;
@@ -478,7 +478,7 @@
 
 	.sidebar-empty {
 		padding: 28px 16px;
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		text-align: center;
 		line-height: 1.7;
@@ -515,7 +515,7 @@
 	}
 
 	.panel-title {
-		font-size: 20px;
+		font-size: 1.375rem;
 		font-weight: 700;
 		color: var(--text-1);
 		white-space: nowrap;
@@ -524,7 +524,7 @@
 	}
 
 	.panel-id {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		font-variant-numeric: tabular-nums;
 		flex-shrink: 0;
@@ -558,7 +558,7 @@
 	}
 
 	.field-label {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
@@ -572,7 +572,7 @@
 		border: 1px solid var(--border-1);
 		border-radius: var(--r-sm);
 		color: var(--text-1);
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-family: inherit;
 		outline: none;
 		transition: border-color 0.15s;
@@ -588,7 +588,7 @@
 		border: 1px solid var(--border-1);
 		border-radius: var(--r-sm);
 		color: var(--text-1);
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-family: inherit;
 		outline: none;
 		cursor: pointer;
@@ -607,7 +607,7 @@
 	}
 
 	.helper-text {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
@@ -691,13 +691,13 @@
 	}
 
 	.empty-title {
-		font-size: 15px;
+		font-size: 1rem;
 		font-weight: 600;
 		color: var(--text-2);
 	}
 
 	.empty-hint {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		margin-bottom: 6px;
 	}

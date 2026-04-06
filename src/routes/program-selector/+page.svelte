@@ -155,7 +155,7 @@
 	}
 
 	.topbar-title {
-		font-size: 16px;
+		font-size: 1.125rem;
 		font-weight: 600;
 		color: var(--text-2);
 	}
@@ -179,14 +179,14 @@
 	}
 
 	.page-title h1 {
-		font-size: 22px;
+		font-size: 1.5rem;
 		font-weight: 700;
 		color: var(--text-1);
 		margin-bottom: 4px;
 	}
 
 	.page-title p {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 	}
 
@@ -258,7 +258,7 @@
 		right: 8px;
 		background: var(--accent);
 		color: #000;
-		font-size: 10px;
+		font-size: 0.6875rem;
 		font-weight: 700;
 		padding: 2px 8px;
 		border-radius: 999px;
@@ -278,7 +278,7 @@
 	}
 
 	.card-name {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--text-1);
 		white-space: nowrap;
@@ -287,14 +287,14 @@
 	}
 
 	.card-meta {
-		font-size: 11px;
+		font-size: 0.75rem;
 		color: var(--text-3);
 	}
 
 	.empty-msg {
 		padding: 48px 0;
 		text-align: center;
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-3);
 		display: flex;
 		align-items: center;

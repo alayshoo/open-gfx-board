@@ -76,7 +76,7 @@
 		align-items: center;
 		justify-content: center;
 		color: var(--text-3);
-		font-size: 12px;
+		font-size: 0.8125rem;
 		grid-column: 1 / -1;
 	}
 </style>

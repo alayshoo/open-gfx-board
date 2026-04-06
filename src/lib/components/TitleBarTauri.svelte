@@ -355,7 +355,7 @@
 	}
 
 	.nav-link {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		color: var(--text-3);
 		padding: 3px 9px;
@@ -421,7 +421,7 @@
 	}
 
 	.dropdown-item {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		color: var(--text-3);
 		padding: 5px 9px;
@@ -525,7 +525,7 @@
 	}
 
 	.qr-instructions h3 {
-		font-size: 15px;
+		font-size: 1rem;
 		font-weight: 600;
 		color: var(--text-1);
 		margin: 0 0 12px;
@@ -540,7 +540,7 @@
 	}
 
 	.qr-instructions li {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-2);
 		line-height: 1.5;
 	}
@@ -557,15 +557,15 @@
 	}
 
 	.qr-url-label {
-		font-size: 11px;
+		font-size: 0.75rem;
 		font-weight: 500;
 		color: var(--text-3);
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		letter-spacing: 0.05em;
 	}
 
 	.qr-url {
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--accent);
 		word-break: break-all;
@@ -599,7 +599,7 @@
 	}
 
 	.obs-instructions h3 {
-		font-size: 15px;
+		font-size: 1rem;
 		font-weight: 600;
 		color: var(--text-1);
 		margin: 0 0 12px;
@@ -614,7 +614,7 @@
 	}
 
 	.obs-instructions li {
-		font-size: 13px;
+		font-size: 0.875rem;
 		color: var(--text-2);
 		line-height: 1.5;
 	}
@@ -627,14 +627,14 @@
 	}
 
 	.obs-note {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		color: var(--text-3);
 		margin: 0;
 		line-height: 1.5;
 	}
 
 	.obs-localhost {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		color: var(--text-2);
 		font-family: var(--font-mono, monospace);

@@ -32,7 +32,7 @@
 		padding: 11px 16px;
 		border-radius: var(--r);
 		border: 1px solid transparent;
-		font-size: 13px;
+		font-size: 0.875rem;
 		font-weight: 500;
 		backdrop-filter: blur(8px);
 		animation: slidein 0.2s ease;
@@ -58,7 +58,7 @@
 	}
 
 	.icon {
-		font-size: 12px;
+		font-size: 0.8125rem;
 		width: 18px;
 		height: 18px;
 		border-radius: 50%;
