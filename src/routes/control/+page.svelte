@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { page } from "$app/stores";
-	import { goto } from "$app/navigation";
 	import CmdPanel from "$lib/components/Cmd-Panel.svelte";
 	import ScreenSelector from "$lib/components/GraphicsSelector.svelte";
 	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
@@ -20,7 +19,6 @@
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
     import { IS_TAURI } from "$lib/bridge";
 
-	const studioId = $derived(Number($page.url.searchParams.get("studio")));
 	const presetId = $derived(
 		Number($page.url.searchParams.get("preset")) || null,
 	);
@@ -43,17 +41,11 @@
 	const logoUrl = $derived(imgUrl(program?.logo_path));
 
 	onMount(() => {
-		if (!studioId) {
-			goto("/");
-			return;
-		}
-
-		socket.emit("join-studio-room", { studioId });
-		socket.emit("get-studio-state", { studioId });
+		socket.emit("join-studio-room", {});
+		socket.emit("get-studio-state", {});
 
 		// Named handlers prevent removing every global listener on cleanup
 		function onStudioState(data: StudioState) {
-			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
 			if (data.activePopUp) {
@@ -66,7 +58,6 @@
 		}
 
 		function onProgramSelected(data: any) {
-			if (data.studioId !== studioId) return;
 			program = data.program;
 			activeGraphicId = data.activeOverlay?.graphicId ?? null;
 			isPopUpPlaying = false;
@@ -82,8 +73,7 @@
 			}
 		}
 
-		function onProgramCleared(data: any) {
-			if (data.studioId !== studioId) return;
+		function onProgramCleared(_data: any) {
 			program = null;
 			activeGraphicId = null;
 			isPopUpPlaying = false;
@@ -91,37 +81,33 @@
 		}
 
 		function onOverlayActivated(data: any) {
-			if (data.studioId !== studioId) return;
 			activeGraphicId = data.graphicId;
 		}
 
-		function onOverlayDeactivated(data: any) {
-			if (data.studioId !== studioId) return;
+		function onOverlayDeactivated(_data: any) {
 			activeGraphicId = null;
 		}
 
 		function onPopUpStarted(data: any) {
-			if (data.studioId !== studioId) return;
 			isPopUpPlaying = true;
 			activePopUpId = data.popupId;
 		}
 
-		function onPopUpEnded(data: any) {
-			if (data.studioId !== studioId) return;
+		function onPopUpEnded(_data: any) {
 			isPopUpPlaying = false;
 			activePopUpId = null;
 		}
 
 		// ── Data-change listeners ─────────────────
 		function onUpdateData() {
-			socket.emit("get-studio-state", { studioId });
+			socket.emit("get-studio-state", {});
 		}
 
 		function fetchStudioCommands() {
 			fetch(`${BACKEND_URL}/studios`)
 				.then((r) => r.json())
 				.then((d) => {
-					const studio = d.studios?.find((s: any) => s.id === studioId);
+					const studio = d.studios?.[0];
 					if (studio) {
 						if (presetId) {
 							const preset = studio.presets?.find(
@@ -167,7 +153,7 @@
 			socket.off("update-programs", onUpdateData);
 			socket.off("update-screens", onUpdateData);
 			socket.off("update-studios", onUpdateStudios);
-			socket.emit("leave-studio-room", { studioId });
+			socket.emit("leave-studio-room", {});
 			if (popupEndTimer) clearTimeout(popupEndTimer);
 		};
 	});
@@ -175,10 +161,9 @@
 	function triggerOverlay(graphic: Graphic) {
 		if (activeGraphicId === graphic.id) {
 			// Clicking the active overlay deactivates it
-			socket.emit("deactivate-overlay", { studioId });
+			socket.emit("deactivate-overlay", {});
 		} else {
 			socket.emit("trigger-overlay", {
-				studioId,
 				programId: program!.id,
 				graphicId: graphic.id,
 				graphicPath: graphic.graphics_path,
@@ -195,20 +180,19 @@
 
 		if (activePopUpId === pa.popup_id) {
 			// Clicking the active pop-up stops it early
-			socket.emit("end-popup", { studioId });
+			socket.emit("end-popup", {});
 		} else {
 			// Only send popupId + duration — the server fetches image_path,
 			// direction, and position fresh from the database so that recent
 			// edits are always reflected regardless of which controller fires.
 			socket.emit("trigger-popup", {
-				studioId,
 				programId: program!.id,
 				popupId: pa.popup_id,
 				duration: pa.duration,
 			});
 			// Auto-end after the pop-up's duration has elapsed
 			popupEndTimer = setTimeout(() => {
-				socket.emit("end-popup", { studioId });
+				socket.emit("end-popup", {});
 				popupEndTimer = null;
 			}, pa.duration * 1000);
 		}
@@ -216,7 +200,6 @@
 
 	function triggerCommand(cmd: ObsCommand) {
 		socket.emit("trigger-obs-command", {
-			studioId,
 			commandId: cmd.id,
 			shortcut: cmd.obs_command_shortcut,
 		});
@@ -268,7 +251,7 @@
 		<header class="header">
 			<a
 				class="program-selector"
-				href="/program-selector?studio={studioId}"
+				href="/program-selector"
 			>
 				{#if logoUrl}
 					<MediaPreview

@@ -1,22 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { socket } from '$lib/api/socket';
 	import { imgUrl } from '$lib/api/api';
-
-	const studioId = $derived(Number($page.url.searchParams.get('studio')));
 
 	let bgPath = $state<string | null>(null);
 	let bgType = $state<string>('image');
 	let visible = $state(false);
 
 	onMount(() => {
-		if (!studioId) return;
-
-		socket.emit('join-studio-room', { studioId });
+		socket.emit('join-studio-room', {});
 
 		function onProgramSelected(data: any) {
-			if (data.studioId !== studioId) return;
 			const rawPath: string | null = data.program?.background_graphics_path ?? null;
 			bgPath = rawPath ? imgUrl(rawPath) : null;
 			const ext = rawPath?.split('.').pop()?.toLowerCase() ?? '';
@@ -24,8 +18,7 @@
 			visible = !!bgPath;
 		}
 
-		function onProgramCleared(data: any) {
-			if (data && data.studioId !== studioId) return;
+		function onProgramCleared(_data: any) {
 			visible = false;
 			bgPath = null;
 		}
@@ -34,7 +27,7 @@
 		socket.on('program-cleared', onProgramCleared);
 
 		return () => {
-			socket.emit('leave-studio-room', { studioId });
+			socket.emit('leave-studio-room', {});
 			socket.off('program-selected', onProgramSelected);
 			socket.off('program-cleared', onProgramCleared);
 		};

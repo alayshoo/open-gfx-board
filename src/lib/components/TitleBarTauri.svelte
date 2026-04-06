@@ -74,8 +74,7 @@
 
 	const obsUrl = $derived.by(() => {
 		if (!networkUrl) return null;
-		const studioId = $page.url.searchParams.get("studio");
-		return studioId ? `${networkUrl}/obs?studio=${studioId}` : `${networkUrl}/obs`;
+		return `${networkUrl}/obs`;
 	});
 
 	async function copyObsUrl() {
@@ -281,7 +280,7 @@
 							</button>
 						</div>
 					</div>
-					<p class="obs-note">Make sure OBS is running on the <strong>same network</strong> as this computer, or use <code class="obs-localhost">http://localhost:{new URL(getBackendUrl()).port || '80'}/obs{$page.url.searchParams.get("studio") ? `?studio=${$page.url.searchParams.get("studio")}` : ''}</code> if OBS is on this machine.</p>
+					<p class="obs-note">Make sure OBS is running on the <strong>same network</strong> as this computer, or use <code class="obs-localhost">http://localhost:{new URL(getBackendUrl()).port || '80'}/obs</code> if OBS is on this machine.</p>
 				</div>
 			{/if}
 		</div>

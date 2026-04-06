@@ -90,7 +90,7 @@ async fn update_studio(
 
     // Determine obs_browser_source_address
     let obs_addr = body.obs_browser_source_address
-        .unwrap_or_else(|| format!("/obs?studio={id}"));
+        .unwrap_or_else(|| "/obs".to_string());
 
     // Build presets list
     let presets: Vec<PresetInput> = if let Some(presets_body) = body.presets {

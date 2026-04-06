@@ -49,7 +49,7 @@
 
 	function selectPreset(preset: Preset) {
 		if (!studio) return;
-		goto(`/control?studio=${studio.id}&preset=${preset.id}`);
+		goto(`/control?preset=${preset.id}`);
 	}
 </script>
 

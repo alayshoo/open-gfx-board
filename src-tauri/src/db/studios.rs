@@ -68,16 +68,10 @@ pub fn get_studio(conn: &Connection, id: i64) -> Result<Option<Studio>> {
 
 pub fn create_studio(conn: &Connection, name: &str) -> Result<Studio> {
     conn.execute(
-        "INSERT INTO studios (name, obs_browser_source_address) VALUES (?1, '')",
+        "INSERT INTO studios (name, obs_browser_source_address) VALUES (?1, '/obs')",
         [name],
     )?;
     let id = conn.last_insert_rowid();
-    // Update obs_browser_source_address with the actual id
-    let obs_addr = format!("/obs?studio={id}");
-    conn.execute(
-        "UPDATE studios SET obs_browser_source_address = ?1 WHERE id = ?2",
-        rusqlite::params![obs_addr, id],
-    )?;
     let studio = get_studio(conn, id)?.expect("studio just inserted must exist");
     Ok(studio)
 }

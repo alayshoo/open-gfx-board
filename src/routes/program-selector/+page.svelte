@@ -1,15 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import StatusDot from '$lib/components/StatusDot.svelte';
 	import { socket, connected } from '$lib/api/socket';
 	import { fetchPrograms, fetchStudios, imgUrl } from '$lib/api/api';
 	import { addToast } from '$lib/toasts';
-	import type { Program, Studio } from '$lib/types';
+	import type { Program } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
-
-	const studioId = $derived(Number($page.url.searchParams.get('studio')));
 
 	let programs = $state<Program[]>([]);
 	let studioName = $state<string>('');
@@ -18,35 +15,28 @@
 	let selectingId = $state<number | null>(null);
 
 	onMount(() => {
-		if (!studioId) {
-			goto('/');
-			return;
-		}
-
 		fetchPrograms().then((data) => {
 			programs = data;
 			loading = false;
 		});
 
 		fetchStudios().then((studios) => {
-			const s = studios.find((s: Studio) => s.id === studioId);
+			const s = studios[0];
 			if (s) studioName = s.name;
 		});
 
-		socket.emit('join-studio-room', { studioId });
-		socket.emit('get-studio-state', { studioId });
+		socket.emit('join-studio-room', {});
+		socket.emit('get-studio-state', {});
 
 		// Named handlers so we only remove our own listeners on cleanup,
 		// not every listener registered globally for these events.
 		function onStudioState(data: any) {
-			if (data.studioId === studioId) activeId = data.programId ?? null;
+			activeId = data.programId ?? null;
 		}
 
-		function onProgramSelected(data: any) {
-			if (data.studioId === studioId) {
-				selectingId = null;
-				goto(`/control?studio=${studioId}`);
-			}
+		function onProgramSelected(_data: any) {
+			selectingId = null;
+			goto('/control');
 		}
 
 		function onUpdatePrograms() {
@@ -61,14 +51,14 @@
 			socket.off('studio-state', onStudioState);
 			socket.off('program-selected', onProgramSelected);
 			socket.off('update-programs', onUpdatePrograms);
-			socket.emit('leave-studio-room', { studioId });
+			socket.emit('leave-studio-room', {});
 		};
 	});
 
 	function selectProgram(program: Program) {
 		if (selectingId !== null) return;
 		selectingId = program.id;
-		socket.emit('select-program', { studioId, programId: program.id });
+		socket.emit('select-program', { programId: program.id });
 
 		// Fallback: if server confirmation never arrives, reset after 5s
 		setTimeout(() => {
@@ -82,7 +72,7 @@
 
 <div class="page">
 	<header class="topbar">
-		<span class="topbar-title">{studioName || `Studio ${studioId}`}</span>
+		<span class="topbar-title">{studioName || 'Studio'}</span>
 		<div class="topbar-right">
 			<StatusDot connected={$connected} />
 		</div>
@@ -91,7 +81,7 @@
 	<main class="content">
 		<div class="page-title">
 			<h1>Select Program</h1>
-			<p>Choose a program to broadcast on {studioName || `Studio ${studioId}`}.</p>
+			<p>Choose a program to broadcast on {studioName || 'Studio'}.</p>
 		</div>
 
 		{#if loading}

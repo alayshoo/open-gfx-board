@@ -4,6 +4,11 @@ use serde_json::Value;
 use crate::state::AppState;
 use crate::models::{ActiveOverlay, ActivePopup, StudioState};
 
+/// Fixed studio ID – there is only one studio now.
+const STUDIO_ID: i64 = 1;
+/// Fixed Socket.IO room – all clients share a single room.
+const ROOM: &str = "studio";
+
 pub fn register_handlers(io: &SocketIo, state: AppState) {
     let io_c = io.clone();
     io.ns("/", move |socket: SocketRef, State(state): State<AppState>| {
@@ -13,27 +18,20 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         // ── join-studio-room ──────────────────────────────────────────────
         {
             let state_c = state.clone();
-            socket.on("join-studio-room", move |socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("join-studio-room", move |socket: SocketRef, _: Data<Value>| {
                 let state_c = state_c.clone();
                 async move {
-                    if let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) {
-                        let room = format!("studio:{studio_id}");
-                        let _ = socket.join(room);
-                        // Ensure a runtime state entry exists for this studio
-                        let mut states = state_c.studio_states.lock().await;
-                        states.entry(studio_id).or_default();
-                    }
+                    let _ = socket.join(ROOM);
+                    let mut states = state_c.studio_states.lock().await;
+                    states.entry(STUDIO_ID).or_default();
                 }
             });
         }
 
         // ── leave-studio-room ─────────────────────────────────────────────
         {
-            socket.on("leave-studio-room", move |socket: SocketRef, Data(data): Data<Value>| async move {
-                if let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) {
-                    let room = format!("studio:{studio_id}");
-                    let _ = socket.leave(room);
-                }
+            socket.on("leave-studio-room", move |socket: SocketRef, _: Data<Value>| async move {
+                let _ = socket.leave(ROOM);
             });
         }
 
@@ -41,14 +39,12 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         // Responds only to the requesting socket with the current studio snapshot.
         {
             let state_c = state.clone();
-            socket.on("get-studio-state", move |socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("get-studio-state", move |socket: SocketRef, _: Data<Value>| {
                 let state_c = state_c.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
-
                     let runtime = {
                         let states = state_c.studio_states.lock().await;
-                        states.get(&studio_id).cloned().unwrap_or_default()
+                        states.get(&STUDIO_ID).cloned().unwrap_or_default()
                     };
 
                     // Load the full program object so clients can hydrate without an extra HTTP call
@@ -76,7 +72,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     });
 
                     let studio_state = StudioState {
-                        studio_id,
+                        studio_id: STUDIO_ID,
                         program_id: runtime.program_id,
                         program,
                         active_overlay,
@@ -98,13 +94,12 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let program_id = data.get("programId").and_then(|v| v.as_i64());
 
                     // Update runtime state; changing program always resets overlay / popup
                     {
                         let mut states = state_c.studio_states.lock().await;
-                        let s = states.entry(studio_id).or_default();
+                        let s = states.entry(STUDIO_ID).or_default();
                         s.program_id = program_id;
                         s.active_screen_id = None;
                         s.active_screen_path = None;
@@ -115,8 +110,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         s.active_popup_direction = None;
                         s.active_popup_position = None;
                     }
-
-                    let room = format!("studio:{studio_id}");
 
                     if let Some(pid) = program_id {
                         let program = {
@@ -137,36 +130,35 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                         if let Some(ref overlay) = first_overlay {
                             let mut states = state_c.studio_states.lock().await;
-                            let s = states.entry(studio_id).or_default();
+                            let s = states.entry(STUDIO_ID).or_default();
                             s.active_screen_id = Some(overlay.graphic_id);
                             s.active_screen_path = overlay.graphic_path.clone();
                             s.active_screen_allow_popups = overlay.allow_popups;
                         }
 
                         let payload = serde_json::json!({
-                            "studioId": studio_id,
+                            "studioId": STUDIO_ID,
                             "programId": pid,
                             "program": program,
                             "activeOverlay": first_overlay,
                             "activePopup": null,
                         });
-                        let _ = io_cc.within(room).emit("program-selected", &payload).await;
+                        let _ = io_cc.within(ROOM).emit("program-selected", &payload).await;
 
                         // Also emit overlay-activated so the OBS overlay page reacts immediately
                         if let Some(ref overlay) = first_overlay {
                             let overlay_payload = serde_json::json!({
-                                "studioId": studio_id,
+                                "studioId": STUDIO_ID,
                                 "graphicId": overlay.graphic_id,
                                 "graphicPath": overlay.graphic_path,
                                 "allowPopUps": overlay.allow_popups,
                             });
-                            let overlay_room = format!("studio:{studio_id}");
-                            let _ = io_cc.within(overlay_room).emit("overlay-activated", &overlay_payload).await;
+                            let _ = io_cc.within(ROOM).emit("overlay-activated", &overlay_payload).await;
                         }
                     } else {
                         // programId: null means the operator is clearing the active program
-                        let payload = serde_json::json!({ "studioId": studio_id });
-                        let _ = io_cc.within(room).emit("program-cleared", &payload).await;
+                        let payload = serde_json::json!({ "studioId": STUDIO_ID });
+                        let _ = io_cc.within(ROOM).emit("program-cleared", &payload).await;
                     }
                 }
             });
@@ -182,27 +174,25 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let graphic_id = data.get("graphicId").and_then(|v| v.as_i64());
                     let graphic_path = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
                     let allow_popups = data.get("allowPopUps").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     {
                         let mut states = state_c.studio_states.lock().await;
-                        let s = states.entry(studio_id).or_default();
+                        let s = states.entry(STUDIO_ID).or_default();
                         s.active_screen_id = graphic_id;
                         s.active_screen_path = graphic_path.clone();
                         s.active_screen_allow_popups = allow_popups;
                     }
 
-                    let room = format!("studio:{studio_id}");
                     let payload = serde_json::json!({
-                        "studioId": studio_id,
+                        "studioId": STUDIO_ID,
                         "graphicId": graphic_id,
                         "graphicPath": graphic_path,
                         "allowPopUps": allow_popups,
                     });
-                    let _ = io_cc.within(room).emit("overlay-activated", &payload).await;
+                    let _ = io_cc.within(ROOM).emit("overlay-activated", &payload).await;
                 }
             });
         }
@@ -211,23 +201,20 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("deactivate-overlay", move |_socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("deactivate-overlay", move |_socket: SocketRef, _: Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
-
                     {
                         let mut states = state_c.studio_states.lock().await;
-                        let s = states.entry(studio_id).or_default();
+                        let s = states.entry(STUDIO_ID).or_default();
                         s.active_screen_id = None;
                         s.active_screen_path = None;
                         s.active_screen_allow_popups = false;
                     }
 
-                    let room = format!("studio:{studio_id}");
-                    let payload = serde_json::json!({ "studioId": studio_id });
-                    let _ = io_cc.within(room).emit("overlay-deactivated", &payload).await;
+                    let payload = serde_json::json!({ "studioId": STUDIO_ID });
+                    let _ = io_cc.within(ROOM).emit("overlay-deactivated", &payload).await;
                 }
             });
         }
@@ -244,7 +231,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let Some(popup_id) = data.get("popupId").and_then(|v| v.as_i64()) else { return; };
                     let duration = data.get("duration").and_then(|v| v.as_i64()).unwrap_or(10);
 
@@ -265,7 +251,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                     {
                         let mut states = state_c.studio_states.lock().await;
-                        let s = states.entry(studio_id).or_default();
+                        let s = states.entry(STUDIO_ID).or_default();
                         s.active_popup_id = Some(popup_id);
                         s.active_popup_path = image_path.clone();
                         s.active_popup_duration = duration;
@@ -273,16 +259,15 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         s.active_popup_position = Some(position);
                     }
 
-                    let room = format!("studio:{studio_id}");
                     let payload = serde_json::json!({
-                        "studioId": studio_id,
+                        "studioId": STUDIO_ID,
                         "popupId": popup_id,
                         "imagePath": image_path,
                         "duration": duration,
                         "direction": direction,
                         "position": position,
                     });
-                    let _ = io_cc.within(room).emit("popup-started", &payload).await;
+                    let _ = io_cc.within(ROOM).emit("popup-started", &payload).await;
                 }
             });
         }
@@ -291,15 +276,13 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("end-popup", move |_socket: SocketRef, Data(data): Data<Value>| {
+            socket.on("end-popup", move |_socket: SocketRef, _: Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
-
                     {
                         let mut states = state_c.studio_states.lock().await;
-                        let s = states.entry(studio_id).or_default();
+                        let s = states.entry(STUDIO_ID).or_default();
                         s.active_popup_id = None;
                         s.active_popup_path = None;
                         s.active_popup_duration = 0;
@@ -307,9 +290,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         s.active_popup_position = None;
                     }
 
-                    let room = format!("studio:{studio_id}");
-                    let payload = serde_json::json!({ "studioId": studio_id });
-                    let _ = io_cc.within(room).emit("popup-ended", &payload).await;
+                    let payload = serde_json::json!({ "studioId": STUDIO_ID });
+                    let _ = io_cc.within(ROOM).emit("popup-ended", &payload).await;
                 }
             });
         }
@@ -320,7 +302,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
             socket.on("trigger-obs-command", move |_socket: SocketRef, Data(data): Data<Value>| {
                 let io_cc = io_cc.clone();
                 async move {
-                    let Some(studio_id) = data.get("studioId").and_then(|v| v.as_i64()) else { return; };
                     let command_id = data.get("commandId").and_then(|v| v.as_i64());
                     let shortcut = data.get("shortcut").and_then(|v| v.as_str()).map(String::from);
 
@@ -334,13 +315,12 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         }
                     }
 
-                    let room = format!("studio:{studio_id}");
                     let payload = serde_json::json!({
-                        "studioId": studio_id,
+                        "studioId": STUDIO_ID,
                         "commandId": command_id,
                         "shortcut": shortcut,
                     });
-                    let _ = io_cc.within(room).emit("obs-command-fired", &payload).await;
+                    let _ = io_cc.within(ROOM).emit("obs-command-fired", &payload).await;
                 }
             });
         }

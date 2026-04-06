@@ -232,8 +232,7 @@
 	}
 
 	async function copyObsUrl() {
-		if (!studio) return;
-		const full = `${getBackendUrl()}${studio.obs_browser_source_address}`;
+		const full = `${getBackendUrl()}/obs`;
 		await navigator.clipboard.writeText(full);
 		copied = true;
 		setTimeout(() => (copied = false), 2000);

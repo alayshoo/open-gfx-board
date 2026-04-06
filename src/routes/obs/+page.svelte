@@ -1,13 +1,10 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { page } from "$app/stores";
 	import { socket } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
 	import type { Program, StudioState } from "$lib/types";
 
 	type Direction = "top" | "bottom" | "left" | "right";
-
-	const studioId = $derived(Number($page.url.searchParams.get("studio")));
 
 	// ── Displayed state ────────────────────────────────────────────────────────
 	let displayedPath = $state<string | null>(null);
@@ -416,14 +413,11 @@
 
 	// ── Socket ─────────────────────────────────────────────────────────────────
 	onMount(() => {
-		if (!studioId) return;
-
-		socket.emit("join-studio-room", { studioId });
+		socket.emit("join-studio-room", {});
 		// Request the current studio state so we can warm the cache immediately.
-		socket.emit("get-studio-state", { studioId });
+		socket.emit("get-studio-state", {});
 
 		function onStudioState(data: StudioState) {
-			if (Number(data.studioId) !== studioId) return;
 			preloadProgram(data.program);
 			stopAllScheduling();
 			currentProgram = data.program;
@@ -464,7 +458,6 @@
 		}
 
 		function onProgramSelected(data: any) {
-			if (Number(data.studioId) !== studioId) return;
 			preloadProgram(data.program as Program);
 			stopAllScheduling();
 			currentProgram = data.program as Program;
@@ -475,8 +468,7 @@
 			}
 		}
 
-		function onProgramCleared(data: any) {
-			if (Number(data.studioId) !== studioId) return;
+		function onProgramCleared(_data: any) {
 			show(null, "image");
 			stopAllScheduling();
 			currentProgram = null;
@@ -484,7 +476,6 @@
 		}
 
 		function onOverlayActivated(data: any) {
-			if (Number(data.studioId) !== studioId) return;
 			const rawPath: string | null = data.graphicPath ?? null;
 			const url = rawPath ? imgUrl(rawPath) : null;
 			const type = getType(rawPath);
@@ -506,8 +497,7 @@
 			}
 		}
 
-		function onOverlayDeactivated(data: any) {
-			if (data && Number(data.studioId) !== studioId) return;
+		function onOverlayDeactivated(_data: any) {
 			show(null, "image");
 			overlayActive = false;
 			fillerSuppressed = false;
@@ -515,7 +505,6 @@
 		}
 
 		function onPopUpStarted(data: any) {
-			if (Number(data.studioId) !== studioId) return;
 			const rawPath: string | null = data.imagePath ?? null;
 			const url = rawPath ? imgUrl(rawPath) : null;
 			if (!url) return;
@@ -530,8 +519,7 @@
 			});
 		}
 
-		function onPopUpEnded(data: any) {
-			if (data && Number(data.studioId) !== studioId) return;
+		function onPopUpEnded(_data: any) {
 			triggerPopUp(null);
 			fillerSuppressed = false;
 			// Delay until the slide-out animation finishes so popupIsVisible is false
@@ -545,7 +533,7 @@
 		// onStudioState to run again, which re-preloads any assets whose URLs
 		// may have changed, keeping the local HTTP cache warm and correct.
 		function onUpdateData() {
-			socket.emit("get-studio-state", { studioId });
+			socket.emit("get-studio-state", {});
 		}
 
 		socket.on("studio-state", onStudioState);
@@ -561,7 +549,7 @@
 
 		return () => {
 			stopAllScheduling();
-			socket.emit("leave-studio-room", { studioId });
+			socket.emit("leave-studio-room", {});
 			socket.off("studio-state", onStudioState);
 			socket.off("program-selected", onProgramSelected);
 			socket.off("program-cleared", onProgramCleared);
