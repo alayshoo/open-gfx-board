@@ -39,6 +39,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "signingIdentity": null
+    },
     "resources": {
       "../build": "_up_/build"
     },
