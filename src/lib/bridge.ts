@@ -29,7 +29,33 @@ export function getLocalIp(): string | null {
 }
 
 export async function initBackendUrl(): Promise<void> {
-	for (const port of [5000, 5174, 3000, 8080, 8000]) {
+	const portsToProbe: number[] = [];
+
+	// Always try the user's preferred port first so the frontend finds the
+	// backend even when it's on a non-default port.
+	if (IS_TAURI) {
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			const preferred: number | null = await invoke('get_preferred_port');
+			if (preferred != null) portsToProbe.push(preferred);
+		} catch { /* ignore — fall through to defaults */ }
+	} else {
+		// Dev / web build: preferred port may have been saved to localStorage.
+		const stored = typeof localStorage !== 'undefined'
+			? localStorage.getItem('preferred_port')
+			: null;
+		if (stored) {
+			const p = parseInt(stored, 10);
+			if (Number.isFinite(p) && p > 0) portsToProbe.push(p);
+		}
+	}
+
+	// Append the standard fallback ports (skip any already in the list).
+	for (const p of [5000, 5174, 3000, 8080, 8000]) {
+		if (!portsToProbe.includes(p)) portsToProbe.push(p);
+	}
+
+	for (const port of portsToProbe) {
 		try {
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), 500);
@@ -46,7 +72,8 @@ export async function initBackendUrl(): Promise<void> {
 			// try next port
 		}
 	}
-	// After finding the port, fetch the LAN IP
+
+	// After finding the port, fetch the LAN IP.
 	try {
 		const res = await fetch(`${getBackendUrl()}/local-ip`);
 		if (res.ok) {

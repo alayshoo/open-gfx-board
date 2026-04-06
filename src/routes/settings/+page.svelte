@@ -40,7 +40,7 @@
 	});
 
 	async function savePreferredPort() {
-		const raw = preferredPortInput.trim();
+		const raw = String(preferredPortInput).trim();
 		const portNum = raw === '' ? null : parseInt(raw, 10);
 
 		if (portNum !== null && (isNaN(portNum) || portNum < 1024 || portNum > 65535)) {
@@ -277,13 +277,13 @@
 								<input
 									id="port-input"
 									class="port-input"
-									type="number"
-									min="1024"
-									max="65535"
+									type="text"
+									inputmode="numeric"
+									pattern="[0-9]*"
 									placeholder="Automatic"
 									bind:value={preferredPortInput}
 								/>
-								{#if preferredPortInput.trim() !== ''}
+								{#if String(preferredPortInput).trim() !== ''}
 									<button class="reset-btn" onclick={resetPort} title="Clear — use automatic">
 										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 											<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
