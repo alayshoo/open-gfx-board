@@ -69,15 +69,15 @@
 		</div>
 
 		{#if loading}
-			<div class="empty-message">Loading…</div>
+			<p>Loading…</p>
 		{:else if !studio}
-			<div class="empty-message">
+			<p>
 				No studio found. <a href="/studio-editor">Configure one →</a>
-			</div>
+			</p>
 		{:else if presets.length === 0}
-			<div class="empty-message">
+			<p>
 				No presets configured. <a href="/studio-editor">Add presets →</a>
-			</div>
+			</p>
 		{:else}
 			<div class="preset-grid">
 				{#each presets as preset (preset.id)}
@@ -231,15 +231,4 @@
 		color: var(--accent);
 	}
 
-	.empty-message {
-		padding: 48px 0;
-		text-align: center;
-		font-size: 13px;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-	}
-
-</style>
+	</style>

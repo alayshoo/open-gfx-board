@@ -342,10 +342,10 @@
 
 					<div class="commands-area">
 						<div class="commands-header">
-							<span class="commands-title">
+							<h3>
 								Commands
 								<span class="badge-sm">{editCommands.length}</span>
-							</span>
+							</h3>
 							<button class="btn btn-secondary btn-sm" onclick={addCommand}>
 								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 									<path d="M12 5v14M5 12h14"/>
@@ -417,8 +417,8 @@
 			{:else}
 				<div class="empty-state">
 					<svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor"><path d="M480-654Zm174 174Zm-348 0Zm174 174Zm0-262.46-100-100V-860h200v191.54l-100 100ZM668.46-380l-100-100 100-100H860v200H668.46ZM100-380v-200h191.54l100 100-100 100H100Zm280 280v-191.54l100-100 100 100V-100H380Zm100-554 40-40v-106h-80v106l40 40ZM160-440h106l40-40-40-40H160v80Zm280 280h80v-106l-40-40-40 40v106Zm254-280h106v-80H694l-40 40 40 40Z"/></svg>
-					<p class="empty-title">No preset selected</p>
-					<p class="empty-hint">Pick a preset from the sidebar, or create a new one.</p>
+					<h2>No preset selected</h2>
+					<p>Pick a preset from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNewPreset}>
 						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 							<path d="M12 5v14M5 12h14"/>
@@ -466,28 +466,6 @@
 		flex-shrink: 0;
 	}
 
-	.sidebar-title {
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		gap: 7px;
-	}
-
-	.badge {
-		background: var(--surface-3);
-		color: var(--text-2);
-		font-size: 0.75rem;
-		font-weight: 700;
-		border-radius: 999px;
-		padding: 1px 7px;
-		text-transform: none;
-		letter-spacing: normal;
-	}
-
 	.sidebar-list {
 		flex: 1;
 		overflow-y: auto;
@@ -516,28 +494,6 @@
 		border-left-color: var(--accent);
 	}
 
-	.item-name {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-1);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.item-meta {
-		font-size: 0.75rem;
-		color: var(--text-3);
-	}
-
-	.sidebar-empty {
-		padding: 28px 16px;
-		font-size: 0.8125rem;
-		color: var(--text-3);
-		text-align: center;
-		line-height: 1.7;
-	}
-
 	/* ── Studio info panel ── */
 	.studio-info {
 		border-top: 1px solid var(--border-1);
@@ -546,14 +502,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-
-	.studio-info-label {
-		font-size: 0.6875rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
 	}
 
 	.studio-name-row {
@@ -582,11 +530,6 @@
 	.obs-url-label {
 		font-size: 0.75rem;
 		color: var(--text-3);
-	}
-
-	.btn-xs {
-		padding: 4px 8px;
-		font-size: 0.75rem;
 	}
 
 	/* ── Main editor area ── */
@@ -656,28 +599,6 @@
 		justify-content: space-between;
 	}
 
-	.commands-title {
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.badge-sm {
-		font-size: 0.6875rem;
-		background: var(--surface-3);
-		color: var(--text-2);
-		border-radius: 4px;
-		padding: 1px 6px;
-		text-transform: none;
-		letter-spacing: normal;
-		font-weight: 600;
-	}
-
 	.commands-empty {
 		padding: 32px;
 		text-align: center;
@@ -742,18 +663,6 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
-	}
-
-	.empty-title {
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--text-2);
-	}
-
-	.empty-hint {
-		font-size: 0.875rem;
-		color: var(--text-3);
-		margin-bottom: 6px;
 	}
 
 	/* ── Reorder buttons ── */

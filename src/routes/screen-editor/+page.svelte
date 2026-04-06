@@ -254,7 +254,7 @@
 				<div class="editor-panel">
 					<div class="panel-header">
 						<div class="panel-title-area">
-							<h1 class="panel-title">{isNew ? 'New Screen' : (editName || 'Untitled')}</h1>
+							<h1>{isNew ? 'New Screen' : (editName || 'Untitled')}</h1>
 							{#if !isNew}
 								<span class="panel-id">ID #{editId}</span>
 							{/if}
@@ -301,7 +301,7 @@
 									<span class="toggle-track"></span>
 								</label>
 							</div>
-							<p class="helper-text">When active, pop-ups can appear on top of this screen.</p>
+							<p>When active, pop-ups can appear on top of this screen.</p>
 						</div>
 
 						{#if !isNew}
@@ -328,8 +328,8 @@
 			{:else}
 				<div class="empty-state">
 					<svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor"><path d="M610-326.15h143.85V-470h-47.7v96.15H610v47.7ZM206.15-570h47.7v-96.15H350v-47.7H206.15V-570ZM340-140v-80H172.31Q142-220 121-241q-21-21-21-51.31v-455.38Q100-778 121-799q21-21 51.31-21h615.38Q818-820 839-799q21 21 21 51.31v455.38Q860-262 839-241q-21 21-51.31 21H620v80H340ZM172.31-280h615.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-455.38q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H172.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v455.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85ZM160-280v-480 480Z"/></svg>
-					<p class="empty-title">No screen selected</p>
-					<p class="empty-hint">Pick a screen from the sidebar, or create a new one.</p>
+					<h2>No screen selected</h2>
+					<p>Pick a screen from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNew}>
 						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 							<path d="M12 5v14M5 12h14"/>
@@ -375,28 +375,6 @@
 		align-items: center;
 		justify-content: space-between;
 		flex-shrink: 0;
-	}
-
-	.sidebar-title {
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		gap: 7px;
-	}
-
-	.badge {
-		background: var(--surface-3);
-		color: var(--text-2);
-		font-size: 0.75rem;
-		font-weight: 700;
-		border-radius: 999px;
-		padding: 1px 7px;
-		text-transform: none;
-		letter-spacing: normal;
 	}
 
 	.sidebar-list {
@@ -459,31 +437,6 @@
 		gap: 2px;
 	}
 
-	.item-name {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-1);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.item-meta {
-		font-size: 0.75rem;
-		color: var(--text-3);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.sidebar-empty {
-		padding: 28px 16px;
-		font-size: 0.8125rem;
-		color: var(--text-3);
-		text-align: center;
-		line-height: 1.7;
-	}
-
 	/* ── Main editor area ── */
 	.editor-main {
 		flex: 1;
@@ -512,15 +465,6 @@
 		align-items: baseline;
 		gap: 12px;
 		min-width: 0;
-	}
-
-	.panel-title {
-		font-size: 1.375rem;
-		font-weight: 700;
-		color: var(--text-1);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
 	.panel-id {
@@ -555,14 +499,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-
-	.field-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
 	}
 
 	.form-input {
@@ -604,11 +540,6 @@
 		align-items: center;
 		justify-content: space-between;
 		max-width: 360px;
-	}
-
-	.helper-text {
-		font-size: 0.75rem;
-		color: var(--text-3);
 	}
 
 	.toggle {
@@ -688,17 +619,5 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
-	}
-
-	.empty-title {
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--text-2);
-	}
-
-	.empty-hint {
-		font-size: 0.875rem;
-		color: var(--text-3);
-		margin-bottom: 6px;
 	}
 </style>

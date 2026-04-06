@@ -192,12 +192,12 @@
 				<div class="editor-panel">
 					<div class="panel-header">
 						<div class="panel-title-area">
-							<h1 class="panel-title">Import &amp; Export</h1>
+							<h1>Import &amp; Export</h1>
 						</div>
 					</div>
 
 					<div class="form-body">
-						<p class="section-desc">
+						<p>
 							Export your programs, screens, pop-ups, and studio settings as a ZIP archive.
 							Or import a previous backup to fully restore your data.
 						</p>
@@ -250,12 +250,12 @@
 				<div class="editor-panel">
 					<div class="panel-header">
 						<div class="panel-title-area">
-							<h1 class="panel-title">Server</h1>
+							<h1>Server</h1>
 						</div>
 					</div>
 
 					<div class="form-body">
-						<p class="section-desc">
+						<p>
 							Configure which port the backend server listens on. Leave blank to let the
 							app automatically find an available port on each launch.
 						</p>
@@ -329,7 +329,7 @@
 						<div class="panel-title-area">
 							<img src="/icon.png" alt="Open GFX Board" class="about-icon" />
 							<div class="about-app-info">
-								<h1 class="panel-title">Open GFX Board</h1>
+								<h1>Open GFX Board</h1>
 								{#if appVersion}
 									<span class="about-version">v{appVersion}</span>
 								{/if}
@@ -338,7 +338,7 @@
 					</div>
 
 					<div class="form-body">
-						<p class="section-desc">
+						<p>
 							A graphics and overlay management tool for live broadcasting. Manage programs, screens,
 							pop-up overlays, and studio presets — all in one place.
 						</p>
@@ -395,14 +395,6 @@
 		flex-shrink: 0;
 	}
 
-	.sidebar-title {
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-	}
-
 	.sidebar-list {
 		flex: 1;
 		overflow-y: auto;
@@ -445,12 +437,6 @@
 		color: var(--accent);
 	}
 
-	.item-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--text-2);
-	}
-
 	.sidebar-item.selected .item-label {
 		color: var(--text-1);
 	}
@@ -483,23 +469,10 @@
 		gap: 24px;
 	}
 
-	.panel-title {
-		font-size: 1.375rem;
-		font-weight: 700;
-		color: var(--text-1);
-	}
-
 	.form-body {
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-	}
-
-	.section-desc {
-		font-size: 0.875rem;
-		color: var(--text-3);
-		line-height: 1.7;
-		margin: 0;
 	}
 
 	/* ── Import/Export actions ── */
@@ -628,19 +601,6 @@
 		gap: 8px;
 	}
 
-	.field-label {
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: var(--text-1);
-	}
-
-	.field-hint {
-		font-size: 0.8125rem;
-		color: var(--text-3);
-		line-height: 1.6;
-		margin: 0;
-	}
-
 	.port-input-row {
 		display: flex;
 		align-items: center;
@@ -655,7 +615,6 @@
 		border-radius: var(--r);
 		color: var(--text-1);
 		font-size: 0.875rem;
-		font-family: inherit;
 		font-variant-numeric: tabular-nums;
 		transition: border-color 0.15s;
 		appearance: textfield;
@@ -714,7 +673,6 @@
 		color: var(--accent);
 		font-size: 0.875rem;
 		font-weight: 600;
-		font-family: inherit;
 		cursor: pointer;
 		transition: all 0.15s;
 	}
@@ -762,7 +720,7 @@
 		gap: 4px;
 	}
 
-	.about-app-info .panel-title {
+	.about-app-info h1 {
 		font-size: 2rem;
 	}
 

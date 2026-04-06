@@ -318,7 +318,168 @@
 		overflow-y: auto;
 	}
 
-	/* Page chrome shared */
+	/* ── Typography System ──────────────────────────────────── */
+	:global(h1) {
+		font-size: 1.375rem;
+		font-weight: 700;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.2;
+	}
+
+	:global(h2) {
+		font-size: 1.25rem;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.3;
+	}
+
+	:global(h3) {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.3;
+	}
+
+	:global(h4) {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.4;
+	}
+
+	:global(h5) {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.4;
+	}
+
+	:global(h6) {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-1);
+		margin: 0;
+		line-height: 1.4;
+	}
+
+	:global(p) {
+		font-size: 1rem;
+		color: var(--text-2);
+		margin: 0;
+		line-height: 1.6;
+	}
+
+	/* ── UI Text Components ──────────────────────────────────── */
+	:global(.sidebar-title) {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-3);
+	}
+
+	:global(.field-label) {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-3);
+	}
+
+	:global(.item-name) {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-1);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	:global(.item-meta) {
+		font-size: 0.75rem;
+		color: var(--text-3);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	:global(.item-label) {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-2);
+	}
+
+	:global(.empty-title) {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text-2);
+	}
+
+	:global(.empty-hint) {
+		font-size: 0.875rem;
+		color: var(--text-3);
+	}
+
+	:global(.helper-text) {
+		font-size: 0.75rem;
+		color: var(--text-3);
+	}
+
+	:global(.section-desc) {
+		font-size: 0.875rem;
+		color: var(--text-3);
+		line-height: 1.7;
+	}
+
+	:global(.studio-info-label) {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--text-3);
+	}
+
+	:global(.sidebar-empty) {
+		font-size: 0.8125rem;
+		color: var(--text-3);
+		text-align: center;
+		line-height: 1.7;
+	}
+
+	:global(.commands-empty) {
+		font-size: 0.875rem;
+		color: var(--text-3);
+		text-align: center;
+	}
+
+	:global(.badge) {
+		background: var(--surface-3);
+		color: var(--text-2);
+		font-size: 0.75rem;
+		font-weight: 700;
+		border-radius: 999px;
+		padding: 1px 7px;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+
+	:global(.badge-sm) {
+		font-size: 0.6875rem;
+		background: var(--surface-3);
+		color: var(--text-2);
+		border-radius: 4px;
+		padding: 1px 6px;
+		text-transform: none;
+		letter-spacing: normal;
+		font-weight: 600;
+	}
+
+	/* ── Page chrome shared ──────────────────────────────────── */
 	:global(.page-wrap) {
 		min-height: 100vh;
 		display: flex;

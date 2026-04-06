@@ -603,8 +603,8 @@
 			{:else}
 				<div class="empty-state">
 					<svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor"><path d="M390-358.46 641.54-520 390-681.54v323.08ZM340-140v-80H172.31Q142-220 121-241q-21-21-21-51.31v-455.38Q100-778 121-799q21-21 51.31-21h615.38Q818-820 839-799q21 21 21 51.31v455.38Q860-262 839-241q-21 21-51.31 21H620v80H340ZM172.31-280h615.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-455.38q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H172.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v455.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85ZM160-280v-480 480Z"/></svg>
-					<p class="empty-title">No program selected</p>
-					<p class="empty-hint">Pick a program from the sidebar, or create a new one.</p>
+					<h2>No program selected</h2>
+					<p>Pick a program from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNew}>
 						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 							<path d="M12 5v14M5 12h14"/>
@@ -739,28 +739,6 @@
 		flex-shrink: 0;
 	}
 
-	.sidebar-title {
-		font-size: 11px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		gap: 7px;
-	}
-
-	.badge {
-		background: var(--surface-3);
-		color: var(--text-2);
-		font-size: 11px;
-		font-weight: 700;
-		border-radius: 999px;
-		padding: 1px 7px;
-		text-transform: none;
-		letter-spacing: normal;
-	}
-
 	.sidebar-list {
 		flex: 1;
 		overflow-y: auto;
@@ -807,39 +785,12 @@
 		object-fit: cover;
 	}
 
-	.item-thumb-empty {
-		font-size: 11px;
-		color: var(--text-3);
-	}
-
 	.item-info {
 		flex: 1;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-	}
-
-	.item-name {
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--text-1);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.item-meta {
-		font-size: 11px;
-		color: var(--text-3);
-	}
-
-	.sidebar-empty {
-		padding: 28px 16px;
-		font-size: 12px;
-		color: var(--text-3);
-		text-align: center;
-		line-height: 1.7;
 	}
 
 	/* ── Main editor area ── */
@@ -872,22 +823,6 @@
 		min-width: 0;
 	}
 
-	.panel-title {
-		font-size: 20px;
-		font-weight: 700;
-		color: var(--text-1);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.panel-id {
-		font-size: 12px;
-		color: var(--text-3);
-		font-variant-numeric: tabular-nums;
-		flex-shrink: 0;
-	}
-
 	.panel-actions {
 		display: flex;
 		align-items: center;
@@ -918,28 +853,6 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-	}
-
-	.field-label {
-		font-size: 11px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		color: var(--text-3);
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.badge-sm {
-		font-size: 10px;
-		background: var(--surface-3);
-		color: var(--text-2);
-		border-radius: 4px;
-		padding: 1px 6px;
-		text-transform: none;
-		letter-spacing: normal;
-		font-weight: 600;
 	}
 
 	.form-input {
@@ -997,16 +910,6 @@
 		margin: 0;
 	}
 
-	.helper-link {
-		font-size: 12px;
-		color: var(--accent);
-		text-decoration: none;
-	}
-
-	.helper-link:hover {
-		text-decoration: underline;
-	}
-
 	/* ── Logo / Background image pair ── */
 	.image-pair {
 		display: grid;
@@ -1050,13 +953,6 @@
 		overflow: hidden;
 	}
 
-	.sub-empty {
-		font-size: 12px;
-		color: var(--text-3);
-		padding: 18px;
-		text-align: center;
-	}
-
 	/* ── Screens table ── */
 	.preview-cell {
 		text-align: center;
@@ -1067,16 +963,6 @@
 		max-width: 96px;
 		object-fit: contain;
 		border-radius: 4px;
-	}
-
-	.no-image-text {
-		font-size: 11px;
-		color: var(--text-3);
-	}
-
-	.fw-medium {
-		font-weight: 500;
-		color: var(--text-1);
 	}
 
 	/* ── PopUps table ── */
@@ -1102,22 +988,6 @@
 		max-width: 100%;
 		max-height: 100%;
 		object-fit: contain;
-	}
-
-	.popup-thumb-empty {
-		color: var(--text-3);
-		font-size: 1rem;
-	}
-
-	.popup-name-text {
-		font-weight: 600;
-		font-size: 13px;
-		color: var(--text-1);
-	}
-
-	.popup-sponsor-text {
-		font-size: 11px;
-		color: var(--text-3);
 	}
 
 	.popups-table :global(td) {
@@ -1169,26 +1039,9 @@
 		object-fit: contain;
 	}
 
-	.picker-empty {
-		color: var(--text-3);
-		font-size: 1.5rem;
-	}
-
 	.picker-info {
 		padding: 10px 12px;
 		flex: 1;
-	}
-
-	.picker-name {
-		font-weight: 600;
-		font-size: 13px;
-		color: var(--text-1);
-		margin-bottom: 2px;
-	}
-
-	.picker-sub {
-		font-size: 11px;
-		color: var(--text-3);
 	}
 
 	.picker-add-btn {
@@ -1210,13 +1063,6 @@
 		opacity: 1;
 	}
 
-	.picker-empty-msg {
-		font-size: 12px;
-		color: var(--text-3);
-		padding: 20px;
-		text-align: center;
-	}
-
 	/* ── Empty state ── */
 	.empty-state {
 		display: flex;
@@ -1227,17 +1073,5 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
-	}
-
-	.empty-title {
-		font-size: 15px;
-		font-weight: 600;
-		color: var(--text-2);
-	}
-
-	.empty-hint {
-		font-size: 13px;
-		color: var(--text-3);
-		margin-bottom: 6px;
 	}
 </style>
