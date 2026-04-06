@@ -4,9 +4,9 @@
 	import { hasData } from '$lib/api/api';
 	import { BACKEND_URL } from '$lib/api/socket';
 	import { addToast } from '$lib/toasts';
-	import { IS_TAURI } from '$lib/bridge';
+	import { IS_TAURI, getCurrentPort } from '$lib/bridge';
 
-	type Tab = 'import-export' | 'about';
+	type Tab = 'import-export' | 'server' | 'about';
 	let activeTab = $state<Tab>('import-export');
 
 	let appVersion = $state('');
@@ -15,13 +15,63 @@
 	let exporting = $state(false);
 	let fileInput: HTMLInputElement;
 
+	// Server tab state
+	let currentPort = $state(0);
+	let preferredPortInput = $state('');
+	let portSaving = $state(false);
+	let portSaved = $state(false);
+
 	onMount(async () => {
 		canExport = await hasData();
+		currentPort = getCurrentPort();
 		if (IS_TAURI) {
 			const { getVersion } = await import('@tauri-apps/api/app');
 			appVersion = await getVersion();
+
+			// Load saved preferred port from Tauri
+			const { invoke } = await import('@tauri-apps/api/core');
+			const preferred: number | null = await invoke('get_preferred_port');
+			if (preferred != null) preferredPortInput = String(preferred);
+		} else {
+			// Web/dev: load from localStorage
+			const stored = localStorage.getItem('preferred_port');
+			if (stored) preferredPortInput = stored;
 		}
 	});
+
+	async function savePreferredPort() {
+		const raw = preferredPortInput.trim();
+		const portNum = raw === '' ? null : parseInt(raw, 10);
+
+		if (portNum !== null && (isNaN(portNum) || portNum < 1024 || portNum > 65535)) {
+			addToast('error', 'Port must be between 1024 and 65535.');
+			return;
+		}
+
+		portSaving = true;
+		try {
+			if (IS_TAURI) {
+				const { invoke } = await import('@tauri-apps/api/core');
+				await invoke('set_preferred_port', { port: portNum });
+			} else {
+				if (portNum === null) {
+					localStorage.removeItem('preferred_port');
+				} else {
+					localStorage.setItem('preferred_port', String(portNum));
+				}
+			}
+			portSaved = true;
+			setTimeout(() => (portSaved = false), 3000);
+		} catch {
+			addToast('error', 'Failed to save port preference.');
+		} finally {
+			portSaving = false;
+		}
+	}
+
+	function resetPort() {
+		preferredPortInput = '';
+	}
 
 	async function doExport() {
 		exporting = true;
@@ -105,11 +155,20 @@
 					onclick={() => (activeTab = 'import-export')}
 				>
 					<div class="item-icon">
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-							<path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12"/>
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-140q-145.61 0-242.81-41.12Q140-222.23 140-283.85V-680q0-57.92 99.54-98.96Q339.08-820 480-820q140.92 0 240.46 41.04Q820-737.92 820-680v396.15q0 61.62-97.19 102.73Q625.61-140 480-140Zm0-461.69q87.46 0 176.12-24.73 88.65-24.73 102.73-53.35-13.7-29.38-101.66-54.81Q569.23-760 480-760q-89.08 0-176.58 24.73-87.5 24.73-103.04 53.96 15.16 30 102.27 54.81 87.12 24.81 177.35 24.81Zm0 200.15q41.62 0 81-4t75.27-11.69q35.88-7.69 67.19-19.08 31.31-11.38 56.54-25.77V-604q-25.23 14.38-56.54 25.77-31.31 11.38-67.19 19.07-35.89 7.7-75.27 11.7-39.38 4-81 4-42.38 0-82.58-4.2-40.19-4.19-75.88-11.88t-66.5-18.88Q224.23-589.62 200-604v141.92q24.23 14.39 55.04 25.58 30.81 11.19 66.5 18.88 35.69 7.7 75.88 11.89 40.2 4.19 82.58 4.19ZM480-200q48.69 0 95.62-6.42 46.92-6.43 85.38-17.54 38.46-11.12 64.88-25.81 26.43-14.69 34.12-30.85v-121.46q-25.23 14.39-56.54 25.77-31.31 11.39-67.19 19.08-35.89 7.69-75.27 11.69-39.38 4-81 4-42.38 0-82.58-4.19-40.19-4.19-75.88-11.89-35.69-7.69-66.5-18.88-30.81-11.19-55.04-25.58V-280q7.69 16.54 33.81 30.73 26.11 14.19 64.57 25.31 38.47 11.11 85.7 17.54Q431.31-200 480-200Z"/></svg>
 					</div>
 					<span class="item-label">Import &amp; Export</span>
+				</button>
+
+				<button
+					class="sidebar-item"
+					class:selected={activeTab === 'server'}
+					onclick={() => (activeTab = 'server')}
+				>
+					<div class="item-icon">
+						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M300.05-697.69q-20.82 0-35.43 14.57Q250-668.55 250-647.74q0 20.82 14.57 35.43 14.57 14.62 35.38 14.62 20.82 0 35.43-14.57Q350-626.83 350-647.65q0-20.81-14.57-35.43-14.57-14.61-35.38-14.61Zm0 375.38q-20.82 0-35.43 14.57Q250-293.17 250-272.35q0 20.81 14.57 35.43 14.57 14.61 35.38 14.61 20.82 0 35.43-14.57Q350-251.45 350-272.26q0-20.82-14.57-35.43-14.57-14.62-35.38-14.62ZM175.39-807.69h609.22q15.04 0 25.22 10.15Q820-787.4 820-772.4v247.01q0 16.24-10.17 26.97-10.18 10.73-25.22 10.73H175.39q-15.04 0-25.22-10.73Q140-509.15 140-525.39V-772.4q0-15 10.17-25.14 10.18-10.15 25.22-10.15Zm24.61 60v200h560v-200H200Zm-24.61 315.38h608.45q15.85 0 26 10.62Q820-411.08 820-395.38v244.61q0 17-10.16 27.73-10.15 10.73-26 10.73H176.16q-15.85 0-26-10.73Q140-133.77 140-150.77v-244.61q0-15.7 9.77-26.31 9.77-10.62 25.62-10.62Zm24.61 60v200h560v-200H200Zm0-375.38v200-200Zm0 375.38v200-200Z"/></svg>
+					</div>
+					<span class="item-label">Server</span>
 				</button>
 
 				<button
@@ -118,9 +177,7 @@
 					onclick={() => (activeTab = 'about')}
 				>
 					<div class="item-icon">
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-							<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M450-290h60v-230h-60v230Zm52.92-307.75q9.39-9.29 9.39-23.02t-9.29-23.02q-9.29-9.28-23.02-9.28t-23.02 9.28q-9.29 9.29-9.29 23.02t9.39 23.02q9.38 9.29 22.92 9.29 13.54 0 22.92-9.29ZM480.07-100q-78.84 0-148.21-29.92t-120.68-81.21q-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100Zm-.07-60q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
 					</div>
 					<span class="item-label">About</span>
 				</button>
@@ -142,7 +199,7 @@
 					<div class="form-body">
 						<p class="section-desc">
 							Export your programs, screens, pop-ups, and studio settings as a ZIP archive.
-							Import a previous backup to fully restore your data.
+							Or import a previous backup to fully restore your data.
 						</p>
 
 						<div class="action-row">
@@ -153,9 +210,7 @@
 								disabled={!canExport || exporting}
 							>
 								<div class="action-icon export-icon">
-									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-										<path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4m0 0l-4-4m4 4V4"/>
-									</svg>
+									<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M450-328.46v-336l-98.61 98.61-42.16-43.38L480-780l170.77 170.77-42.16 43.38L510-664.46v336h-60ZM252.31-180Q222-180 201-201q-21-21-21-51.31v-108.46h60v108.46q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85h455.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-108.46h60v108.46Q780-222 759-201q-21 21-51.31 21H252.31Z"/></svg>
 								</div>
 								<div class="action-text">
 									<span class="action-title">{exporting ? 'Exporting…' : 'Export Database'}</span>
@@ -165,9 +220,7 @@
 
 							<button class="action-btn" onclick={triggerImport} disabled={importing}>
 								<div class="action-icon import-icon">
-									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-										<path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12"/>
-									</svg>
+									<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-328.46 309.23-499.23l42.16-43.38L450-444v-336h60v336l98.61-98.61 42.16 43.38L480-328.46ZM252.31-180Q222-180 201-201q-21-21-21-51.31v-108.46h60v108.46q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85h455.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-108.46h60v108.46Q780-222 759-201q-21 21-51.31 21H252.31Z"/></svg>
 								</div>
 								<div class="action-text">
 									<span class="action-title">{importing ? 'Importing…' : 'Import Database'}</span>
@@ -186,10 +239,85 @@
 						{/if}
 
 						<div class="danger-note">
-							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/>
-							</svg>
+							<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M74.62-140 480-840l405.38 700H74.62ZM178-200h604L480-720 178-200Zm324.92-57.08q9.39-9.38 9.39-22.92 0-13.54-9.39-22.92-9.38-9.39-22.92-9.39-13.54 0-22.92 9.39-9.39 9.38-9.39 22.92 0 13.54 9.39 22.92 9.38 9.39 22.92 9.39 13.54 0 22.92-9.39ZM450-352.31h60v-200h-60v200ZM480-460Z"/></svg>
 							Importing will permanently replace all existing data.
+						</div>
+					</div>
+				</div>
+
+			<!-- Server tab -->
+			{:else if activeTab === 'server'}
+				<div class="editor-panel">
+					<div class="panel-header">
+						<div class="panel-title-area">
+							<h1 class="panel-title">Server</h1>
+						</div>
+					</div>
+
+					<div class="form-body">
+						<p class="section-desc">
+							Configure which port the backend server listens on. Leave blank to let the
+							app automatically find an available port on each launch.
+						</p>
+
+						<!-- Current port status -->
+						<div class="port-status-card">
+							<div class="port-status-label">Currently running on port</div>
+							<div class="port-status-value">{currentPort > 0 ? currentPort : '—'}</div>
+						</div>
+
+						<!-- Port input -->
+						<div class="field-group">
+							<label class="field-label" for="port-input">Preferred port</label>
+							<p class="field-hint">
+								Enter a port between 1024 and 65535, or leave empty for automatic selection
+								(tries 5000, 5174, 3000, 8080, 8000 in order).
+							</p>
+							<div class="port-input-row">
+								<input
+									id="port-input"
+									class="port-input"
+									type="number"
+									min="1024"
+									max="65535"
+									placeholder="Automatic"
+									bind:value={preferredPortInput}
+								/>
+								{#if preferredPortInput.trim() !== ''}
+									<button class="reset-btn" onclick={resetPort} title="Clear — use automatic">
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+										</svg>
+									</button>
+								{/if}
+							</div>
+						</div>
+
+						<!-- Save button -->
+						<div class="save-row">
+							<button
+								class="save-btn"
+								class:saved={portSaved}
+								onclick={savePreferredPort}
+								disabled={portSaving}
+							>
+								{#if portSaved}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+										<polyline points="20 6 9 17 4 12"/>
+									</svg>
+									Saved
+								{:else if portSaving}
+									Saving…
+								{:else}
+									Save
+								{/if}
+							</button>
+						</div>
+
+						<!-- Restart notice -->
+						<div class="info-note">
+							<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M450-290h60v-230h-60v230Zm52.92-307.75q9.39-9.29 9.39-23.02t-9.29-23.02q-9.29-9.28-23.02-9.28t-23.02 9.28q-9.29 9.29-9.29 23.02t9.39 23.02q9.38 9.29 22.92 9.29 13.54 0 22.92-9.29ZM480.07-100q-78.84 0-148.21-29.92t-120.68-81.21q-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100Zm-.07-60q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
+							Port changes take effect after restarting the application.
 						</div>
 					</div>
 				</div>
@@ -466,6 +594,155 @@
 		color: var(--text-3);
 		background: var(--live-dim);
 		border: 1px solid rgba(239, 68, 68, 0.15);
+		border-radius: var(--r-sm);
+		padding: 8px 12px;
+	}
+
+	/* ── Server tab ── */
+	.port-status-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 14px 18px;
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-lg);
+	}
+
+	.port-status-label {
+		font-size: 13px;
+		color: var(--text-3);
+	}
+
+	.port-status-value {
+		font-size: 20px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--accent);
+		letter-spacing: 0.02em;
+	}
+
+	.field-group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.field-label {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-1);
+	}
+
+	.field-hint {
+		font-size: 12px;
+		color: var(--text-3);
+		line-height: 1.6;
+		margin: 0;
+	}
+
+	.port-input-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.port-input {
+		width: 160px;
+		padding: 8px 12px;
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r);
+		color: var(--text-1);
+		font-size: 14px;
+		font-family: inherit;
+		font-variant-numeric: tabular-nums;
+		transition: border-color 0.15s;
+		appearance: textfield;
+	}
+
+	.port-input::-webkit-inner-spin-button,
+	.port-input::-webkit-outer-spin-button {
+		-webkit-appearance: none;
+	}
+
+	.port-input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.port-input::placeholder {
+		color: var(--text-3);
+		font-style: italic;
+	}
+
+	.reset-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		background: transparent;
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-sm);
+		color: var(--text-3);
+		cursor: pointer;
+		transition: all 0.15s;
+		flex-shrink: 0;
+	}
+
+	.reset-btn:hover {
+		background: var(--surface-2);
+		color: var(--text-1);
+		border-color: var(--border-2);
+	}
+
+	.save-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.save-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 20px;
+		background: var(--accent-dim);
+		border: 1px solid rgba(56, 189, 248, 0.25);
+		border-radius: var(--r);
+		color: var(--accent);
+		font-size: 13px;
+		font-weight: 600;
+		font-family: inherit;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.save-btn:hover:not(:disabled) {
+		background: rgba(56, 189, 248, 0.2);
+		border-color: rgba(56, 189, 248, 0.4);
+	}
+
+	.save-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.save-btn.saved {
+		background: var(--go-dim);
+		border-color: rgba(34, 197, 94, 0.25);
+		color: var(--go);
+	}
+
+	.info-note {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12px;
+		color: var(--text-3);
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
 		border-radius: var(--r-sm);
 		padding: 8px 12px;
 	}

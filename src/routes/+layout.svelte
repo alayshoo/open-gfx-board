@@ -45,6 +45,7 @@
 <style>
 	:global(html, body) {
 		font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+		font-size: 16px;
 	}
 
 	:global(*) {

@@ -21,6 +21,41 @@ fn close_splashscreen(app: tauri::AppHandle) {
     }
 }
 
+fn config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("config.json"))
+}
+
+fn read_config(app: &tauri::AppHandle) -> serde_json::Value {
+    config_path(app)
+        .and_then(|p| std::fs::read_to_string(&p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn write_config(app: &tauri::AppHandle, config: &serde_json::Value) -> Result<(), String> {
+    let path = config_path(app).ok_or("cannot resolve app data dir")?;
+    let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_preferred_port(app: tauri::AppHandle) -> Option<u16> {
+    read_config(&app)
+        .get("preferred_port")
+        .and_then(|v| v.as_u64())
+        .map(|p| p as u16)
+}
+
+#[tauri::command]
+fn set_preferred_port(app: tauri::AppHandle, port: Option<u16>) -> Result<(), String> {
+    let mut config = read_config(&app);
+    match port {
+        Some(p) => { config["preferred_port"] = serde_json::json!(p); }
+        None => { config.as_object_mut().map(|o| o.remove("preferred_port")); }
+    }
+    write_config(&app, &config)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -56,9 +91,25 @@ pub fn run() {
 
             let router = server::build_router(app_state, build_dir);
 
+            // Read preferred port from config (set by user in Settings → Server)
+            let preferred_port: Option<u16> = std::fs::read_to_string(app_data_dir.join("config.json"))
+                .ok()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                .and_then(|v| v.get("preferred_port").and_then(|p| p.as_u64()).map(|p| p as u16));
+
             tauri::async_runtime::spawn(async move {
-                let ports = [5000u16, 5174, 3000, 8080, 8000];
-                for port in ports {
+                // Try preferred port first, then fall back to the auto-discovery list
+                let mut ports_to_try: Vec<u16> = Vec::new();
+                if let Some(p) = preferred_port {
+                    ports_to_try.push(p);
+                }
+                for p in [5000u16, 5174, 3000, 8080, 8000] {
+                    if !ports_to_try.contains(&p) {
+                        ports_to_try.push(p);
+                    }
+                }
+
+                for port in ports_to_try {
                     let addr = format!("0.0.0.0:{port}");
                     match tokio::net::TcpListener::bind(&addr).await {
                         Ok(listener) => {
@@ -75,7 +126,11 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![close_splashscreen])
+        .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
+            get_preferred_port,
+            set_preferred_port,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

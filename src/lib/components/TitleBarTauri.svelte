@@ -69,6 +69,7 @@
 
 	let obsModalOpen = $state(false);
 	let obsCopied = $state(false);
+	let obsLocalCopied = $state(false);
 
 	let qrCopied = $state(false);
 
@@ -77,11 +78,22 @@
 		return `${networkUrl}/obs`;
 	});
 
+	const obsLocalUrl = $derived.by(() => {
+		const port = new URL(getBackendUrl()).port || "80";
+		return `http://localhost:${port}/obs`;
+	});
+
 	async function copyObsUrl() {
 		if (!obsUrl) return;
 		await navigator.clipboard.writeText(obsUrl);
 		obsCopied = true;
 		setTimeout(() => (obsCopied = false), 2000);
+	}
+
+	async function copyObsLocalUrl() {
+		await navigator.clipboard.writeText(obsLocalUrl);
+		obsLocalCopied = true;
+		setTimeout(() => (obsLocalCopied = false), 2000);
 	}
 
 	async function copyQrUrl() {
@@ -265,24 +277,24 @@
 				<li>Set the <strong>Width</strong> and <strong>Height</strong> to match your canvas resolution.</li>
 				<li>Click <strong>OK</strong> — your graphics overlay will appear.</li>
 			</ol>
-			{#if obsUrl}
-				<div class="obs-url-section">
-					<div class="qr-url-box">
-						<span class="qr-url-label">Browser Source URL</span>
-						<div class="obs-url-row">
-							<code class="qr-url">{obsUrl}</code>
-							<button class="copy-btn" onclick={copyObsUrl} aria-label="Copy URL">
-								{#if obsCopied}
-									<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
-								{:else}
-									<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
-								{/if}
-							</button>
-						</div>
+			<div class="obs-url-section">
+				<div class="qr-url-box">
+					<span class="qr-url-label">Browser Source URL</span>
+					<div class="obs-url-row">
+						<code class="qr-url">{obsLocalUrl}</code>
+						<button class="copy-btn" onclick={copyObsLocalUrl} aria-label="Copy URL">
+							{#if obsLocalCopied}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+							{/if}
+						</button>
 					</div>
-					<p class="obs-note">Make sure OBS is running on the <strong>same network</strong> as this computer, or use <code class="obs-localhost">http://localhost:{new URL(getBackendUrl()).port || '80'}/obs</code> if OBS is on this machine.</p>
 				</div>
-			{/if}
+				{#if obsUrl}
+					<p class="obs-note">If OBS is running on a <strong>different device</strong> on the same network, use <code class="obs-localhost">{obsUrl}</code> instead.</p>
+				{/if}
+			</div>
 		</div>
 	</div>
 </Modal>

@@ -61,3 +61,8 @@ export async function initBackendUrl(): Promise<void> {
 export const BACKEND_URL = {
 	get value() { return getBackendUrl(); }
 };
+
+/** Returns the port the frontend is currently connected to (Tauri / dev only). */
+export function getCurrentPort(): number {
+	return _backendPort;
+}

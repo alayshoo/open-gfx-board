@@ -342,9 +342,7 @@
 				</div>
 			{:else}
 				<div class="empty-state">
-					<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" class="empty-icon">
-						<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/>
-					</svg>
+					<svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor"><path d="M172.31-180Q142-180 121-201q-21-21-21-51.31v-455.38Q100-738 121-759q21-21 51.31-21h615.38Q818-780 839-759q21 21 21 51.31v455.38Q860-222 839-201q-21 21-51.31 21H172.31Zm0-60h615.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-455.38q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H172.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v455.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85ZM160-240v-480 480Zm286.15-40.77H760v-233.84H446.15v233.84Zm60-60v-113.85H700v113.85H506.15Z"/></svg>
 					<p class="empty-title">No pop-up selected</p>
 					<p class="empty-hint">Pick a pop-up from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNew}>
@@ -657,12 +655,6 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
-	}
-
-	.empty-icon {
-		color: var(--text-3);
-		opacity: 0.35;
-		margin-bottom: 4px;
 	}
 
 	.empty-title {

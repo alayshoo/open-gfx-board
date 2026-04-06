@@ -327,9 +327,7 @@
 				</div>
 			{:else}
 				<div class="empty-state">
-					<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" class="empty-icon">
-						<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-					</svg>
+					<svg xmlns="http://www.w3.org/2000/svg" height="64px" viewBox="0 -960 960 960" width="64px" fill="currentColor"><path d="M610-326.15h143.85V-470h-47.7v96.15H610v47.7ZM206.15-570h47.7v-96.15H350v-47.7H206.15V-570ZM340-140v-80H172.31Q142-220 121-241q-21-21-21-51.31v-455.38Q100-778 121-799q21-21 51.31-21h615.38Q818-820 839-799q21 21 21 51.31v455.38Q860-262 839-241q-21 21-51.31 21H620v80H340ZM172.31-280h615.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-455.38q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H172.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v455.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85ZM160-280v-480 480Z"/></svg>
 					<p class="empty-title">No screen selected</p>
 					<p class="empty-hint">Pick a screen from the sidebar, or create a new one.</p>
 					<button class="btn btn-primary btn-sm" onclick={openNew}>
@@ -690,12 +688,6 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
-	}
-
-	.empty-icon {
-		color: var(--text-3);
-		opacity: 0.35;
-		margin-bottom: 4px;
 	}
 
 	.empty-title {
