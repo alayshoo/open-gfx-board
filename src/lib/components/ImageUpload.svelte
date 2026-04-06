@@ -8,12 +8,14 @@
 		id,
 		currentPath = null,
 		onuploaded,
+		onuploadingchange,
 		inputId,
 	}: {
 		endpoint: string;
 		id: number;
 		currentPath?: string | null;
 		onuploaded?: (path: string) => void;
+		onuploadingchange?: (uploading: boolean) => void;
 		inputId?: string;
 	} = $props();
 
@@ -45,6 +47,7 @@
 		}
 		isVideoFile = file.type.startsWith('video/');
 		uploading = true;
+		onuploadingchange?.(true);
 		// Show local preview immediately
 		preview = URL.createObjectURL(file);
 		try {
@@ -59,6 +62,7 @@
 			addToast('error', 'Upload failed.');
 		} finally {
 			uploading = false;
+			onuploadingchange?.(false);
 		}
 	}
 

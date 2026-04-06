@@ -267,7 +267,7 @@
 								<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
 									Cancel
 								</button>
-								<button class="btn btn-primary" onclick={save} disabled={saving}>
+								<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
 									{saving ? 'Saving…' : isNew ? 'Create Screen' : 'Save Changes'}
 								</button>
 							</div>

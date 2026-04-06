@@ -11,6 +11,7 @@
 
 	let popups = $state<PopUp[]>([]);
 	let saving = $state(false);
+	let uploading = $state(false);
 
 	// Selection state
 	let selectedId = $state<number | null>(null);
@@ -246,7 +247,7 @@
 							<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
 								Cancel
 							</button>
-							<button class="btn btn-primary" onclick={save} disabled={saving}>
+							<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
 								{saving ? 'Saving…' : isNew ? 'Create PopUp' : 'Save Changes'}
 							</button>
 						</div>
@@ -312,6 +313,7 @@
 									id={editId!}
 									currentPath={editImagePath}
 									onuploaded={(path) => { editImagePath = path; }}
+					onuploadingchange={(v) => { uploading = v; }}
 								/>
 							</div>
 
