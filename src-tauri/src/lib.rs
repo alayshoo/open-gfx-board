@@ -10,6 +10,11 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use tauri::Manager;
 
+// Holds a pending update so it can be installed when the user confirms.
+// The public key is embedded at compile time via the TAURI_SIGNING_PUBLIC_KEY
+// environment variable (set as a GitHub Secret in CI).
+struct PendingUpdate(Mutex<Option<tauri_plugin_updater::Update>>);
+
 #[tauri::command]
 fn close_splashscreen(app: tauri::AppHandle) {
     if let Some(splash) = app.get_webview_window("splashscreen") {
@@ -56,10 +61,59 @@ fn set_preferred_port(app: tauri::AppHandle, port: Option<u16>) -> Result<(), St
     write_config(&app, &config)
 }
 
+/// Called by the frontend when the user accepts the update.
+/// Downloads, verifies the Ed25519 signature, installs, and restarts.
+#[tauri::command]
+async fn install_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    let update = {
+        let mut lock = state.0.lock().await;
+        lock.take()
+    };
+
+    match update {
+        Some(update) => {
+            update
+                .download_and_install(
+                    |_downloaded, _total| { /* progress – could emit an event here */ },
+                    || { /* download complete, about to install */ },
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+            app.restart();
+        }
+        None => return Err("No pending update".into()),
+    }
+
+    Ok(())
+}
+
+// The signing public key is embedded at compile time.
+// Set TAURI_SIGNING_PUBLIC_KEY as a GitHub Secret (and locally when building
+// release binaries).  In debug/dev builds the check is skipped entirely.
+const UPDATER_PUBKEY: Option<&str> = option_env!("TAURI_SIGNING_PUBLIC_KEY");
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+    // Build the updater plugin only when the public key was compiled in.
+    // This keeps dev builds working without any key setup.
+    let updater_plugin = UPDATER_PUBKEY.map(|key| {
+        tauri_plugin_updater::Builder::new()
+            .pubkey(key)
+            .build()
+    });
+
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init());
+
+    if let Some(plugin) = updater_plugin {
+        builder = builder.plugin(plugin);
+    }
+
+    builder
+        .manage(PendingUpdate(Mutex::new(None)))
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()
                 .expect("failed to get app data dir");
@@ -124,12 +178,39 @@ pub fn run() {
                 eprintln!("Failed to bind to any port");
             });
 
+            // Check for updates in release builds when a signing key is available.
+            // This runs in the background so it never delays startup.
+            #[cfg(not(debug_assertions))]
+            if UPDATER_PUBKEY.is_some() {
+                use tauri_plugin_updater::UpdaterExt;
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    match handle.updater() {
+                        Ok(updater) => match updater.check().await {
+                            Ok(Some(update)) => {
+                                let version = update.version.clone();
+                                // Store the update so install_update command can use it
+                                if let Some(state) = handle.try_state::<PendingUpdate>() {
+                                    *state.0.lock().await = Some(update);
+                                }
+                                // Notify the frontend – UpdateDialog will handle the UX
+                                let _ = handle.emit("update-available", version);
+                            }
+                            Ok(None) => {} // Already on the latest version
+                            Err(e) => eprintln!("Update check failed: {e}"),
+                        },
+                        Err(e) => eprintln!("Updater init failed: {e}"),
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             close_splashscreen,
             get_preferred_port,
             set_preferred_port,
+            install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,7 @@
 	import '@fontsource/figtree/800.css';
 	import Toaster from '$lib/components/Toaster.svelte';
 	import TitleBar from '$lib/components/TitleBarTauri.svelte';
+	import UpdateDialog from '$lib/components/UpdateDialog.svelte';
 	import { IS_TAURI } from '$lib/bridge';
 	import { onMount } from 'svelte';
 
@@ -41,6 +42,7 @@
 </div>
 
 <Toaster />
+<UpdateDialog />
 
 <style>
 	:global(html, body) {
