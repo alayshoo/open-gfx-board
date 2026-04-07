@@ -68,22 +68,28 @@ async fn check_for_updates(
     app: tauri::AppHandle,
     state: tauri::State<'_, PendingUpdate>,
 ) -> Result<Option<String>, String> {
-    #[cfg(not(debug_assertions))]
-    {
-        use tauri_plugin_updater::UpdaterExt;
-        let updater = app.updater().map_err(|e| e.to_string())?;
-        return match updater.check().await.map_err(|e| e.to_string())? {
-            Some(update) => {
-                let version = update.version.clone();
-                *state.0.lock().await = Some(update);
-                let _ = app.emit("update-available", version.clone());
-                Ok(Some(version))
-            }
-            None => Ok(None),
-        };
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(_) => return Ok(None), // updater plugin not registered (dev/unsigned build)
+    };
+    let check = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        updater.check(),
+    )
+    .await
+    .map_err(|_| "Update check timed out".to_string())?
+    .map_err(|e| e.to_string())?;
+
+    match check {
+        Some(update) => {
+            let version = update.version.clone();
+            *state.0.lock().await = Some(update);
+            let _ = app.emit("update-available", version.clone());
+            Ok(Some(version))
+        }
+        None => Ok(None),
     }
-    #[allow(unreachable_code)]
-    Ok(None)
 }
 
 /// Called by the frontend when the user accepts the update.

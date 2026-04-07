@@ -119,6 +119,6 @@ jobs:
           body: |
             ## Release Notes
 
-            Added Update Tab to Settings Page.
+            Fix to Update Tab in Settings.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
