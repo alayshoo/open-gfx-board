@@ -61,6 +61,31 @@ fn set_preferred_port(app: tauri::AppHandle, port: Option<u16>) -> Result<(), St
     write_config(&app, &config)
 }
 
+/// Called by the frontend when the user manually requests an update check.
+/// Returns the available version string, or None if already up to date.
+#[tauri::command]
+async fn check_for_updates(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, PendingUpdate>,
+) -> Result<Option<String>, String> {
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app.updater().map_err(|e| e.to_string())?;
+        return match updater.check().await.map_err(|e| e.to_string())? {
+            Some(update) => {
+                let version = update.version.clone();
+                *state.0.lock().await = Some(update);
+                let _ = app.emit("update-available", version.clone());
+                Ok(Some(version))
+            }
+            None => Ok(None),
+        };
+    }
+    #[allow(unreachable_code)]
+    Ok(None)
+}
+
 /// Called by the frontend when the user accepts the update.
 /// Downloads, verifies the Ed25519 signature, installs, and restarts.
 #[allow(unreachable_code)]
@@ -211,6 +236,7 @@ pub fn run() {
             close_splashscreen,
             get_preferred_port,
             set_preferred_port,
+            check_for_updates,
             install_update,
         ])
         .run(tauri::generate_context!())

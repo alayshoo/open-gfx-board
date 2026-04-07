@@ -119,9 +119,6 @@ jobs:
           body: |
             ## Release Notes
 
-            Fixed two minor bugs:
-
-             - "Both" launch type popups were not showing up in the /control pages. 
-             - /obs-background was only fetching the current state on program change. Updated to be more proactive
+            Added Update Tab to Settings Page.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

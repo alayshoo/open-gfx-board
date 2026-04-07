@@ -6,7 +6,7 @@
 	import { addToast } from '$lib/toasts';
 	import { IS_TAURI, getCurrentPort } from '$lib/bridge';
 
-	type Tab = 'import-export' | 'server' | 'about';
+	type Tab = 'import-export' | 'server' | 'updates' | 'about';
 	let activeTab = $state<Tab>('import-export');
 
 	let appVersion = $state('');
@@ -17,6 +17,13 @@
 
 	// Server tab state
 	let currentPort = $state(0);
+
+	// Updates tab state
+	type UpdateStatus = 'idle' | 'checking' | 'up-to-date' | 'available';
+	let updateStatus = $state<UpdateStatus>('idle');
+	let updateVersion = $state<string | null>(null);
+	let updateInstalling = $state(false);
+	let updateError = $state<string | null>(null);
 	let preferredPortInput = $state('');
 	let portSaving = $state(false);
 	let portSaved = $state(false);
@@ -71,6 +78,38 @@
 
 	function resetPort() {
 		preferredPortInput = '';
+	}
+
+	async function checkForUpdates() {
+		if (!IS_TAURI) return;
+		updateStatus = 'checking';
+		updateError = null;
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			const version: string | null = await invoke('check_for_updates');
+			if (version) {
+				updateVersion = version;
+				updateStatus = 'available';
+			} else {
+				updateStatus = 'up-to-date';
+			}
+		} catch (e) {
+			updateError = String(e);
+			updateStatus = 'idle';
+		}
+	}
+
+	async function installUpdate() {
+		if (!IS_TAURI) return;
+		updateInstalling = true;
+		updateError = null;
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			await invoke('install_update');
+		} catch (e) {
+			updateError = String(e);
+			updateInstalling = false;
+		}
 	}
 
 	async function doExport() {
@@ -169,6 +208,16 @@
 						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M300.05-697.69q-20.82 0-35.43 14.57Q250-668.55 250-647.74q0 20.82 14.57 35.43 14.57 14.62 35.38 14.62 20.82 0 35.43-14.57Q350-626.83 350-647.65q0-20.81-14.57-35.43-14.57-14.61-35.38-14.61Zm0 375.38q-20.82 0-35.43 14.57Q250-293.17 250-272.35q0 20.81 14.57 35.43 14.57 14.61 35.38 14.61 20.82 0 35.43-14.57Q350-251.45 350-272.26q0-20.82-14.57-35.43-14.57-14.62-35.38-14.62ZM175.39-807.69h609.22q15.04 0 25.22 10.15Q820-787.4 820-772.4v247.01q0 16.24-10.17 26.97-10.18 10.73-25.22 10.73H175.39q-15.04 0-25.22-10.73Q140-509.15 140-525.39V-772.4q0-15 10.17-25.14 10.18-10.15 25.22-10.15Zm24.61 60v200h560v-200H200Zm-24.61 315.38h608.45q15.85 0 26 10.62Q820-411.08 820-395.38v244.61q0 17-10.16 27.73-10.15 10.73-26 10.73H176.16q-15.85 0-26-10.73Q140-133.77 140-150.77v-244.61q0-15.7 9.77-26.31 9.77-10.62 25.62-10.62Zm24.61 60v200h560v-200H200Zm0-375.38v200-200Zm0 375.38v200-200Z"/></svg>
 					</div>
 					<span class="item-label">Server</span>
+				</button>
+
+				<button
+					class="sidebar-item"
+					class:selected={activeTab === 'updates'}
+					onclick={() => (activeTab = 'updates')}
+				>
+					<div class="item-icon">
+						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="m720-93.08 110.77-110.77-24.92-24.92-68.16 68.15v-156.3h-35.38v156.3l-68.16-68.15-24.92 24.92L720-93.08ZM473.85-796.54 233-657.23l247 142.77 247-142.77-240.85-139.31q-3.07-1.92-6.15-1.92-3.08 0-6.15 1.92ZM140-328.31v-303.38q0-19.69 9.49-36.07t26.67-26.39l267.69-154.08q9.23-5 17.75-7.42 8.52-2.43 18.38-2.43 9.87 0 18.9 2.43 9.04 2.42 17.27 7.42l267.69 154.08q17.18 10.01 26.67 26.39 9.49 16.38 9.49 36.07v148.61h-60v-124.46l-281 162-279-162v278.62q0 3.07 1.54 5.77 1.54 2.69 4.61 4.61l246.16 142.85v68.53L176.16-265.85q-17.18-10.01-26.67-26.39-9.49-16.38-9.49-36.07ZM592.54-77.54Q540-130.08 540-205q0-74.92 52.54-127.46Q645.08-385 720-385q74.92 0 127.46 52.54Q900-279.92 900-205q0 74.92-52.54 127.46Q794.92-25 720-25q-74.92 0-127.46-52.54ZM480-486.38Z"/></svg>					</div>
+					<span class="item-label">Updates</span>
 				</button>
 
 				<button
@@ -319,6 +368,87 @@
 							<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M450-290h60v-230h-60v230Zm52.92-307.75q9.39-9.29 9.39-23.02t-9.29-23.02q-9.29-9.28-23.02-9.28t-23.02 9.28q-9.29 9.29-9.29 23.02t9.39 23.02q9.38 9.29 22.92 9.29 13.54 0 22.92-9.29ZM480.07-100q-78.84 0-148.21-29.92t-120.68-81.21q-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100Zm-.07-60q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
 							Port changes take effect after restarting the application.
 						</div>
+					</div>
+				</div>
+
+			<!-- Updates tab -->
+			{:else if activeTab === 'updates'}
+				<div class="editor-panel">
+					<div class="panel-header">
+						<div class="panel-title-area">
+							<h1>Updates</h1>
+						</div>
+					</div>
+
+					<div class="form-body">
+						<p>Check for the latest version of Open GFX Board.</p>
+
+						<!-- Current version card -->
+						<div class="port-status-card">
+							<div class="port-status-label">Current version</div>
+							<div class="port-status-value">{appVersion ? `v${appVersion}` : '—'}</div>
+						</div>
+
+						<!-- Status feedback -->
+						{#if updateStatus === 'up-to-date'}
+							<div class="info-note update-ok-note">
+								<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+								You're on the latest version.
+							</div>
+						{:else if updateStatus === 'available' && updateVersion}
+							<div class="update-available-card">
+								<div class="update-card-icon">
+									<svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="M480-140q-148.77 0-252.5-98.5T122.77-480q0-145.15 98.15-248.08Q319.08-831 463-840l-50.31-50.31 42.16-42.15L600-786.92 454.85-641.77l-42.16-42.15L462-733.08q-118.08 9.93-199.15 95.97Q181.77-551.08 181.77-480q0 124.15 87.04 211.19Q355.85-181.77 480-181.77q124.15 0 211.19-87.04Q778.23-355.85 778.23-480q0-69.54-31.42-129.85-31.43-60.3-84.73-99.84l42.69-42.7q64.46 50.39 100.85 123.19Q842.01-556.4 842.01-480q0 148.77-98.62 252.38Q544.77-124 480-140Zm-30-278.46v-211.85h60v211.85l76.92 76.92-42.15 42.16L450-418.46Z"/></svg>
+								</div>
+								<div class="update-card-text">
+									<span class="update-card-title">Update available</span>
+									<span class="update-card-sub">Version <strong>{updateVersion}</strong> is ready to install. The app will restart automatically.</span>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Error -->
+						{#if updateError}
+							<p class="warn-note">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+								</svg>
+								{updateError}
+							</p>
+						{/if}
+
+						<!-- Action buttons -->
+						{#if !IS_TAURI}
+							<div class="info-note">Updates are only available in the desktop app.</div>
+						{:else if updateStatus === 'available'}
+							<div class="save-row">
+								{#if updateInstalling}
+									<div class="update-progress-inline">
+										<div class="spinner-sm"></div>
+										<span>Downloading and installing&hellip;</span>
+									</div>
+								{:else}
+									<button class="save-btn update-install-btn" onclick={installUpdate}>
+										Install Update
+									</button>
+								{/if}
+							</div>
+						{:else}
+							<div class="save-row">
+								<button
+									class="save-btn"
+									onclick={checkForUpdates}
+									disabled={updateStatus === 'checking'}
+								>
+									{#if updateStatus === 'checking'}
+										<div class="spinner-sm"></div>
+										Checking&hellip;
+									{:else}
+										Check for Updates
+									{/if}
+								</button>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -742,5 +872,91 @@
 
 	.about-link:hover {
 		text-decoration: underline;
+	}
+
+	/* ── Updates tab ── */
+	.update-ok-note {
+		color: var(--go);
+		background: var(--go-dim);
+		border-color: rgba(34, 197, 94, 0.2);
+	}
+
+	.update-available-card {
+		display: flex;
+		align-items: flex-start;
+		gap: 14px;
+		padding: 14px 18px;
+		background: var(--accent-dim);
+		border: 1px solid rgba(56, 189, 248, 0.25);
+		border-radius: var(--r-lg);
+	}
+
+	.update-card-icon {
+		width: 40px;
+		height: 40px;
+		border-radius: var(--r);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		background: rgba(56, 189, 248, 0.15);
+		color: var(--accent);
+	}
+
+	.update-card-text {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding-top: 2px;
+	}
+
+	.update-card-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--text-1);
+	}
+
+	.update-card-sub {
+		font-size: 0.8125rem;
+		color: var(--text-2);
+		line-height: 1.5;
+	}
+
+	.update-card-sub strong {
+		color: var(--text-1);
+		font-weight: 600;
+	}
+
+	.update-install-btn {
+		background: var(--accent-dim);
+		border-color: rgba(56, 189, 248, 0.35);
+		color: var(--accent);
+	}
+
+	.update-install-btn:hover:not(:disabled) {
+		background: rgba(56, 189, 248, 0.2);
+		border-color: rgba(56, 189, 248, 0.5);
+	}
+
+	.update-progress-inline {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.875rem;
+		color: var(--text-2);
+	}
+
+	.spinner-sm {
+		width: 14px;
+		height: 14px;
+		border: 2px solid var(--border-2);
+		border-top-color: var(--accent);
+		border-radius: 50%;
+		animation: spin 0.7s linear infinite;
+		flex-shrink: 0;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 </style>
