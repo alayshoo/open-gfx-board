@@ -43,8 +43,8 @@ platforms: dict = {}
 
 # ── Windows (x86_64) ─────────────────────────────────────────────────────────
 # Tauri produces an NSIS installer: "Open GFX Board_X.X.X_x64-setup.exe"
-nsis_exe = find_one("artifacts/windows-artifacts/*.exe")
-nsis_sig = find_one("artifacts/windows-artifacts/*.exe.sig")
+nsis_exe = find_one("artifacts/windows-artifacts/**/*.exe")
+nsis_sig = find_one("artifacts/windows-artifacts/**/*.exe.sig")
 
 if nsis_exe and nsis_sig:
     platforms["windows-x86_64"] = {
@@ -58,8 +58,8 @@ else:
 
 # ── macOS ARM (aarch64 / Apple Silicon) ───────────────────────────────────────
 # Tauri produces a compressed app bundle: "Open GFX Board_X.X.X_aarch64.app.tar.gz"
-arm_tar = find_one("artifacts/macos-arm-artifacts/*.app.tar.gz")
-arm_sig = find_one("artifacts/macos-arm-artifacts/*.app.tar.gz.sig")
+arm_tar = find_one("artifacts/macos-artifacts/**/*.app.tar.gz")
+arm_sig = find_one("artifacts/macos-artifacts/**/*.app.tar.gz.sig")
 
 if arm_tar and arm_sig:
     platforms["darwin-aarch64"] = {
@@ -69,20 +69,6 @@ if arm_tar and arm_sig:
     print(f"[darwin-aarch64] {os.path.basename(arm_tar)}")
 else:
     print("WARNING: macOS ARM artifacts not found – darwin-aarch64 will be omitted",
-          file=sys.stderr)
-
-# ── macOS Intel (x86_64) ──────────────────────────────────────────────────────
-intel_tar = find_one("artifacts/macos-intel-artifacts/*.app.tar.gz")
-intel_sig = find_one("artifacts/macos-intel-artifacts/*.app.tar.gz.sig")
-
-if intel_tar and intel_sig:
-    platforms["darwin-x86_64"] = {
-        "signature": read_sig(intel_sig),
-        "url": f"{base_url}/{os.path.basename(intel_tar)}",
-    }
-    print(f"[darwin-x86_64] {os.path.basename(intel_tar)}")
-else:
-    print("WARNING: macOS Intel artifacts not found – darwin-x86_64 will be omitted",
           file=sys.stderr)
 
 if not platforms:
