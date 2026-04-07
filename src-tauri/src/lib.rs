@@ -8,7 +8,7 @@ mod server;
 use state::AppState;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 // Holds a pending update so it can be installed when the user confirms.
 // The public key is embedded at compile time via the TAURI_SIGNING_PUBLIC_KEY
@@ -63,6 +63,7 @@ fn set_preferred_port(app: tauri::AppHandle, port: Option<u16>) -> Result<(), St
 
 /// Called by the frontend when the user accepts the update.
 /// Downloads, verifies the Ed25519 signature, installs, and restarts.
+#[allow(unreachable_code)]
 #[tauri::command]
 async fn install_update(
     app: tauri::AppHandle,
