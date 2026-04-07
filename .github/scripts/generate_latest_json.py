@@ -20,6 +20,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 tag = os.environ["TAG"]          # e.g. "v0.1.3"
 repo = os.environ["REPO"]        # e.g. "alayshoo/open-gfx-board"
@@ -49,7 +50,7 @@ nsis_sig = find_one("artifacts/windows-artifacts/**/*.exe.sig")
 if nsis_exe and nsis_sig:
     platforms["windows-x86_64"] = {
         "signature": read_sig(nsis_sig),
-        "url": f"{base_url}/{os.path.basename(nsis_exe)}",
+        "url": f"{base_url}/{quote(os.path.basename(nsis_exe))}",
     }
     print(f"[windows-x86_64] {os.path.basename(nsis_exe)}")
 else:
@@ -64,7 +65,7 @@ arm_sig = find_one("artifacts/macos-artifacts/**/*.app.tar.gz.sig")
 if arm_tar and arm_sig:
     platforms["darwin-aarch64"] = {
         "signature": read_sig(arm_sig),
-        "url": f"{base_url}/{os.path.basename(arm_tar)}",
+        "url": f"{base_url}/{quote(os.path.basename(arm_tar))}",
     }
     print(f"[darwin-aarch64] {os.path.basename(arm_tar)}")
 else:
