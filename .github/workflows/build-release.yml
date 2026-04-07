@@ -119,6 +119,9 @@ jobs:
           body: |
             ## Release Notes
 
-            Thank you for using Open GFX Board!
+            Fixed two minor bugs:
+
+             - "Both" launch type popups were not showing up in the /control pages. 
+             - /obs-background was only fetching the current state on program change. Updated to be more proactive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

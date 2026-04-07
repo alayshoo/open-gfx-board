@@ -2,20 +2,30 @@
 	import { onMount } from 'svelte';
 	import { socket } from '$lib/api/socket';
 	import { imgUrl } from '$lib/api/api';
+	import type { StudioState } from '$lib/types';
 
 	let bgPath = $state<string | null>(null);
 	let bgType = $state<string>('image');
 	let visible = $state(false);
 
+	function applyProgram(program: any) {
+		const rawPath: string | null = program?.background_graphics_path ?? null;
+		bgPath = rawPath ? imgUrl(rawPath) : null;
+		const ext = rawPath?.split('.').pop()?.toLowerCase() ?? '';
+		bgType = ['mp4', 'webm'].includes(ext) ? 'video' : 'image';
+		visible = !!bgPath;
+	}
+
 	onMount(() => {
 		socket.emit('join-studio-room', {});
+		socket.emit('get-studio-state', {});
+
+		function onStudioState(data: StudioState) {
+			applyProgram(data.program);
+		}
 
 		function onProgramSelected(data: any) {
-			const rawPath: string | null = data.program?.background_graphics_path ?? null;
-			bgPath = rawPath ? imgUrl(rawPath) : null;
-			const ext = rawPath?.split('.').pop()?.toLowerCase() ?? '';
-			bgType = ['mp4', 'webm'].includes(ext) ? 'video' : 'image';
-			visible = !!bgPath;
+			applyProgram(data.program);
 		}
 
 		function onProgramCleared(_data: any) {
@@ -23,11 +33,13 @@
 			bgPath = null;
 		}
 
+		socket.on('studio-state', onStudioState);
 		socket.on('program-selected', onProgramSelected);
 		socket.on('program-cleared', onProgramCleared);
 
 		return () => {
 			socket.emit('leave-studio-room', {});
+			socket.off('studio-state', onStudioState);
 			socket.off('program-selected', onProgramSelected);
 			socket.off('program-cleared', onProgramCleared);
 		};

@@ -15,7 +15,7 @@
 	} = $props();
 
 	const manualPopUps = $derived(
-		programPopUps.filter((pa) => pa.popup_launch_type === "manual"),
+		programPopUps.filter((pa) => pa.popup_launch_type === "manual" || pa.popup_launch_type === "both"),
 	);
 
 	let container: HTMLDivElement;
