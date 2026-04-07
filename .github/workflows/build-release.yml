@@ -119,6 +119,6 @@ jobs:
           body: |
             ## Release Notes
 
-            Fix to Update Tab in Settings.
+            Fix to URL generation in the latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
