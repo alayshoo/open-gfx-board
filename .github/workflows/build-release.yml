@@ -14,9 +14,7 @@ jobs:
           - os: windows-latest
             platform: windows
           - os: macos-latest
-            platform: macos-arm
-          - os: macos-13
-            platform: macos-intel
+            platform: macos
 
     runs-on: ${{ matrix.os }}
 
@@ -26,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -42,7 +40,6 @@ jobs:
           # binary at compile time so the app can verify downloaded updates.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
 
       # ── Windows: NSIS installer + signature (used by the updater) ──────────
       - name: Upload artifacts (Windows)
@@ -57,21 +54,10 @@ jobs:
 
       # ── macOS ARM: app bundle tarball + signature (used by the updater) ────
       - name: Upload artifacts (macOS ARM)
-        if: matrix.platform == 'macos-arm'
+        if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
-          name: macos-arm-artifacts
-          path: |
-            src-tauri/target/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
-            src-tauri/target/release/bundle/dmg/*.dmg
-
-      # ── macOS Intel: app bundle tarball + signature ─────────────────────────
-      - name: Upload artifacts (macOS Intel)
-        if: matrix.platform == 'macos-intel'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-intel-artifacts
+          name: macos-artifacts
           path: |
             src-tauri/target/release/bundle/macos/*.app.tar.gz
             src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
@@ -79,6 +65,7 @@ jobs:
 
   create-release:
     needs: build
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

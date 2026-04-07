@@ -25,6 +25,8 @@ Open GFX Board is a desktop application that puts powerful graphics control at y
 3. **Launch Open GFX Board** from your desktop
 4. **Start controlling graphics!**
 
+⚠️ **Note on macOS**: These platforms are community-tested and may have minor issues. Please report any bugs via [Issues](../../issues)—your feedback helps improve compatibility! Windows is the primary, fully-tested platform.
+
 ### First Time Setup
 
 1. Create a preset (this corresponds to OBS Shortcuts)
