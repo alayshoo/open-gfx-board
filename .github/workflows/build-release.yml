@@ -41,6 +41,26 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      # ── Sign updater bundles ─────────────────────────────────────────────────
+      - name: Sign updater bundle (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          TAR=$(find src-tauri/target/release/bundle/macos -name "*.app.tar.gz" | head -1)
+          npx @tauri-apps/cli signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$TAR"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Sign updater bundle (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          EXE=$(find src-tauri/target/release/bundle/nsis -name "*.exe" | head -1)
+          npx @tauri-apps/cli signer sign --private-key "$TAURI_SIGNING_PRIVATE_KEY" --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$EXE"
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
       # ── Windows: NSIS installer + signature (used by the updater) ──────────
       - name: Upload artifacts (Windows)
         if: matrix.platform == 'windows'
