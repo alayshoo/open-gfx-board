@@ -81,9 +81,6 @@
 			<div class="preset-grid">
 				{#each presets as preset (preset.id)}
 					<button class="preset-card" onclick={() => selectPreset(preset)}>
-						<div class="preset-number">
-							{(preset.id ?? 0).toString().padStart(2, '0')}
-						</div>
 						<div class="preset-body">
 							<div class="preset-name">{preset.name}</div>
 							<div class="preset-meta">
@@ -163,15 +160,6 @@
 		background: var(--surface-2);
 		transform: translateY(-1px);
 		box-shadow: 0 4px 20px rgba(56, 189, 248, 0.1);
-	}
-
-	.preset-number {
-		font-size: 22px;
-		font-weight: 800;
-		color: var(--text-3);
-		font-variant-numeric: tabular-nums;
-		flex-shrink: 0;
-		width: 36px;
 	}
 
 	.preset-body {
