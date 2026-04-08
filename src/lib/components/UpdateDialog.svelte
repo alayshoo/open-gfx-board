@@ -13,6 +13,14 @@
 		await listen<string>('update-available', (event) => {
 			updateVersion = event.payload;
 		});
+
+		// The startup update check may have completed before this listener was
+		// registered (race condition). Poll the stored pending update to catch it.
+		const { invoke } = await import('@tauri-apps/api/core');
+		const pending: string | null = await invoke('get_pending_update');
+		if (pending) {
+			updateVersion = pending;
+		}
 	});
 
 	async function installUpdate() {

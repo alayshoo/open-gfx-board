@@ -61,6 +61,16 @@ fn set_preferred_port(app: tauri::AppHandle, port: Option<u16>) -> Result<(), St
     write_config(&app, &config)
 }
 
+/// Returns the pending update version if the startup check already found one.
+/// Used by the frontend on mount to catch updates that fired before the listener was ready.
+#[tauri::command]
+async fn get_pending_update(
+    state: tauri::State<'_, PendingUpdate>,
+) -> Result<Option<String>, String> {
+    let lock = state.0.lock().await;
+    Ok(lock.as_ref().map(|u| u.version.clone()))
+}
+
 /// Called by the frontend when the user manually requests an update check.
 /// Returns the available version string, or None if already up to date.
 #[tauri::command]
@@ -223,6 +233,7 @@ pub fn run() {
             close_splashscreen,
             get_preferred_port,
             set_preferred_port,
+            get_pending_update,
             check_for_updates,
             install_update,
         ])

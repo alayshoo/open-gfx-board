@@ -119,7 +119,7 @@ jobs:
           body: |
             ## Release Notes
 
-             - General UI Consistency Improvement
-             - Fix: WebView2 autocomplete prompts
+             - UI Polishing
+             - Startup Update Check Fix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
