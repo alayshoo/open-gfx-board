@@ -413,7 +413,7 @@
 								</div>
 
 								<div class="field-group">
-									<label class="field-label" for="bg-upload">Background Graphic</label>
+									<label class="field-label" for="bg-upload">Background Image</label>
 									<div class="image-preview-box">
 										{#if editBgPath}
 											<MediaPreview src={imgUrl(editBgPath)} alt="Background" style="object-fit:cover" />
@@ -431,11 +431,11 @@
 								</div>
 							</div>
 
-							<!-- Screens & Overlays -->
+							<!-- Screens -->
 							<div class="field-group">
 								<div class="field-group-header">
 									<span class="field-label">
-										Screens &amp; Overlays
+										Screens
 										<span class="badge-sm">{editScreenIds.length}</span>
 									</span>
 									<div class="header-actions">
@@ -443,7 +443,6 @@
 											<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
 											Add Screen…
 										</button>
-										<a href="/screen-editor" class="helper-link" target="_blank">Manage →</a>
 									</div>
 								</div>
 								<div class="sub-card">

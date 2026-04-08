@@ -5,6 +5,7 @@ export interface Screen {
 	media_type: string;
 	allow_popups: boolean;
 	comments: string;
+	programs: { id: number; name: string }[];
 	created_at: string;
 }
 

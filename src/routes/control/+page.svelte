@@ -2,7 +2,7 @@
 	import { onMount } from "svelte";
 	import { page } from "$app/stores";
 	import CmdPanel from "$lib/components/Cmd-Panel.svelte";
-	import ScreenSelector from "$lib/components/GraphicsSelector.svelte";
+	import ScreenSelector from "$lib/components/ScreensSelector.svelte";
 	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
 	import StatusDot from "$lib/components/StatusDot.svelte";
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
@@ -24,17 +24,17 @@
 	);
 
 	let program = $state<Program | null>(null);
-	let activeGraphicId = $state<number | null>(null);
+	let activeScreenId = $state<number | null>(null);
 	let activePopUpId = $state<number | null>(null);
 	let studioCommands = $state<ObsCommand[]>([]);
 	let isPopUpPlaying = $state(false);
 	let popupEndTimer: ReturnType<typeof setTimeout> | null = null;
 
-	const graphics = $derived<Graphic[]>(program?.graphics ?? []);
+	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
 	const allowPopUpsMode = $derived(
-		activeGraphicId !== null &&
-			(program?.graphics.find((g) => g.id === activeGraphicId)
+		activeScreenId !== null &&
+			(program?.graphics.find((g) => g.id === activeScreenId)
 				?.allow_popups ??
 				false),
 	);
@@ -47,7 +47,7 @@
 		// Named handlers prevent removing every global listener on cleanup
 		function onStudioState(data: StudioState) {
 			program = data.program;
-			activeGraphicId = data.activeOverlay?.graphicId ?? null;
+			activeScreenId = data.activeOverlay?.graphicId ?? null;
 			if (data.activePopUp) {
 				isPopUpPlaying = true;
 				activePopUpId = data.activePopUp.popupId;
@@ -59,13 +59,13 @@
 
 		function onProgramSelected(data: any) {
 			program = data.program;
-			activeGraphicId = data.activeOverlay?.graphicId ?? null;
+			activeScreenId = data.activeOverlay?.graphicId ?? null;
 			isPopUpPlaying = false;
 			activePopUpId = null;
 
-			// Auto-activate first graphic if no overlay is active and program has graphics
+			// Auto-activate first screen if no overlay is active and program has screens
 			if (
-				!activeGraphicId &&
+				!activeScreenId &&
 				program?.graphics &&
 				program.graphics.length > 0
 			) {
@@ -75,17 +75,17 @@
 
 		function onProgramCleared(_data: any) {
 			program = null;
-			activeGraphicId = null;
+			activeScreenId = null;
 			isPopUpPlaying = false;
 			activePopUpId = null;
 		}
 
 		function onOverlayActivated(data: any) {
-			activeGraphicId = data.graphicId;
+			activeScreenId = data.graphicId;
 		}
 
 		function onOverlayDeactivated(_data: any) {
-			activeGraphicId = null;
+			activeScreenId = null;
 		}
 
 		function onPopUpStarted(data: any) {
@@ -159,7 +159,7 @@
 	});
 
 	function triggerOverlay(graphic: Graphic) {
-		if (activeGraphicId === graphic.id) {
+		if (activeScreenId === graphic.id) {
 			// Clicking the active overlay deactivates it
 			socket.emit("deactivate-overlay", {});
 		} else {
@@ -297,11 +297,11 @@
 			</div>
 		</header>
 
-		<!-- Graphics -->
+		<!-- Screens -->
 		<section class="panel-section screens-section">
 			<ScreenSelector
-				{graphics}
-				{activeGraphicId}
+				{screens}
+				{activeScreenId}
 				onTrigger={triggerOverlay}
 			/>
 		</section>

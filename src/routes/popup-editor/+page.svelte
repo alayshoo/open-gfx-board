@@ -25,6 +25,7 @@
 	let editImagePath = $state<string | null>(null);
 	let editDirection = $state<'top' | 'bottom' | 'left' | 'right'>('bottom');
 	let editPosition = $state(50);
+	let editMediaType = $state('image');
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
@@ -92,6 +93,7 @@
 		editImagePath = null;
 		editDirection = 'bottom';
 		editPosition = 50;
+		editMediaType = 'image';
 	}
 
 	function selectPopUp(popup: PopUp) {
@@ -104,6 +106,7 @@
 		editImagePath = popup.image_path;
 		editDirection = (popup.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
 		editPosition = popup.position ?? 50;
+		editMediaType = popup.media_type ?? 'image';
 	}
 
 	async function deleteCurrentPopUp() {
@@ -132,6 +135,7 @@
 						comments: editComments.trim(),
 						direction: editDirection,
 						position: editPosition,
+						media_type: editMediaType,
 					}),
 				});
 				const data = await res.json();
@@ -156,6 +160,7 @@
 						comments: editComments.trim(),
 						direction: editDirection,
 						position: editPosition,
+						media_type: editMediaType,
 					}),
 				});
 				const data = await res.json();
@@ -302,6 +307,14 @@
 									/>
 								</div>
 							</div>
+
+							<div class="field-group">
+								<label class="field-label" for="popup-media-type">Media Type</label>
+								<select id="popup-media-type" class="form-input form-select" bind:value={editMediaType}>
+									<option value="image">Image</option>
+									<option value="video">Video</option>
+								</select>
+							</div>
 						</div>
 
 						{#if !isNew}
@@ -316,15 +329,6 @@
 					onuploadingchange={(v) => { uploading = v; }}
 								/>
 							</div>
-
-							{#if editImagePath}
-								<div class="field-group">
-									<span class="field-label">Preview</span>
-									<div class="image-preview-box">
-										<MediaPreview src={imgUrl(editImagePath)} alt={editName} />
-									</div>
-								</div>
-							{/if}
 
 							{#if popups.find(p => p.id === editId)?.programs?.length}
 								{@const currentPopUp = popups.find(p => p.id === editId)!}
@@ -541,20 +545,6 @@
 
 	.form-input:focus {
 		border-color: var(--accent);
-	}
-
-	/* ── Image preview ── */
-	.image-preview-box {
-		width: 100%;
-		max-width: 480px;
-		aspect-ratio: 16/9;
-		background: var(--surface-2);
-		border: 1px solid var(--border-1);
-		border-radius: var(--r);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
 	}
 
 	:global(.image-preview-box img),

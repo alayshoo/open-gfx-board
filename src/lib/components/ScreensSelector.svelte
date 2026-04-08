@@ -3,13 +3,13 @@
 	import { onMount } from 'svelte';
 
 	let {
-		graphics = [],
-		activeGraphicId = null,
+		screens = [],
+		activeScreenId = null,
 		onTrigger,
 	}: {
-		graphics?: Graphic[];
-		activeGraphicId?: number | null;
-		onTrigger?: (graphic: Graphic) => void;
+		screens?: Graphic[];
+		activeScreenId?: number | null;
+		onTrigger?: (screen: Graphic) => void;
 	} = $props();
 
 	let container: HTMLDivElement;
@@ -17,7 +17,7 @@
 
 	function computeGrid() {
 		if (!container) return;
-		const N = graphics.length;
+		const N = screens.length;
 		if (N === 0) return;
 		const W = container.clientWidth;
 		const targetH = window.innerWidth < 768 ? 90 : 140; // Target height for balanced buttons
@@ -43,8 +43,8 @@
 	});
 
 	$effect(() => {
-		// recompute when graphics change
-		graphics;
+		// recompute when screens change
+		screens;
 		computeGrid();
 	});
 </script>
@@ -52,15 +52,15 @@
 <div class="screen-selector">
 	<div class="panel-header">
 		<span class="panel-label">
-			Graphics
+			Screens
 		</span>
-		<span class="count">{graphics.length}</span>
+		<span class="count">{screens.length}</span>
 	</div>
 	<div class="grid" bind:this={container} style="grid-template-columns: repeat({cols}, 1fr)">
-		{#each graphics as g (g.id)}
+		{#each screens as g (g.id)}
 			<button
 				class="graphic-btn"
-				class:active={activeGraphicId === g.id}
+				class:active={activeScreenId === g.id}
 				onclick={() => onTrigger?.(g)}
 				title={g.graphics_name}
 			>
@@ -68,13 +68,13 @@
 					<span class="popup-badge">POPUPS</span>
 				{/if}
 				<span class="g-name">{g.graphics_name}</span>
-				{#if activeGraphicId === g.id}
+				{#if activeScreenId === g.id}
 					<span class="live-pip"></span>
 				{/if}
 			</button>
 		{:else}
 			<div class="empty-state">
-				<span>No graphics for this program</span>
+				<span>No screens for this program</span>
 			</div>
 		{/each}
 	</div>

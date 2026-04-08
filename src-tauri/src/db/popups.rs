@@ -66,19 +66,19 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
     }
 }
 
-pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64) -> Result<Popup> {
+pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64, media_type: &str) -> Result<Popup> {
     conn.execute(
-        "INSERT INTO popups (name, sponsor_name, comments, direction, position) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![name, sponsor_name, comments, direction, position],
+        "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![name, sponsor_name, comments, direction, position, media_type],
     )?;
     let id = conn.last_insert_rowid();
     Ok(get_popup(conn, id)?.expect("popup just inserted must exist"))
 }
 
-pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64) -> Result<Option<Popup>> {
+pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64, media_type: &str) -> Result<Option<Popup>> {
     let rows = conn.execute(
-        "UPDATE popups SET name = ?1, sponsor_name = ?2, comments = ?3, direction = ?4, position = ?5 WHERE id = ?6",
-        rusqlite::params![name, sponsor_name, comments, direction, position, id],
+        "UPDATE popups SET name = ?1, sponsor_name = ?2, comments = ?3, direction = ?4, position = ?5, media_type = ?6 WHERE id = ?7",
+        rusqlite::params![name, sponsor_name, comments, direction, position, media_type, id],
     )?;
     if rows == 0 {
         return Ok(None);

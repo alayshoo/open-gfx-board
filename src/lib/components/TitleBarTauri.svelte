@@ -70,6 +70,8 @@
 	let obsModalOpen = $state(false);
 	let obsCopied = $state(false);
 	let obsLocalCopied = $state(false);
+	let bgLocalCopied = $state(false);
+	let bgCopied = $state(false);
 
 	let qrCopied = $state(false);
 
@@ -82,6 +84,29 @@
 		const port = new URL(getBackendUrl()).port || "80";
 		return `http://localhost:${port}/obs`;
 	});
+
+	const bgUrl = $derived.by(() => {
+		if (!networkUrl) return null;
+		return `${networkUrl}/obs-background`;
+	});
+
+	const bgLocalUrl = $derived.by(() => {
+		const port = new URL(getBackendUrl()).port || "80";
+		return `http://localhost:${port}/obs-background`;
+	});
+
+	async function copyBgLocalUrl() {
+		await navigator.clipboard.writeText(bgLocalUrl);
+		bgLocalCopied = true;
+		setTimeout(() => (bgLocalCopied = false), 2000);
+	}
+
+	async function copyBgUrl() {
+		if (!bgUrl) return;
+		await navigator.clipboard.writeText(bgUrl);
+		bgCopied = true;
+		setTimeout(() => (bgCopied = false), 2000);
+	}
 
 	async function copyObsUrl() {
 		if (!obsUrl) return;
@@ -279,7 +304,7 @@
 			</ol>
 			<div class="obs-url-section">
 				<div class="qr-url-box">
-					<span class="qr-url-label">Browser Source URL</span>
+					<span class="qr-url-label">Overlay URL</span>
 					<div class="obs-url-row">
 						<code class="qr-url">{obsLocalUrl}</code>
 						<button class="copy-btn" onclick={copyObsLocalUrl} aria-label="Copy URL">
@@ -293,6 +318,22 @@
 				</div>
 				{#if obsUrl}
 					<p class="obs-note">If OBS is running on a <strong>different device</strong> on the same network, use <code class="obs-localhost">{obsUrl}</code> instead.</p>
+				{/if}
+				<div class="qr-url-box">
+					<span class="qr-url-label">Background URL</span>
+					<div class="obs-url-row">
+						<code class="qr-url">{bgLocalUrl}</code>
+						<button class="copy-btn" onclick={copyBgLocalUrl} aria-label="Copy background URL">
+							{#if bgLocalCopied}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+							{/if}
+						</button>
+					</div>
+				</div>
+				{#if bgUrl}
+					<p class="obs-note">If OBS is running on a <strong>different device</strong> on the same network, use <code class="obs-localhost">{bgUrl}</code> instead.</p>
 				{/if}
 			</div>
 		</div>

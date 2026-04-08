@@ -7,6 +7,24 @@
     <title>Open GFX Board</title>
     %sveltekit.head%
   </head>
+  <script>
+    // Disable WebView2 autofill suggestions popup
+    function disableAutocomplete(root) {
+      root.querySelectorAll('input:not([autocomplete])').forEach(function(el) {
+        el.setAttribute('autocomplete', 'off');
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      disableAutocomplete(document);
+      new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          m.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) disableAutocomplete(node);
+          });
+        });
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+  </script>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>
   </body>

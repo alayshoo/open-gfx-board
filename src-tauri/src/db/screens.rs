@@ -1,23 +1,29 @@
 use anyhow::Result;
 use rusqlite::Connection;
-use crate::models::Screen;
+use crate::models::{Screen, ScreenProgram};
 
 pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, comments, media_path, media_type, allow_popups, created_at FROM screens ORDER BY id"
     )?;
-    let screens: Vec<Screen> = stmt.query_map([], |row| {
-        let allow_popups_int: i64 = row.get(5)?;
-        Ok(Screen {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            comments: row.get(2)?,
-            media_path: row.get(3)?,
-            media_type: row.get(4)?,
-            allow_popups: allow_popups_int != 0,
-            created_at: row.get(6)?,
-        })
+    let rows: Vec<(i64, String, String, Option<String>, String, i64, String)> = stmt.query_map([], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut screens = Vec::new();
+    for (id, name, comments, media_path, media_type, allow_popups_int, created_at) in rows {
+        let programs = load_programs_for_screen(conn, id)?;
+        screens.push(Screen {
+            id,
+            name,
+            comments,
+            media_path,
+            media_type,
+            allow_popups: allow_popups_int != 0,
+            programs,
+            created_at,
+        });
+    }
     Ok(screens)
 }
 
@@ -25,21 +31,30 @@ pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
     let result = conn.query_row(
         "SELECT id, name, comments, media_path, media_type, allow_popups, created_at FROM screens WHERE id = ?1",
         [id],
-        |row| {
-            let allow_popups_int: i64 = row.get(5)?;
-            Ok(Screen {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                comments: row.get(2)?,
-                media_path: row.get(3)?,
-                media_type: row.get(4)?,
-                allow_popups: allow_popups_int != 0,
-                created_at: row.get(6)?,
-            })
-        },
+        |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, String>(6)?,
+        )),
     );
     match result {
-        Ok(screen) => Ok(Some(screen)),
+        Ok((sid, name, comments, media_path, media_type, allow_popups_int, created_at)) => {
+            let programs = load_programs_for_screen(conn, sid)?;
+            Ok(Some(Screen {
+                id: sid,
+                name,
+                comments,
+                media_path,
+                media_type,
+                allow_popups: allow_popups_int != 0,
+                programs,
+                created_at,
+            }))
+        }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => Err(e.into()),
     }
@@ -89,4 +104,20 @@ pub fn set_media_path(conn: &Connection, id: i64, path: &str) -> Result<()> {
         rusqlite::params![path, id],
     )?;
     Ok(())
+}
+
+fn load_programs_for_screen(conn: &Connection, screen_id: i64) -> Result<Vec<ScreenProgram>> {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name FROM programs p
+         JOIN program_screens ps ON ps.program_id = p.id
+         WHERE ps.screen_id = ?1
+         ORDER BY p.id"
+    )?;
+    let programs: Vec<ScreenProgram> = stmt.query_map([screen_id], |row| {
+        Ok(ScreenProgram {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    })?.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(programs)
 }

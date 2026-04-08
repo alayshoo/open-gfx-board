@@ -322,6 +322,18 @@
 									{/if}
 								</div>
 							</div>
+
+							{#if screens.find(s => s.id === editId)?.programs?.length}
+								{@const currentScreen = screens.find(s => s.id === editId)!}
+								<div class="field-group">
+									<span class="field-label">Used in Programs</span>
+									<div class="prog-pills">
+										{#each currentScreen.programs as p}
+											<span class="prog-pill">{p.name}</span>
+										{/each}
+									</div>
+								</div>
+							{/if}
 						{/if}
 					</div>
 				</div>
@@ -607,6 +619,23 @@
 		display: flex;
 		gap: 8px;
 		max-width: 480px;
+	}
+
+	/* ── Program pills ── */
+	.prog-pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.prog-pill {
+		font-size: 0.8125rem;
+		font-weight: 500;
+		background: var(--surface-3);
+		color: var(--text-2);
+		border-radius: 4px;
+		padding: 3px 8px;
+		border: 1px solid var(--border-1);
 	}
 
 	/* ── Empty state ── */

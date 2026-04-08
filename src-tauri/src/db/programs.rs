@@ -142,6 +142,7 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
             media_path: row.get(3)?,
             media_type: row.get(4)?,
             allow_popups: allow_popups_int != 0,
+            programs: vec![],
             created_at: row.get(6)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;

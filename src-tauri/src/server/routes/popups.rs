@@ -34,6 +34,7 @@ struct CreatePopupBody {
     comments: Option<String>,
     direction: Option<String>,
     position: Option<i64>,
+    media_type: Option<String>,
 }
 
 async fn create_popup(
@@ -45,7 +46,8 @@ async fn create_popup(
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
     let position = body.position.unwrap_or(50);
-    match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position)) {
+    let media_type = body.media_type.as_deref().unwrap_or("image");
+    match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position, media_type)) {
         Ok(popup) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
@@ -67,6 +69,7 @@ struct UpdatePopupBody {
     comments: Option<String>,
     direction: Option<String>,
     position: Option<i64>,
+    media_type: Option<String>,
 }
 
 async fn update_popup(
@@ -79,7 +82,8 @@ async fn update_popup(
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
     let position = body.position.unwrap_or(50);
-    match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position)) {
+    let media_type = body.media_type.as_deref().unwrap_or("image");
+    match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position, media_type)) {
         Ok(Some(popup)) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());

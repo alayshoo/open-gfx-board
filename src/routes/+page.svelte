@@ -62,7 +62,6 @@
 		<div class="page-title">
 			{#if studio && !loading}
 				<h2>Select a Preset</h2>
-				<span class="studio-label">{studio.name}</span>
 			{:else if !loading}
 				<h2>No Studio Found</h2>
 			{/if}
@@ -137,15 +136,6 @@
 		font-size: 20px;
 		font-weight: 400;
 		color: var(--text-3);
-	}
-
-	.studio-label {
-		font-size: 13px;
-		color: var(--text-3);
-		background: var(--surface-2);
-		border: 1px solid var(--border-1);
-		border-radius: var(--r-sm);
-		padding: 2px 8px;
 	}
 
 	.preset-grid {

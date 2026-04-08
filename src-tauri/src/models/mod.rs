@@ -34,6 +34,12 @@ pub struct Studio {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreenProgram {
+    pub id: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
     pub id: i64,
     #[serde(rename = "graphics_name")]
@@ -43,6 +49,7 @@ pub struct Screen {
     pub media_path: Option<String>,
     pub media_type: String,
     pub allow_popups: bool,
+    pub programs: Vec<ScreenProgram>,
     pub created_at: String,
 }
 
