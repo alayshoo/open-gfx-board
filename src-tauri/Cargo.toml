@@ -1,6 +1,6 @@
 [package]
 name = "open-gfx-board"
-version = "0.1.8"
+version = "0.1.9"
 description = "Open GFX Board"
 authors = ["alayshoo"]
 edition = "2021"

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(cargo check:*)",
-      "Bash(npx svelte-check:*)"
+      "Bash(npx svelte-check:*)",
+      "WebFetch(domain:v2.tauri.app)"
     ]
   }
 }

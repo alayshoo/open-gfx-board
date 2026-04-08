@@ -119,6 +119,6 @@ jobs:
           body: |
             ## Release Notes
 
-            Fix to URL generation in the latest.json
+            Again trying to fix updates.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

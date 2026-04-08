@@ -69,10 +69,7 @@ async fn check_for_updates(
     state: tauri::State<'_, PendingUpdate>,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_updater::UpdaterExt;
-    let updater = match app.updater() {
-        Ok(u) => u,
-        Err(_) => return Ok(None), // updater plugin not registered (dev/unsigned build)
-    };
+    let updater = app.updater().map_err(|e| e.to_string())?;
     let check = tokio::time::timeout(
         std::time::Duration::from_secs(15),
         updater.check(),
@@ -122,27 +119,13 @@ async fn install_update(
     Ok(())
 }
 
-// The signing public key is embedded at compile time.
-// Set TAURI_SIGNING_PUBLIC_KEY as a GitHub Secret (and locally when building
-// release binaries).  In debug/dev builds the check is skipped entirely.
-const UPDATER_PUBKEY: Option<&str> = option_env!("TAURI_SIGNING_PUBLIC_KEY");
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Build the updater plugin only when the public key was compiled in.
-    // This keeps dev builds working without any key setup.
-    let updater_plugin = UPDATER_PUBKEY.map(|key| {
-        tauri_plugin_updater::Builder::new()
-            .pubkey(key)
-            .build()
-    });
-
+    // The updater plugin is always registered; the pubkey and endpoints
+    // come from tauri.conf.json (plugins.updater section).
     let mut builder = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init());
-
-    if let Some(plugin) = updater_plugin {
-        builder = builder.plugin(plugin);
-    }
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
         .manage(PendingUpdate(Mutex::new(None)))
@@ -210,10 +193,10 @@ pub fn run() {
                 eprintln!("Failed to bind to any port");
             });
 
-            // Check for updates in release builds when a signing key is available.
-            // This runs in the background so it never delays startup.
+            // Check for updates in release builds. Runs in the background so it
+            // never delays startup.
             #[cfg(not(debug_assertions))]
-            if UPDATER_PUBKEY.is_some() {
+            {
                 use tauri_plugin_updater::UpdaterExt;
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -221,14 +204,12 @@ pub fn run() {
                         Ok(updater) => match updater.check().await {
                             Ok(Some(update)) => {
                                 let version = update.version.clone();
-                                // Store the update so install_update command can use it
                                 if let Some(state) = handle.try_state::<PendingUpdate>() {
                                     *state.0.lock().await = Some(update);
                                 }
-                                // Notify the frontend – UpdateDialog will handle the UX
                                 let _ = handle.emit("update-available", version);
                             }
-                            Ok(None) => {} // Already on the latest version
+                            Ok(None) => {}
                             Err(e) => eprintln!("Update check failed: {e}"),
                         },
                         Err(e) => eprintln!("Updater init failed: {e}"),
