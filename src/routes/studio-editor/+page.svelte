@@ -7,6 +7,7 @@
 	import type { Studio, ObsCommand, Preset } from '$lib/types';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
+	import { showConfirm } from '$lib/confirm';
 
 	const SHORTCUTS = ['F13','F14','F15','F16','F17','F18','F19','F20','F21','F22','F23','F24'];
 
@@ -126,6 +127,7 @@
 					name: studio.name,
 					obs_browser_source_address: studio.obs_browser_source_address,
 					presets: updatedPresets.map((p) => ({
+						id: p.id,
 						name: p.name,
 						commands: p.commands.map((c) => ({
 							obs_command_name: c.obs_command_name,
@@ -159,7 +161,7 @@
 	async function deletePreset() {
 		if (!studio || selectedPresetIdx === null) return;
 		const preset = allPresets[selectedPresetIdx];
-		if (!confirm(`Delete preset "${preset?.name}"?`)) return;
+		if (!await showConfirm({ title: 'Delete Preset', message: `Delete preset "${preset?.name}"? This cannot be undone.`, confirmLabel: 'Delete' })) return;
 
 		const updatedPresets = allPresets.filter((_, i) => i !== selectedPresetIdx);
 		saving = true;
@@ -171,6 +173,7 @@
 					name: studio.name,
 					obs_browser_source_address: studio.obs_browser_source_address,
 					presets: updatedPresets.map((p) => ({
+						id: p.id,
 						name: p.name,
 						commands: p.commands.map((c) => ({
 							obs_command_name: c.obs_command_name,
@@ -207,6 +210,7 @@
 					name: editStudioName.trim(),
 					obs_browser_source_address: studio.obs_browser_source_address,
 					presets: allPresets.map((p) => ({
+						id: p.id,
 						name: p.name,
 						commands: p.commands.map((c) => ({
 							obs_command_name: c.obs_command_name,

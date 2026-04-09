@@ -8,6 +8,7 @@
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
+	import { showConfirm } from '$lib/confirm';
 
 	let screens = $state<Screen[]>([]);
 
@@ -109,7 +110,7 @@
 	async function deleteCurrentScreen() {
 		const s = screens.find((x) => x.id === selectedId);
 		if (!s) return;
-		if (!confirm(`Delete screen "${s.graphics_name}"?`)) return;
+		if (!await showConfirm({ title: 'Delete Screen', message: `Delete screen "${s.graphics_name}"? This cannot be undone.`, confirmLabel: 'Delete' })) return;
 		const res = await fetch(`${getBackendUrl()}/screens/${s.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');

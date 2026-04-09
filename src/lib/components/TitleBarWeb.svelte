@@ -21,10 +21,10 @@
 	</div>
 	<div class="topnav-right">
 		<div class="nav-links">
-			<a href="/program-editor">Programs</a>
-			<a href="/popup-editor">PopUps</a>
 			<a href="/studio-editor">Presets</a>
+			<a href="/program-editor">Programs</a>
 			<a href="/screen-editor">Screens</a>
+			<a href="/popup-editor">PopUps</a>
 			<a href="/settings">Settings</a>
 		</div>
 		<StatusDot connected={$connected} />

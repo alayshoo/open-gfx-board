@@ -9,6 +9,7 @@
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
+	import { showConfirm } from '$lib/confirm';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
@@ -123,7 +124,7 @@
 	async function deleteCurrentProgram() {
 		const program = programs.find((p) => p.id === selectedId);
 		if (!program) return;
-		if (!confirm(`Delete program "${program.name}"?`)) return;
+		if (!await showConfirm({ title: 'Delete Program', message: `Delete program "${program.name}"? This cannot be undone.`, confirmLabel: 'Delete' })) return;
 		const res = await fetch(`${getBackendUrl()}/programs/${program.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
@@ -249,10 +250,10 @@
 		];
 	}
 
-	function removePopUpFromProgram(popupId: number) {
+	async function removePopUpFromProgram(popupId: number) {
 		const pa = editProgramPopUps.find((a) => a.popup_id === popupId);
 		const popupName = pa?.popup?.name ?? `PopUp ${popupId}`;
-		if (!confirm(`Remove "${popupName}" from this program?`)) return;
+		if (!await showConfirm({ title: 'Remove Pop-Up', message: `Remove "${popupName}" from this program?`, confirmLabel: 'Remove' })) return;
 		editProgramPopUps = editProgramPopUps.filter((a) => a.popup_id !== popupId);
 	}
 

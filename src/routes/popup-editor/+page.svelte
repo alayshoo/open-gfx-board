@@ -8,6 +8,7 @@
 	import type { PopUp } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl, IS_TAURI } from '$lib/bridge';
+	import { showConfirm } from '$lib/confirm';
 
 	let popups = $state<PopUp[]>([]);
 	let saving = $state(false);
@@ -112,7 +113,7 @@
 	async function deleteCurrentPopUp() {
 		const popup = popups.find((p) => p.id === selectedId);
 		if (!popup) return;
-		if (!confirm(`Delete pop-up "${popup.name}"?`)) return;
+		if (!await showConfirm({ title: 'Delete Pop-Up', message: `Delete pop-up "${popup.name}"? This cannot be undone.`, confirmLabel: 'Delete' })) return;
 		const res = await fetch(`${getBackendUrl()}/popups/${popup.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');

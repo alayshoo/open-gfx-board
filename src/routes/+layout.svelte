@@ -7,6 +7,7 @@
 	import Toaster from '$lib/components/Toaster.svelte';
 	import TitleBar from '$lib/components/TitleBarTauri.svelte';
 	import UpdateDialog from '$lib/components/UpdateDialog.svelte';
+	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import { IS_TAURI } from '$lib/bridge';
 	import { onMount } from 'svelte';
 
@@ -43,6 +44,7 @@
 
 <Toaster />
 <UpdateDialog />
+<ConfirmModal />
 
 <style>
 	:global(html, body) {

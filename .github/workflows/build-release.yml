@@ -119,7 +119,10 @@ jobs:
           body: |
             ## Release Notes
 
-             - UI Polishing
-             - Startup Update Check Fix
+            Some fixes:
+            
+             - Reordered navigation links in the hosted nav bar.
+             - Added custom Confirm Modal to replace Webview modals.
+             - Control Page now populates correctly when there is an update to the commands of the loaded preset.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

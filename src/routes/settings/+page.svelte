@@ -5,6 +5,7 @@
 	import { BACKEND_URL } from '$lib/api/socket';
 	import { addToast } from '$lib/toasts';
 	import { IS_TAURI, getCurrentPort } from '$lib/bridge';
+	import { showConfirm } from '$lib/confirm';
 
 	type Tab = 'import-export' | 'server' | 'updates' | 'about';
 	let activeTab = $state<Tab>('import-export');
@@ -147,9 +148,11 @@
 			return;
 		}
 
-		const confirmed = confirm(
-			'Warning: Importing will replace ALL current data. This cannot be undone. Continue?'
-		);
+		const confirmed = await showConfirm({
+			title: 'Import Data',
+			message: 'Warning: Importing will replace ALL current data. This cannot be undone. Continue?',
+			confirmLabel: 'Import',
+		});
 		if (!confirmed) return;
 
 		importing = true;
