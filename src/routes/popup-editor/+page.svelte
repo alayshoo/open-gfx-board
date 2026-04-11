@@ -27,6 +27,9 @@
 	let editDirection = $state<'top' | 'bottom' | 'left' | 'right'>('bottom');
 	let editPosition = $state(50);
 	let editMediaType = $state('image');
+	let editHtmlContent = $state('');
+	let editWidth = $state<number | null>(null);
+	let editHeight = $state<number | null>(null);
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
@@ -47,6 +50,9 @@
 					selectedId = data.popup.id;
 					editId = data.popup.id;
 					editImagePath = data.popup.image_path;
+					editHtmlContent = data.popup.html_content ?? '';
+					editWidth = data.popup.width ?? null;
+					editHeight = data.popup.height ?? null;
 				}
 			}
 		});
@@ -57,6 +63,9 @@
 				addToast('success', 'PopUp saved.');
 				if (selectedId === data.popup.id) {
 					editImagePath = data.popup.image_path;
+					editHtmlContent = data.popup.html_content ?? '';
+					editWidth = data.popup.width ?? null;
+					editHeight = data.popup.height ?? null;
 				}
 			}
 		});
@@ -95,6 +104,9 @@
 		editDirection = 'bottom';
 		editPosition = 50;
 		editMediaType = 'image';
+		editHtmlContent = '';
+		editWidth = null;
+		editHeight = null;
 	}
 
 	function selectPopUp(popup: PopUp) {
@@ -108,6 +120,9 @@
 		editDirection = (popup.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
 		editPosition = popup.position ?? 50;
 		editMediaType = popup.media_type ?? 'image';
+		editHtmlContent = popup.html_content ?? '';
+		editWidth = popup.width ?? null;
+		editHeight = popup.height ?? null;
 	}
 
 	async function deleteCurrentPopUp() {
@@ -137,6 +152,9 @@
 						direction: editDirection,
 						position: editPosition,
 						media_type: editMediaType,
+						html_content: editMediaType === 'html' ? editHtmlContent : null,
+						width: editWidth,
+						height: editHeight,
 					}),
 				});
 				const data = await res.json();
@@ -147,6 +165,9 @@
 					selectedId = data.popup.id;
 					editId = data.popup.id;
 					editImagePath = data.popup.image_path;
+					editHtmlContent = data.popup.html_content ?? '';
+					editWidth = data.popup.width ?? null;
+					editHeight = data.popup.height ?? null;
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -162,6 +183,9 @@
 						direction: editDirection,
 						position: editPosition,
 						media_type: editMediaType,
+						html_content: editMediaType === 'html' ? editHtmlContent : null,
+						width: editWidth,
+						height: editHeight,
 					}),
 				});
 				const data = await res.json();
@@ -314,11 +338,40 @@
 								<select id="popup-media-type" class="form-input form-select" bind:value={editMediaType}>
 									<option value="image">Image</option>
 									<option value="video">Video</option>
+									<option value="html">HTML</option>
 								</select>
 							</div>
+
 						</div>
 
-						{#if !isNew}
+						{#if editMediaType === 'html'}
+							<div class="field-group">
+								<label class="field-label" for="popup-html">HTML Content</label>
+								<textarea
+									id="popup-html"
+									class="form-input html-editor"
+									bind:value={editHtmlContent}
+									placeholder={'<div style="color: white; padding: 20px;">\n  Sponsor Message\n</div>'}
+									spellcheck="false"
+								></textarea>
+								<p class="field-hint-block">
+									Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
+								</p>
+							</div>
+
+							<div class="size-row">
+								<div class="field-group">
+									<label class="field-label" for="popup-width">Width <span class="field-hint">(px, blank = auto)</span></label>
+									<input id="popup-width" class="form-input" type="number" min="1" bind:value={editWidth} placeholder="e.g. 640" />
+								</div>
+								<div class="field-group">
+									<label class="field-label" for="popup-height">Height <span class="field-hint">(px, blank = auto)</span></label>
+									<input id="popup-height" class="form-input" type="number" min="1" bind:value={editHeight} placeholder="e.g. 360" />
+								</div>
+							</div>
+						{/if}
+
+						{#if !isNew && editMediaType !== 'html'}
 							<div class="field-group">
 								<span class="field-label">PopUp Image / Media</span>
 								<ImageUpload
@@ -569,6 +622,39 @@
 		color: var(--text-2);
 		border-radius: 4px;
 		padding: 3px 8px;
+		border: 1px solid var(--border-1);
+	}
+
+	/* ── Size row ── */
+	.size-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 20px;
+	}
+
+	/* ── HTML editor ── */
+	.html-editor {
+		min-height: 200px;
+		resize: vertical;
+		font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		tab-size: 2;
+		white-space: pre;
+	}
+
+	.field-hint-block {
+		font-size: 0.75rem;
+		color: var(--text-3);
+		line-height: 1.4;
+		margin: 0;
+	}
+
+	.field-hint-block code {
+		font-size: 0.6875rem;
+		background: var(--surface-3);
+		padding: 1px 5px;
+		border-radius: 3px;
 		border: 1px solid var(--border-1);
 	}
 

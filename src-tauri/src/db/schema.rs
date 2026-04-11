@@ -108,5 +108,28 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 4 — HTML content support for screens and popups.
+    // When media_type = 'html', the html_content column holds the raw HTML
+    // template string (may contain {{var:…}} / {{db:…}} expressions that are
+    // resolved at display time).
+    if version < 4 {
+        conn.execute_batch(
+            "ALTER TABLE screens ADD COLUMN html_content TEXT;
+             ALTER TABLE popups  ADD COLUMN html_content TEXT;
+             INSERT INTO schema_version VALUES (4);",
+        )?;
+    }
+
+    // Migration 5 — user-configurable popup dimensions.
+    // Nullable: when NULL, image/video popups use their natural media size;
+    // HTML popups fall back to a sensible default on the client.
+    if version < 5 {
+        conn.execute_batch(
+            "ALTER TABLE popups ADD COLUMN width  INTEGER;
+             ALTER TABLE popups ADD COLUMN height INTEGER;
+             INSERT INTO schema_version VALUES (5);",
+        )?;
+    }
+
     Ok(())
 }

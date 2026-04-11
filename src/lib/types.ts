@@ -4,6 +4,8 @@ export interface Screen {
 	graphics_path: string | null;
 	media_type: string;
 	allow_popups: boolean;
+	/** Raw HTML template (only when media_type is "html"). */
+	html_content: string | null;
 	comments: string;
 	programs: { id: number; name: string }[];
 	created_at: string;
@@ -39,8 +41,14 @@ export interface PopUp {
 	comments: string;
 	image_path: string | null;
 	media_type: string;
+	/** Raw HTML template (only when media_type is "html"). */
+	html_content: string | null;
 	direction: 'top' | 'bottom' | 'left' | 'right';
 	position: number;
+	/** Explicit popup width in pixels. Null = use natural media size / client default. */
+	width: number | null;
+	/** Explicit popup height in pixels. Null = use natural media size / client default. */
+	height: number | null;
 	programs: { id: number; name: string }[];
 	created_at: string;
 }
@@ -75,6 +83,9 @@ export interface ActiveOverlay {
 	graphicId: number;
 	graphicPath: string | null;
 	allowPopUps: boolean;
+	mediaType: string;
+	/** Processed HTML (template variables already resolved). Only present when mediaType is "html". */
+	htmlContent: string | null;
 }
 
 export interface ActivePopUp {
@@ -83,6 +94,13 @@ export interface ActivePopUp {
 	duration: number;
 	direction: string;
 	position: number;
+	mediaType: string;
+	/** Processed HTML (template variables already resolved). Only present when mediaType is "html". */
+	htmlContent: string | null;
+	/** Explicit popup width in pixels. Null = use natural media size / client default. */
+	width: number | null;
+	/** Explicit popup height in pixels. */
+	height: number | null;
 }
 
 export interface StudioState {

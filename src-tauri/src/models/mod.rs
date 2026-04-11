@@ -49,6 +49,9 @@ pub struct Screen {
     pub media_path: Option<String>,
     pub media_type: String,
     pub allow_popups: bool,
+    /// Raw HTML template. Only populated when `media_type` is `"html"`.
+    /// May contain `{{var:…}}` / `{{db:…}}` expressions resolved at display time.
+    pub html_content: Option<String>,
     pub programs: Vec<ScreenProgram>,
     pub created_at: String,
 }
@@ -62,8 +65,15 @@ pub struct Popup {
     #[serde(rename = "image_path")]
     pub media_path: Option<String>,
     pub media_type: String,
+    /// Raw HTML template. Only populated when `media_type` is `"html"`.
+    pub html_content: Option<String>,
     pub direction: String,
     pub position: i64,
+    /// Explicit width in pixels.  When `None`, image/video popups use their
+    /// natural media dimensions; HTML popups fall back to a client-side default.
+    pub width: Option<i64>,
+    /// Explicit height in pixels.  Same fallback rules as `width`.
+    pub height: Option<i64>,
     pub programs: Vec<PopupProgram>,
     pub created_at: String,
 }
@@ -120,6 +130,12 @@ pub struct ActiveOverlay {
     pub graphic_path: Option<String>,
     #[serde(rename = "allowPopUps")]
     pub allow_popups: bool,
+    #[serde(rename = "mediaType")]
+    pub media_type: String,
+    /// Processed HTML content (template expressions already resolved).
+    /// Only present when `media_type` is `"html"`.
+    #[serde(rename = "htmlContent")]
+    pub html_content: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,4 +147,14 @@ pub struct ActivePopup {
     pub duration: i64,
     pub direction: String,
     pub position: i64,
+    #[serde(rename = "mediaType")]
+    pub media_type: String,
+    /// Processed HTML content (template expressions already resolved).
+    /// Only present when `media_type` is `"html"`.
+    #[serde(rename = "htmlContent")]
+    pub html_content: Option<String>,
+    /// Explicit popup width in pixels (None = use natural media size or client default).
+    pub width: Option<i64>,
+    /// Explicit popup height in pixels.
+    pub height: Option<i64>,
 }

@@ -4,6 +4,7 @@ mod keyboard;
 mod db;
 mod commands;
 mod server;
+pub mod html_template;
 
 use state::AppState;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};

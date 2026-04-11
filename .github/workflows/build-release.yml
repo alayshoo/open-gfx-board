@@ -119,10 +119,9 @@ jobs:
           body: |
             ## Release Notes
 
-            Some fixes:
+            New Features:
             
-             - Reordered navigation links in the hosted nav bar.
-             - Added custom Confirm Modal to replace Webview modals.
-             - Control Page now populates correctly when there is an update to the commands of the loaded preset.
+             - HTML Type Screens and Popups.
+             - HTML Engine to inject variables into HTML Types before passing them to /obs.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

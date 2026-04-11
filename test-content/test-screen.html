@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      background: transparent;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Lower-third bar anchored to the bottom ── */
+    .lower-third {
+      position: absolute;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: stretch;
+      height: 90px;
+      animation: slide-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes slide-up {
+      from { transform: translateY(120px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* Accent bar on the left */
+    .accent-bar {
+      width: 8px;
+      background: linear-gradient(180deg, #4f8ef7, #a855f7);
+      flex-shrink: 0;
+    }
+
+    /* Main content area */
+    .content {
+      background: rgba(10, 10, 18, 0.88);
+      backdrop-filter: blur(8px);
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .program-name {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .studio-name {
+      font-size: 0.95rem;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Clock pill on the right */
+    .clock-pill {
+      background: rgba(10, 10, 18, 0.88);
+      backdrop-filter: blur(8px);
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .clock-time {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .clock-date {
+      font-size: 0.8125rem;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* Thin top highlight line */
+    .top-line {
+      position: absolute;
+      bottom: 150px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, #4f8ef7 30%, #a855f7 70%, transparent 100%);
+      opacity: 0.6;
+      animation: slide-up 0.6s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-line"></div>
+
+  <div class="lower-third">
+    <div class="accent-bar"></div>
+    <div class="content">
+      <span class="program-name">{{var:program_name}}</span>
+      <span class="studio-name">{{var:studio_name}}</span>
+    </div>
+    <div class="clock-pill">
+      <span class="clock-time">{{var:current_time}}</span>
+      <span class="clock-date">{{var:current_date}}</span>
+    </div>
+  </div>
+
+</body>
+</html>

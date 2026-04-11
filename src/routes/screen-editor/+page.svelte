@@ -23,6 +23,7 @@
 	let editAllowPopUps = $state(true);
 	let editMediaType = $state('image');
 	let editMediaPath = $state<string | null>(null);
+	let editHtmlContent = $state('');
 
 	let saving = $state(false);
 	let uploading = $state(false);
@@ -49,6 +50,7 @@
 					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
+					editHtmlContent = data.screen.html_content ?? '';
 				}
 			}
 		});
@@ -63,6 +65,7 @@
 					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
+					editHtmlContent = data.screen.html_content ?? '';
 				}
 			}
 		});
@@ -94,6 +97,7 @@
 		editAllowPopUps = true;
 		editMediaType = 'image';
 		editMediaPath = null;
+		editHtmlContent = '';
 	}
 
 	function selectScreen(s: Screen) {
@@ -105,6 +109,7 @@
 		editAllowPopUps = s.allow_popups;
 		editMediaType = s.media_type;
 		editMediaPath = s.graphics_path;
+		editHtmlContent = s.html_content ?? '';
 	}
 
 	async function deleteCurrentScreen() {
@@ -132,6 +137,7 @@
 						comments: editComments.trim(),
 						allow_popups: editAllowPopUps,
 						media_type: editMediaType,
+						html_content: editMediaType === 'html' ? editHtmlContent : null,
 					}),
 				});
 				const data = await res.json();
@@ -147,6 +153,7 @@
 					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
+					editHtmlContent = data.screen.html_content ?? '';
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -159,6 +166,7 @@
 						comments: editComments.trim(),
 						allow_popups: editAllowPopUps,
 						media_type: editMediaType,
+						html_content: editMediaType === 'html' ? editHtmlContent : null,
 					}),
 				});
 				const data = await res.json();
@@ -291,6 +299,7 @@
 							<select id="screen-media-type" class="form-select" bind:value={editMediaType}>
 								<option value="image">Image</option>
 								<option value="video">Video</option>
+								<option value="html">HTML</option>
 							</select>
 						</div>
 
@@ -305,7 +314,23 @@
 							<p>When active, pop-ups can appear on top of this screen.</p>
 						</div>
 
-						{#if !isNew}
+						{#if editMediaType === 'html'}
+							<div class="field-group">
+								<label class="field-label" for="screen-html">HTML Content</label>
+								<textarea
+									id="screen-html"
+									class="form-input html-editor"
+									bind:value={editHtmlContent}
+									placeholder={'<div style="color: white; font-size: 48px;">\n  Hello World\n</div>'}
+									spellcheck="false"
+								></textarea>
+								<p class="field-hint-block">
+									Full-screen overlay. Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
+								</p>
+							</div>
+						{/if}
+
+						{#if !isNew && editMediaType !== 'html'}
 							<div class="field-group">
 								<span class="field-label">Media File</span>
 								{#if editMediaPath}
@@ -323,7 +348,9 @@
 									{/if}
 								</div>
 							</div>
+						{/if}
 
+						{#if !isNew}
 							{#if screens.find(s => s.id === editId)?.programs?.length}
 								{@const currentScreen = screens.find(s => s.id === editId)!}
 								<div class="field-group">
@@ -636,6 +663,32 @@
 		color: var(--text-2);
 		border-radius: 4px;
 		padding: 3px 8px;
+		border: 1px solid var(--border-1);
+	}
+
+	/* ── HTML editor ── */
+	.html-editor {
+		min-height: 200px;
+		resize: vertical;
+		font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		tab-size: 2;
+		white-space: pre;
+	}
+
+	.field-hint-block {
+		font-size: 0.75rem;
+		color: var(--text-3);
+		line-height: 1.4;
+		margin: 0;
+	}
+
+	.field-hint-block code {
+		font-size: 0.6875rem;
+		background: var(--surface-3);
+		padding: 1px 5px;
+		border-radius: 3px;
 		border: 1px solid var(--border-1);
 	}
 
