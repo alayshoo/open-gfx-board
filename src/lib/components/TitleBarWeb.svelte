@@ -10,11 +10,11 @@
 	} = $props();
 
 	const editLinks = [
-		{ href: '/studio-editor', label: 'Presets' },
 		{ href: '/program-editor', label: 'Programs' },
 		{ href: '/screen-editor', label: 'Screens' },
 		{ href: '/popup-editor', label: 'PopUps' },
 		{ href: '/plugin-editor', label: 'Plugins' },
+		{ href: '/studio-editor', label: 'Presets' },
 	];
 
 	let editMenuOpen = $state(false);

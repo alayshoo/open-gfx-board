@@ -17,6 +17,7 @@ pub fn router() -> Router<AppState> {
         .route("/upload-image", post(upload_popup_image))
         .route("/{id}", put(update_popup))
         .route("/{id}", delete(delete_popup))
+        .route("/{id}/duplicate", post(duplicate_popup))
 }
 
 async fn list_popups(State(state): State<AppState>) -> impl IntoResponse {
@@ -124,6 +125,27 @@ async fn delete_popup(
             Json(json!({ "success": true, "id": id })).into_response()
         }
         Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Popup not found" }))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+async fn duplicate_popup(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    match tokio::task::block_in_place(|| crate::db::popups::duplicate_popup(&db, id)) {
+        Ok(Some(popup)) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("popup-created", &json!({ "success": true, "popup": &popup })).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "popup": popup })).into_response()
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Pop-up not found" }))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

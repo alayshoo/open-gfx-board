@@ -127,7 +127,7 @@ pub fn delete_program(conn: &Connection, id: i64) -> Result<bool> {
 
 fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups, s.html_content, s.created_at
+        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups, s.html_content, s.created_at, s.plugin_id, s.plugin_template_id
          FROM screens s
          JOIN program_screens ps ON ps.screen_id = s.id
          WHERE ps.program_id = ?1
@@ -145,6 +145,8 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
             html_content: row.get(6)?,
             programs: vec![],
             created_at: row.get(7)?,
+            plugin_id: row.get(8)?,
+            plugin_template_id: row.get(9)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(screens)

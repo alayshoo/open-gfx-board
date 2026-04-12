@@ -12,6 +12,8 @@ class FootballEditor extends HTMLElement {
     this._formation = [];
     this._selectedTeamId = null;
     this._state = {};
+    this._formationDirty = false;
+    this._formationPendingAction = null;
   }
 
   set sdk(val) {
@@ -26,7 +28,7 @@ class FootballEditor extends HTMLElement {
     this._sdk.onDataChanged('teams', () => this._loadTeams().then(() => this._renderContent()));
     this._sdk.onDataChanged('players', () => this._loadPlayers().then(() => this._renderContent()));
     this._sdk.onDataChanged('formation', () => this._loadFormation().then(() => this._renderContent()));
-    this._sdk.onStateChanged((s) => { this._state = s; });
+    this._sdk.onStateChanged((s) => { this._state = s; this._renderContent(); });
   }
 
   async _loadTeams() {
@@ -40,14 +42,16 @@ class FootballEditor extends HTMLElement {
     if (!this._selectedTeamId) { this._players = []; return; }
     try {
       this._players = await this._sdk.queryData('players', { team_id: String(this._selectedTeamId) });
+      this._players.sort((a, b) => a.number - b.number);
     } catch { this._players = []; }
   }
 
   async _loadFormation() {
-    if (!this._selectedTeamId) { this._formation = []; return; }
+    if (!this._selectedTeamId) { this._formation = []; this._formationDirty = false; return; }
     try {
       this._formation = await this._sdk.queryData('formation', { team_id: String(this._selectedTeamId) });
     } catch { this._formation = []; }
+    this._formationDirty = false;
   }
 
   _render() {
@@ -80,12 +84,31 @@ class FootballEditor extends HTMLElement {
         .fe-color-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; vertical-align: middle; border: 1px solid var(--border-2, #52525b); }
         .fe-select { padding: 6px 10px; background: var(--surface-2, #27272a); border: 1px solid var(--border-1, #3f3f46); border-radius: 6px; color: var(--text-1, #e4e4e7); font-size: 0.85rem; font-family: inherit; }
         .fe-team-selector { margin-bottom: 12px; }
-        .fe-formation { display: flex; flex-direction: column; gap: 8px; }
-        .fe-form-row { display: flex; align-items: center; gap: 8px; }
-        .fe-form-row-label { width: 50px; font-size: 0.75rem; color: var(--text-3, #71717a); font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
-        .fe-form-slots { display: flex; gap: 6px; flex-wrap: wrap; }
+        .fe-formation { display: flex; flex-direction: column; gap: 10px; }
+        .fe-form-row { display: flex; align-items: center; gap: 24px; }
+        .fe-form-row-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; width: 100px; }
+        .fe-form-row-label { width: 34px; font-size: 0.75rem; color: var(--text-3, #71717a); font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
+        .fe-form-slots { flex: 1; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
         .fe-slot-input { width: 50px; text-align: center; }
         .fe-help { font-size: 0.75rem; color: var(--text-3, #71717a); margin: 4px 0; }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+        .fe-input-player-name { width: 200px; }
+        .fe-input-error { border-color: #ef4444 !important; }
+        .fe-error-msg { font-size: 0.75rem; color: #ef4444; margin-top: 4px; }
+        .fe-btn-home { background: rgba(56,189,248,0.2) !important; border-color: rgba(56,189,248,0.6) !important; color: var(--accent, #38bdf8) !important; }
+        .fe-btn-away { background: rgba(74,222,128,0.2) !important; border-color: rgba(74,222,128,0.6) !important; color: #4ade80 !important; }
+        .fe-td-actions { display: flex; gap: 4px; align-items: center; }
+        .fe-td-actions .fe-action-sep { width: 1px; height: 20px; background: var(--border-1, #3f3f46); margin: 0 4px; flex-shrink: 0; }
+        .fe-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .fe-modal { background: var(--surface-1, #18181b); border: 1px solid var(--border-1, #3f3f46); border-radius: 10px; padding: 24px; min-width: 320px; max-width: 420px; width: 100%; box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
+        .fe-modal-title { font-size: 0.95rem; font-weight: 600; color: var(--text-1, #e4e4e7); margin-bottom: 20px; }
+        .fe-modal-field { margin-bottom: 14px; }
+        .fe-modal-field label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3, #71717a); margin-bottom: 5px; }
+        .fe-modal-colors { display: flex; gap: 16px; }
+        .fe-modal-colors .fe-modal-field { flex: 1; }
+        .fe-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
       </style>
       <div class="fe-root">
         <div class="fe-tabs">
@@ -94,15 +117,164 @@ class FootballEditor extends HTMLElement {
           <button class="fe-tab ${this._tab === 'formation' ? 'active' : ''}" data-tab="formation">Starting XI</button>
         </div>
         <div class="fe-content" id="fe-content"></div>
+
+        <!-- Edit-player modal -->
+        <div class="fe-modal-backdrop" id="fe-edit-player-modal" style="display:none">
+          <div class="fe-modal">
+            <div class="fe-modal-title">Edit Player</div>
+            <div class="fe-modal-field">
+              <label>Shirt Number</label>
+              <input class="fe-input fe-input-sm" id="fe-edit-player-num" type="number" min="1" placeholder="#" />
+              <div class="fe-error-msg" id="fe-edit-player-num-error" style="display:none"></div>
+            </div>
+            <div class="fe-modal-field">
+              <label>Name</label>
+              <input class="fe-input" id="fe-edit-player-name" placeholder="Player name" style="width:100%;box-sizing:border-box" />
+            </div>
+            <div class="fe-modal-footer">
+              <button class="fe-btn" id="fe-edit-player-cancel">Cancel</button>
+              <button class="fe-btn fe-btn-primary" id="fe-edit-player-save">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formation unsaved-changes confirmation -->
+        <div class="fe-modal-backdrop" id="fe-formation-confirm" style="display:none">
+          <div class="fe-modal">
+            <div class="fe-modal-title">Unsaved Formation</div>
+            <p style="font-size:0.85rem;color:var(--text-2,#a1a1aa);margin:0 0 4px">You have unsaved changes to the formation.</p>
+            <div class="fe-modal-footer">
+              <button class="fe-btn" id="fe-fc-cancel">Cancel</button>
+              <button class="fe-btn fe-btn-danger" id="fe-fc-discard">Discard</button>
+              <button class="fe-btn fe-btn-primary" id="fe-fc-save">Save & Continue</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit-team modal (lives outside fe-content so re-renders don't destroy it) -->
+        <div class="fe-modal-backdrop" id="fe-edit-modal" style="display:none">
+          <div class="fe-modal">
+            <div class="fe-modal-title">Edit Team</div>
+            <div class="fe-modal-field">
+              <label>Team Name</label>
+              <input class="fe-input" id="fe-edit-name" placeholder="Team name" style="width:100%;box-sizing:border-box" />
+            </div>
+            <div class="fe-modal-field">
+              <label>Short Name</label>
+              <input class="fe-input fe-input-sm" id="fe-edit-short" placeholder="Short" />
+            </div>
+            <div class="fe-modal-colors">
+              <div class="fe-modal-field">
+                <label>Primary Color</label>
+                <input class="fe-input fe-input-color" id="fe-edit-color1" type="color" />
+              </div>
+              <div class="fe-modal-field">
+                <label>Secondary Color</label>
+                <input class="fe-input fe-input-color" id="fe-edit-color2" type="color" />
+              </div>
+            </div>
+            <div class="fe-modal-footer">
+              <button class="fe-btn" id="fe-edit-cancel">Cancel</button>
+              <button class="fe-btn fe-btn-primary" id="fe-edit-save">Save</button>
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
     this.querySelectorAll('.fe-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        this._tab = btn.dataset.tab;
+        const targetTab = btn.dataset.tab;
+        if (this._tab === 'formation' && this._formationDirty && targetTab !== 'formation') {
+          this._showFormationConfirm(() => {
+            this._tab = targetTab;
+            this.querySelectorAll('.fe-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === this._tab));
+            this._onTabChange();
+          });
+          return;
+        }
+        this._tab = targetTab;
         this.querySelectorAll('.fe-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === this._tab));
         this._onTabChange();
       });
+    });
+
+    // Formation confirm modal wiring
+    const confirmModal = this.querySelector('#fe-formation-confirm');
+    this.querySelector('#fe-fc-cancel')?.addEventListener('click', () => {
+      confirmModal.style.display = 'none';
+      this._formationPendingAction = null;
+    });
+    this.querySelector('#fe-fc-discard')?.addEventListener('click', async () => {
+      await this._loadFormation();
+      confirmModal.style.display = 'none';
+      const action = this._formationPendingAction;
+      this._formationPendingAction = null;
+      if (action) action();
+    });
+    this.querySelector('#fe-fc-save')?.addEventListener('click', async () => {
+      await this._saveFormation();
+      confirmModal.style.display = 'none';
+      const action = this._formationPendingAction;
+      this._formationPendingAction = null;
+      if (action) action();
+    });
+
+    // Player modal wiring
+    const playerModal = this.querySelector('#fe-edit-player-modal');
+    this.querySelector('#fe-edit-player-cancel')?.addEventListener('click', () => { playerModal.style.display = 'none'; });
+    playerModal?.addEventListener('click', (e) => { if (e.target === playerModal) playerModal.style.display = 'none'; });
+    this.querySelector('#fe-edit-player-save')?.addEventListener('click', async () => {
+      const id = Number(playerModal.dataset.editId);
+      if (!id) return;
+      const numInput = this.querySelector('#fe-edit-player-num');
+      const numError = this.querySelector('#fe-edit-player-num-error');
+      const number = Number(numInput?.value);
+      const name = this.querySelector('#fe-edit-player-name')?.value?.trim();
+      if (!number || !name) return;
+      if (this._players.some(p => p.number === number && p.id !== id)) {
+        numInput.classList.add('fe-input-error');
+        numError.textContent = `#${number} is already taken`;
+        numError.style.display = 'block';
+        return;
+      }
+      numInput.classList.remove('fe-input-error');
+      numError.style.display = 'none';
+      await this._sdk.updateRow('players', id, { number, name });
+      playerModal.style.display = 'none';
+      await this._loadPlayers();
+      this._renderContent();
+    });
+
+    // Team modal wiring
+    const modal = this.querySelector('#fe-edit-modal');
+    this.querySelector('#fe-edit-cancel')?.addEventListener('click', () => { modal.style.display = 'none'; });
+    modal?.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+    this.querySelector('#fe-edit-save')?.addEventListener('click', async () => {
+      const id = Number(modal.dataset.editId);
+      if (!id) return;
+      const name = this.querySelector('#fe-edit-name')?.value?.trim();
+      if (!name) return;
+      const short_name = this.querySelector('#fe-edit-short')?.value?.trim() || '';
+      const primary_color = this.querySelector('#fe-edit-color1')?.value || '#ffffff';
+      const secondary_color = this.querySelector('#fe-edit-color2')?.value || '#000000';
+      await this._sdk.updateRow('teams', id, { name, short_name, primary_color, secondary_color });
+      // If this team is home or away, sync the updated name/color into state too
+      const stateUpdates = {};
+      if (Number(this._state.home_team_id) === id) {
+        stateUpdates.home_team_name = name;
+        stateUpdates.home_primary_color = primary_color;
+      }
+      if (Number(this._state.away_team_id) === id) {
+        stateUpdates.away_team_name = name;
+        stateUpdates.away_primary_color = primary_color;
+      }
+      if (Object.keys(stateUpdates).length) {
+        this._state = await this._sdk.setState(stateUpdates);
+      }
+      modal.style.display = 'none';
+      await this._loadTeams();
+      this._renderContent();
     });
 
     this._renderContent();
@@ -110,7 +282,10 @@ class FootballEditor extends HTMLElement {
 
   async _onTabChange() {
     if (this._tab === 'players') await this._loadPlayers();
-    if (this._tab === 'formation') await this._loadFormation();
+    if (this._tab === 'formation') {
+      await this._loadPlayers();
+      await this._loadFormation();
+    }
     this._renderContent();
   }
 
@@ -140,18 +315,25 @@ class FootballEditor extends HTMLElement {
       <table class="fe-table">
         <thead><tr><th>Name</th><th>Short</th><th>Colors</th><th></th></tr></thead>
         <tbody>
-          ${this._teams.map(t => `
+          ${this._teams.map(t => {
+            const isHome = Number(this._state.home_team_id) === t.id;
+            const isAway = Number(this._state.away_team_id) === t.id;
+            return `
             <tr>
               <td>${this._esc(t.name)}</td>
               <td>${this._esc(t.short_name)}</td>
               <td><span class="fe-color-dot" style="background:${t.primary_color}"></span> <span class="fe-color-dot" style="background:${t.secondary_color}"></span></td>
               <td>
-                <button class="fe-btn" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Home">Home</button>
-                <button class="fe-btn" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Away">Away</button>
-                <button class="fe-btn fe-btn-danger" data-del-team="${t.id}">Del</button>
+                <div class="fe-td-actions">
+                  <button class="fe-btn ${isHome ? 'fe-btn-home' : ''}" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Home">Home</button>
+                  <button class="fe-btn ${isAway ? 'fe-btn-away' : ''}" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Away">Away</button>
+                  <div class="fe-action-sep"></div>
+                  <button class="fe-btn" data-edit-team="${t.id}">Edit</button>
+                  <button class="fe-btn fe-btn-danger" data-del-team="${t.id}">Del</button>
+                </div>
               </td>
-            </tr>
-          `).join('')}
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
     `;
@@ -177,21 +359,37 @@ class FootballEditor extends HTMLElement {
 
     el.querySelectorAll('[data-set-team]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        await this._sdk.setState({
+        this._state = await this._sdk.setState({
           home_team_id: Number(btn.dataset.setTeam),
           home_team_name: btn.dataset.teamName,
           home_primary_color: btn.dataset.teamColor,
         });
+        this._renderContent();
       });
     });
 
     el.querySelectorAll('[data-set-away]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        await this._sdk.setState({
+        this._state = await this._sdk.setState({
           away_team_id: Number(btn.dataset.setAway),
           away_team_name: btn.dataset.teamName,
           away_primary_color: btn.dataset.teamColor,
         });
+        this._renderContent();
+      });
+    });
+
+    el.querySelectorAll('[data-edit-team]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const team = this._teams.find(t => t.id === Number(btn.dataset.editTeam));
+        if (!team) return;
+        const modal = this.querySelector('#fe-edit-modal');
+        modal.dataset.editId = team.id;
+        this.querySelector('#fe-edit-name').value = team.name;
+        this.querySelector('#fe-edit-short').value = team.short_name;
+        this.querySelector('#fe-edit-color1').value = team.primary_color;
+        this.querySelector('#fe-edit-color2').value = team.secondary_color;
+        modal.style.display = 'flex';
       });
     });
   }
@@ -209,8 +407,11 @@ class FootballEditor extends HTMLElement {
         <div class="fe-section">
           <div class="fe-label">Add Player</div>
           <div class="fe-row">
-            <input class="fe-input fe-input-sm" id="fe-player-num" type="number" min="1" placeholder="#" />
-            <input class="fe-input" id="fe-player-name" placeholder="Name" />
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <input class="fe-input fe-input-sm" id="fe-player-num" type="number" min="1" placeholder="#" />
+              <div class="fe-error-msg" id="fe-player-num-error" style="display:none"></div>
+            </div>
+            <input class="fe-input fe-input-player-name" id="fe-player-name" placeholder="Name" />
             <button class="fe-btn fe-btn-primary" id="fe-player-add">Add</button>
           </div>
         </div>
@@ -221,7 +422,12 @@ class FootballEditor extends HTMLElement {
               <tr>
                 <td>${p.number}</td>
                 <td>${this._esc(p.name)}</td>
-                <td><button class="fe-btn fe-btn-danger" data-del-player="${p.id}">Del</button></td>
+                <td>
+                  <div class="fe-td-actions">
+                    <button class="fe-btn" data-edit-player="${p.id}">Edit</button>
+                    <button class="fe-btn fe-btn-danger" data-del-player="${p.id}">Del</button>
+                  </div>
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -236,9 +442,19 @@ class FootballEditor extends HTMLElement {
     });
 
     el.querySelector('#fe-player-add')?.addEventListener('click', async () => {
-      const number = Number(el.querySelector('#fe-player-num')?.value);
+      const numInput = el.querySelector('#fe-player-num');
+      const numError = el.querySelector('#fe-player-num-error');
+      const number = Number(numInput?.value);
       const name = el.querySelector('#fe-player-name')?.value?.trim();
       if (!number || !name) return;
+      if (this._players.some(p => p.number === number)) {
+        numInput.classList.add('fe-input-error');
+        numError.textContent = `#${number} is already taken`;
+        numError.style.display = 'block';
+        return;
+      }
+      numInput.classList.remove('fe-input-error');
+      numError.style.display = 'none';
       await this._sdk.insertRow('players', { team_id: this._selectedTeamId, number, name });
       await this._loadPlayers();
       this._renderContent();
@@ -249,6 +465,18 @@ class FootballEditor extends HTMLElement {
         await this._sdk.deleteRow('players', Number(btn.dataset.delPlayer));
         await this._loadPlayers();
         this._renderContent();
+      });
+    });
+
+    el.querySelectorAll('[data-edit-player]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const player = this._players.find(p => p.id === Number(btn.dataset.editPlayer));
+        if (!player) return;
+        const modal = this.querySelector('#fe-edit-player-modal');
+        modal.dataset.editId = player.id;
+        this.querySelector('#fe-edit-player-num').value = player.number;
+        this.querySelector('#fe-edit-player-name').value = player.name;
+        modal.style.display = 'flex';
       });
     });
   }
@@ -284,10 +512,12 @@ class FootballEditor extends HTMLElement {
         <div class="fe-formation">
           ${ROW_LABELS.map((label, ri) => `
             <div class="fe-form-row">
-              <span class="fe-form-row-label">${label}</span>
-              ${ri === 0 ? '' : `<select class="fe-select fe-row-count" data-row="${ri}" style="width:50px">
-                ${[0,1,2,3,4,5,6].map(n => `<option value="${n}" ${n === rows[ri] ? 'selected' : ''}>${n}</option>`).join('')}
-              </select>`}
+              <div class="fe-form-row-left">
+                <span class="fe-form-row-label">${label}</span>
+                ${ri === 0 ? '' : `<select class="fe-select fe-row-count" data-row="${ri}" style="width:50px">
+                  ${[0,1,2,3,4,5,6].map(n => `<option value="${n}" ${n === rows[ri] ? 'selected' : ''}>${n}</option>`).join('')}
+                </select>`}
+              </div>
               <div class="fe-form-slots" data-slots="${ri}">
                 ${Array.from({length: rows[ri]}, (_, si) => `
                   <input class="fe-input fe-slot-input" type="number" min="1"
@@ -296,8 +526,8 @@ class FootballEditor extends HTMLElement {
                     placeholder="#" />
                 `).join('')}
               </div>
-            </div>
-          `).join('')}
+            </div>`
+          ).join('')}
         </div>
         <div class="fe-row" style="margin-top:12px;">
           <button class="fe-btn fe-btn-primary" id="fe-form-save">Save Formation</button>
@@ -306,14 +536,40 @@ class FootballEditor extends HTMLElement {
     `;
 
     el.querySelector('#fe-form-team')?.addEventListener('change', async (e) => {
-      this._selectedTeamId = Number(e.target.value);
+      const newTeamId = Number(e.target.value);
+      if (this._formationDirty) {
+        // Revert the dropdown visually until the user decides
+        e.target.value = this._selectedTeamId;
+        this._showFormationConfirm(async () => {
+          this._selectedTeamId = newTeamId;
+          await this._loadPlayers();
+          await this._loadFormation();
+          this._renderContent();
+        });
+        return;
+      }
+      this._selectedTeamId = newTeamId;
+      await this._loadPlayers();
       await this._loadFormation();
       this._renderContent();
     });
 
-    // Row count changes: re-render slots
+    // Validate slot inputs and mark dirty on change
+    const wireSlotInputs = (inputs) => {
+      inputs.forEach(input => {
+        this._validateSlotInput(input);
+        input.addEventListener('input', () => {
+          this._formationDirty = true;
+          this._validateSlotInput(input);
+        });
+      });
+    };
+    wireSlotInputs(el.querySelectorAll('.fe-slot-input'));
+
+    // Row count changes: mark dirty, re-render slots, wire new inputs
     el.querySelectorAll('.fe-row-count').forEach(sel => {
       sel.addEventListener('change', () => {
+        this._formationDirty = true;
         const ri = Number(sel.dataset.row);
         const count = Number(sel.value);
         const container = el.querySelector(`[data-slots="${ri}"]`);
@@ -324,38 +580,45 @@ class FootballEditor extends HTMLElement {
             value=""
             placeholder="#" />
         `).join('');
+        wireSlotInputs(container.querySelectorAll('.fe-slot-input'));
       });
     });
 
     el.querySelector('#fe-form-save')?.addEventListener('click', async () => {
-      if (!this._selectedTeamId) return;
-
-      // Collect all slot values
-      const entries = [];
-      el.querySelectorAll('.fe-slot-input').forEach(input => {
-        const num = Number(input.value);
-        if (!num) return;
-        entries.push({
-          team_id: this._selectedTeamId,
-          row_index: Number(input.dataset.row),
-          slot_index: Number(input.dataset.slot),
-          player_number: num,
-        });
-      });
-
-      // Delete existing formation for this team
-      for (const f of this._formation) {
-        await this._sdk.deleteRow('formation', f.id);
-      }
-
-      // Insert new entries
-      for (const entry of entries) {
-        await this._sdk.insertRow('formation', entry);
-      }
-
-      await this._loadFormation();
+      await this._saveFormation();
       this._renderContent();
     });
+  }
+
+  async _saveFormation() {
+    const el = this.querySelector('#fe-content');
+    if (!el || !this._selectedTeamId) return;
+    const entries = [];
+    el.querySelectorAll('.fe-slot-input').forEach(input => {
+      const num = Number(input.value);
+      if (!num) return;
+      entries.push({
+        team_id: this._selectedTeamId,
+        row_index: Number(input.dataset.row),
+        slot_index: Number(input.dataset.slot),
+        player_number: num,
+      });
+    });
+    for (const f of this._formation) await this._sdk.deleteRow('formation', f.id);
+    for (const entry of entries) await this._sdk.insertRow('formation', entry);
+    await this._loadFormation(); // also resets _formationDirty
+  }
+
+  _showFormationConfirm(callback) {
+    this._formationPendingAction = callback;
+    this.querySelector('#fe-formation-confirm').style.display = 'flex';
+  }
+
+  _validateSlotInput(input) {
+    const val = input.value.trim();
+    if (!val) { input.classList.remove('fe-input-error'); return; }
+    const valid = this._players.some(p => p.number === Number(val));
+    input.classList.toggle('fe-input-error', !valid);
   }
 
   _esc(str) {

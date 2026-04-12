@@ -31,6 +31,12 @@
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
+	const selectedScreen = $derived(screens.find(s => s.id === selectedId) ?? null);
+	const isPluginScreen = $derived(!isNew && selectedScreen?.plugin_id != null);
+
+	// Split screens into user-created and plugin-bundled
+	const userScreens = $derived(screens.filter(s => s.plugin_id == null));
+	const pluginScreens = $derived(screens.filter(s => s.plugin_id != null));
 
 	onMount(() => {
 		fetchScreens().then((data) => { screens = data; });
@@ -119,6 +125,34 @@
 		const res = await fetch(`${getBackendUrl()}/screens/${s.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
+	}
+
+	async function duplicateCurrentScreen() {
+		const s = screens.find((x) => x.id === selectedId);
+		if (!s) return;
+		try {
+			const res = await fetch(`${getBackendUrl()}/screens/${s.id}/duplicate`, { method: 'POST' });
+			const data = await res.json();
+			if (data.success) {
+				if (!screens.some((x) => x.id === data.screen.id)) {
+					screens = [data.screen, ...screens];
+				}
+				isCreatingNew = false;
+				selectedId = data.screen.id;
+				editId = data.screen.id;
+				editName = data.screen.graphics_name;
+				editComments = data.screen.comments ?? '';
+				editAllowPopUps = data.screen.allow_popups;
+				editMediaType = data.screen.media_type;
+				editMediaPath = data.screen.graphics_path;
+				editHtmlContent = data.screen.html_content ?? '';
+				addToast('success', 'Screen duplicated — you can now edit your copy.');
+			} else {
+				addToast('error', data.error ?? 'Duplicate failed.');
+			}
+		} catch {
+			addToast('error', 'Request failed.');
+		}
 	}
 
 	async function save() {
@@ -221,6 +255,12 @@
 				</button>
 			</div>
 			<div class="sidebar-list">
+
+				<!-- User screens section -->
+				{#if pluginScreens.length > 0}
+					<div class="sidebar-section-label">Your Screens</div>
+				{/if}
+
 				{#if isCreatingNew}
 					<div class="sidebar-item selected">
 						<div class="item-thumb-wrap">
@@ -231,7 +271,8 @@
 						</div>
 					</div>
 				{/if}
-				{#each screens as s (s.id)}
+
+				{#each userScreens as s (s.id)}
 					<button
 						class="sidebar-item"
 						class:selected={selectedId === s.id}
@@ -250,10 +291,46 @@
 						</div>
 					</button>
 				{:else}
-					{#if !isCreatingNew}
+					{#if !isCreatingNew && pluginScreens.length === 0}
 						<div class="sidebar-empty">No screens yet.<br/>Click "New" to get started.</div>
 					{/if}
 				{/each}
+
+				<!-- Plugin screens section -->
+				{#if pluginScreens.length > 0}
+					<div class="sidebar-section-label sidebar-section-label--plugin">
+						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+							<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/>
+							<line x1="16" y1="8" x2="2" y2="22"/>
+							<line x1="17.5" y1="15" x2="9" y2="15"/>
+						</svg>
+						From Plugins
+						<span class="badge-sm">{pluginScreens.length}</span>
+					</div>
+					{#each pluginScreens as s (s.id)}
+						<button
+							class="sidebar-item sidebar-item--plugin"
+							class:selected={selectedId === s.id}
+							onclick={() => selectScreen(s)}
+						>
+							<div class="item-thumb-wrap">
+								{#if s.graphics_path}
+									<MediaPreview class="item-thumb-img" src={imgUrl(s.graphics_path)} alt={s.graphics_name} />
+								{:else}
+									<div class="item-thumb-empty">—</div>
+								{/if}
+							</div>
+							<div class="item-info">
+								<div class="item-name-row">
+									<span class="item-name">{s.graphics_name}</span>
+									<span class="chip-plugin">Plugin</span>
+								</div>
+								<span class="item-meta">{s.media_type}</span>
+							</div>
+						</button>
+					{/each}
+				{/if}
+
 			</div>
 		</aside>
 
@@ -261,109 +338,200 @@
 		<main class="editor-main">
 			{#if hasSelection}
 				<div class="editor-panel">
-					<div class="panel-header">
-						<div class="panel-title-area">
-							<h1>{isNew ? 'New Screen' : (editName || 'Untitled')}</h1>
-							{#if !isNew}
+
+					{#if isPluginScreen}
+						<!-- ── Plugin screen: read-only view ── -->
+						<div class="plugin-notice">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+								<path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+							</svg>
+							<div>
+								<strong>Plugin Screen</strong> — This screen is bundled with a plugin and cannot be edited directly.
+								Duplicate it to create your own editable copy.
+							</div>
+						</div>
+
+						<div class="panel-header">
+							<div class="panel-title-area">
+								<h1>{editName || 'Untitled'}</h1>
 								<span class="panel-id">ID #{editId}</span>
-							{/if}
-						</div>
-						<div class="panel-header-end">
-							<div class="panel-actions">
-								{#if !isNew}
-									<button class="btn btn-danger btn-sm" onclick={deleteCurrentScreen}>Delete</button>
-								{/if}
-								<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
-									Cancel
-								</button>
-								<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
-									{saving ? 'Saving…' : isNew ? 'Create Screen' : 'Save Changes'}
-								</button>
+								<span class="chip-plugin chip-plugin--lg">Plugin</span>
 							</div>
-						</div>
-					</div>
-
-					<div class="form-body">
-						<div class="field-group">
-							<label class="field-label" for="screen-name">Screen Name</label>
-							<input id="screen-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Lower Third" />
-						</div>
-
-						<div class="field-group">
-							<label class="field-label" for="screen-comments">Comments</label>
-							<input id="screen-comments" class="form-input" type="text" bind:value={editComments} placeholder="Optional notes" />
-						</div>
-
-						<div class="field-group">
-							<label class="field-label" for="screen-media-type">Media Type</label>
-							<select id="screen-media-type" class="form-select" bind:value={editMediaType}>
-								<option value="image">Image</option>
-								<option value="video">Video</option>
-								<option value="html">HTML</option>
-							</select>
-						</div>
-
-						<div class="field-group">
-							<div class="toggle-row">
-								<span class="field-label">Allow PopUps</span>
-								<label class="toggle">
-									<input type="checkbox" bind:checked={editAllowPopUps} aria-label="Allow pop-ups on this screen" />
-									<span class="toggle-track"></span>
-								</label>
-							</div>
-							<p>When active, pop-ups can appear on top of this screen.</p>
-						</div>
-
-						{#if editMediaType === 'html'}
-							<div class="field-group">
-								<label class="field-label" for="screen-html">HTML Content</label>
-								<textarea
-									id="screen-html"
-									class="form-input html-editor"
-									bind:value={editHtmlContent}
-									placeholder={'<div style="color: white; font-size: 48px;">\n  Hello World\n</div>'}
-									spellcheck="false"
-								></textarea>
-								<p class="field-hint-block">
-									Full-screen overlay. Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
-								</p>
-							</div>
-						{/if}
-
-						{#if !isNew && editMediaType !== 'html'}
-							<div class="field-group">
-								<span class="field-label">Media File</span>
-								{#if editMediaPath}
-									<div class="preview-box">
-										<MediaPreview src={imgUrl(editMediaPath)} alt={editName} />
-									</div>
-								{/if}
-								<div class="img-actions">
-									<input bind:this={fileInput} type="file" accept="image/*,video/webm,video/mp4" style="display:none" onchange={uploadScreenImage} />
-									<button class="btn btn-secondary btn-sm" style="flex:1" onclick={() => fileInput.click()} disabled={uploading}>
-										{uploading ? 'Uploading…' : 'Upload Media'}
+							<div class="panel-header-end">
+								<div class="panel-actions">
+									<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+										Cancel
 									</button>
-									{#if editMediaPath}
-										<button class="btn btn-danger btn-sm" type="button" onclick={() => { editMediaPath = null; }}>Remove</button>
-									{/if}
+									<button class="btn btn-primary" onclick={duplicateCurrentScreen}>
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+											<rect x="9" y="9" width="13" height="13" rx="2"/>
+											<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+										</svg>
+										Duplicate to Edit
+									</button>
 								</div>
 							</div>
-						{/if}
+						</div>
 
-						{#if !isNew}
-							{#if screens.find(s => s.id === editId)?.programs?.length}
-								{@const currentScreen = screens.find(s => s.id === editId)!}
+						<div class="form-body">
+							<div class="field-group">
+								<span class="field-label">Screen Name</span>
+								<div class="readonly-value">{editName}</div>
+							</div>
+
+							{#if editComments}
 								<div class="field-group">
-									<span class="field-label">Used in Programs</span>
-									<div class="prog-pills">
-										{#each currentScreen.programs as p}
-											<span class="prog-pill">{p.name}</span>
-										{/each}
+									<span class="field-label">Comments</span>
+									<div class="readonly-value">{editComments}</div>
+								</div>
+							{/if}
+
+							<div class="field-group">
+								<span class="field-label">Media Type</span>
+								<div class="readonly-value">{editMediaType}</div>
+							</div>
+
+							<div class="field-group">
+								<span class="field-label">Allow PopUps</span>
+								<div class="readonly-value">{editAllowPopUps ? 'Yes' : 'No'}</div>
+							</div>
+
+							{#if editMediaType === 'html' && editHtmlContent}
+								<div class="field-group">
+									<span class="field-label">HTML Content</span>
+									<textarea
+										class="form-input html-editor form-input--readonly"
+										value={editHtmlContent}
+										readonly
+										spellcheck="false"
+										aria-label="HTML content (read-only)"
+									></textarea>
+								</div>
+							{/if}
+
+							{#if !isNew}
+								{#if screens.find(s => s.id === editId)?.programs?.length}
+									{@const currentScreen = screens.find(s => s.id === editId)!}
+									<div class="field-group">
+										<span class="field-label">Used in Programs</span>
+										<div class="prog-pills">
+											{#each currentScreen.programs as p}
+												<span class="prog-pill">{p.name}</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</div>
+
+					{:else}
+						<!-- ── Normal editable screen ── -->
+						<div class="panel-header">
+							<div class="panel-title-area">
+								<h1>{isNew ? 'New Screen' : (editName || 'Untitled')}</h1>
+								{#if !isNew}
+									<span class="panel-id">ID #{editId}</span>
+								{/if}
+							</div>
+							<div class="panel-header-end">
+								<div class="panel-actions">
+									{#if !isNew}
+										<button class="btn btn-danger btn-sm" onclick={deleteCurrentScreen}>Delete</button>
+									{/if}
+									<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+										Cancel
+									</button>
+									<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
+										{saving ? 'Saving…' : isNew ? 'Create Screen' : 'Save Changes'}
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="form-body">
+							<div class="field-group">
+								<label class="field-label" for="screen-name">Screen Name</label>
+								<input id="screen-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Lower Third" />
+							</div>
+
+							<div class="field-group">
+								<label class="field-label" for="screen-comments">Comments</label>
+								<input id="screen-comments" class="form-input" type="text" bind:value={editComments} placeholder="Optional notes" />
+							</div>
+
+							<div class="field-group">
+								<label class="field-label" for="screen-media-type">Media Type</label>
+								<select id="screen-media-type" class="form-select" bind:value={editMediaType}>
+									<option value="image">Image</option>
+									<option value="video">Video</option>
+									<option value="html">HTML</option>
+								</select>
+							</div>
+
+							<div class="field-group">
+								<div class="toggle-row">
+									<span class="field-label">Allow PopUps</span>
+									<label class="toggle">
+										<input type="checkbox" bind:checked={editAllowPopUps} aria-label="Allow pop-ups on this screen" />
+										<span class="toggle-track"></span>
+									</label>
+								</div>
+								<p>When active, pop-ups can appear on top of this screen.</p>
+							</div>
+
+							{#if editMediaType === 'html'}
+								<div class="field-group">
+									<label class="field-label" for="screen-html">HTML Content</label>
+									<textarea
+										id="screen-html"
+										class="form-input html-editor"
+										bind:value={editHtmlContent}
+										placeholder={'<div style="color: white; font-size: 48px;">\n  Hello World\n</div>'}
+										spellcheck="false"
+									></textarea>
+									<p class="field-hint-block">
+										Full-screen overlay. Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
+									</p>
+								</div>
+							{/if}
+
+							{#if !isNew && editMediaType !== 'html'}
+								<div class="field-group">
+									<span class="field-label">Media File</span>
+									{#if editMediaPath}
+										<div class="preview-box">
+											<MediaPreview src={imgUrl(editMediaPath)} alt={editName} />
+										</div>
+									{/if}
+									<div class="img-actions">
+										<input bind:this={fileInput} type="file" accept="image/*,video/webm,video/mp4" style="display:none" onchange={uploadScreenImage} />
+										<button class="btn btn-secondary btn-sm" style="flex:1" onclick={() => fileInput.click()} disabled={uploading}>
+											{uploading ? 'Uploading…' : 'Upload Media'}
+										</button>
+										{#if editMediaPath}
+											<button class="btn btn-danger btn-sm" type="button" onclick={() => { editMediaPath = null; }}>Remove</button>
+										{/if}
 									</div>
 								</div>
 							{/if}
-						{/if}
-					</div>
+
+							{#if !isNew}
+								{#if screens.find(s => s.id === editId)?.programs?.length}
+									{@const currentScreen = screens.find(s => s.id === editId)!}
+									<div class="field-group">
+										<span class="field-label">Used in Programs</span>
+										<div class="prog-pills">
+											{#each currentScreen.programs as p}
+												<span class="prog-pill">{p.name}</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</div>
+					{/if}
+
 				</div>
 			{:else}
 				<div class="empty-state">
@@ -422,6 +590,31 @@
 		overflow-y: auto;
 	}
 
+	/* Section labels dividing user vs plugin screens */
+	.sidebar-section-label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px 4px;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-3);
+		margin-top: 4px;
+	}
+
+	.sidebar-section-label--plugin {
+		margin-top: 8px;
+		padding-top: 12px;
+		border-top: 1px solid var(--border-1);
+		color: var(--text-3);
+	}
+
+	.sidebar-section-label--plugin svg {
+		opacity: 0.7;
+	}
+
 	.sidebar-item {
 		display: flex;
 		align-items: center;
@@ -443,6 +636,11 @@
 	.sidebar-item.selected {
 		background: var(--accent-dim);
 		border-left-color: var(--accent);
+	}
+
+	/* Plugin items get a subtly different treatment */
+	.sidebar-item--plugin {
+		opacity: 0.9;
 	}
 
 	.item-thumb-wrap {
@@ -477,6 +675,36 @@
 		gap: 2px;
 	}
 
+	.item-name-row {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		min-width: 0;
+	}
+
+	/* ── Plugin chip (sidebar + panel) ── */
+	.chip-plugin {
+		display: inline-flex;
+		align-items: center;
+		font-size: 0.6rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		background: color-mix(in srgb, var(--accent) 18%, transparent);
+		color: var(--accent);
+		border-radius: 3px;
+		padding: 1px 5px;
+		white-space: nowrap;
+		flex-shrink: 0;
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	.chip-plugin--lg {
+		font-size: 0.7rem;
+		padding: 2px 7px;
+		border-radius: 4px;
+	}
+
 	/* ── Main editor area ── */
 	.editor-main {
 		flex: 1;
@@ -487,6 +715,31 @@
 
 	.editor-panel {
 		max-width: 760px;
+	}
+
+	/* ── Plugin notice banner ── */
+	.plugin-notice {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+		border-radius: var(--r);
+		padding: 12px 16px;
+		font-size: 0.8125rem;
+		color: var(--text-2);
+		margin-bottom: 28px;
+	}
+
+	.plugin-notice svg {
+		flex-shrink: 0;
+		margin-top: 1px;
+		color: var(--accent);
+		opacity: 0.8;
+	}
+
+	.plugin-notice strong {
+		color: var(--text-1);
 	}
 
 	.panel-header {
@@ -503,8 +756,9 @@
 	.panel-title-area {
 		display: flex;
 		align-items: baseline;
-		gap: 12px;
+		gap: 10px;
 		min-width: 0;
+		flex-wrap: wrap;
 	}
 
 	.panel-id {
@@ -556,6 +810,27 @@
 
 	.form-input:focus {
 		border-color: var(--accent);
+	}
+
+	/* Read-only input appearance */
+	.form-input--readonly {
+		cursor: default;
+		color: var(--text-2);
+		background: var(--surface-1);
+	}
+
+	.form-input--readonly:focus {
+		border-color: var(--border-1);
+	}
+
+	/* Inline read-only value (non-input display) */
+	.readonly-value {
+		padding: 9px 12px;
+		background: var(--surface-1);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-sm);
+		color: var(--text-2);
+		font-size: 0.875rem;
 	}
 
 	.form-select {

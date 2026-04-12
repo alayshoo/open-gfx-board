@@ -1,7 +1,7 @@
 {
   "id": "football",
-  "name": "Football / Soccer",
-  "version": "1.0.0",
+  "name": "Football",
+  "version": "0.1.7",
   "description": "Live scoreboard, timer, goals, cards, and lineup overlays for football matches.",
   "author": "Open GFX Board",
 

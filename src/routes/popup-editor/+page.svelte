@@ -33,6 +33,12 @@
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
+	const selectedPopup = $derived(popups.find(p => p.id === selectedId) ?? null);
+	const isPluginPopup = $derived(!isNew && selectedPopup?.plugin_id != null);
+
+	// Split pop-ups into user-created and plugin-bundled
+	const userPopups = $derived(popups.filter(p => p.plugin_id == null));
+	const pluginPopups = $derived(popups.filter(p => p.plugin_id != null));
 
 	onMount(() => {
 		fetchPopUps().then((data) => { popups = data; });
@@ -134,6 +140,38 @@
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
 	}
 
+	async function duplicateCurrentPopup() {
+		const popup = popups.find((p) => p.id === selectedId);
+		if (!popup) return;
+		try {
+			const res = await fetch(`${getBackendUrl()}/popups/${popup.id}/duplicate`, { method: 'POST' });
+			const data = await res.json();
+			if (data.success) {
+				if (!popups.some((p) => p.id === data.popup.id)) {
+					popups = [...popups, data.popup];
+				}
+				isCreatingNew = false;
+				selectedId = data.popup.id;
+				editId = data.popup.id;
+				editName = data.popup.name;
+				editSponsor = data.popup.sponsor_name ?? '';
+				editComments = data.popup.comments ?? '';
+				editImagePath = data.popup.image_path;
+				editDirection = (data.popup.direction ?? 'bottom') as 'top' | 'bottom' | 'left' | 'right';
+				editPosition = data.popup.position ?? 50;
+				editMediaType = data.popup.media_type ?? 'image';
+				editHtmlContent = data.popup.html_content ?? '';
+				editWidth = data.popup.width ?? null;
+				editHeight = data.popup.height ?? null;
+				addToast('success', 'Pop-up duplicated — you can now edit your copy.');
+			} else {
+				addToast('error', data.error ?? 'Duplicate failed.');
+			}
+		} catch {
+			addToast('error', 'Request failed.');
+		}
+	}
+
 	async function save() {
 		if (!editName.trim()) {
 			addToast('error', 'PopUp name is required.');
@@ -220,6 +258,12 @@
 				</button>
 			</div>
 			<div class="sidebar-list">
+
+				<!-- User pop-ups section -->
+				{#if pluginPopups.length > 0}
+					<div class="sidebar-section-label">Your PopUps</div>
+				{/if}
+
 				{#if isCreatingNew}
 					<div class="sidebar-item selected">
 						<div class="item-thumb-wrap">
@@ -230,7 +274,8 @@
 						</div>
 					</div>
 				{/if}
-				{#each popups as popup (popup.id)}
+
+				{#each userPopups as popup (popup.id)}
 					<button
 						class="sidebar-item"
 						class:selected={selectedId === popup.id}
@@ -252,10 +297,46 @@
 						</div>
 					</button>
 				{:else}
-					{#if !isCreatingNew}
+					{#if !isCreatingNew && pluginPopups.length === 0}
 						<div class="sidebar-empty">No pop-ups yet.<br/>Click "New" to get started.</div>
 					{/if}
 				{/each}
+
+				<!-- Plugin pop-ups section -->
+				{#if pluginPopups.length > 0}
+					<div class="sidebar-section-label sidebar-section-label--plugin">
+						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+							<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/>
+							<line x1="16" y1="8" x2="2" y2="22"/>
+							<line x1="17.5" y1="15" x2="9" y2="15"/>
+						</svg>
+						From Plugins
+						<span class="badge-sm">{pluginPopups.length}</span>
+					</div>
+					{#each pluginPopups as popup (popup.id)}
+						<button
+							class="sidebar-item sidebar-item--plugin"
+							class:selected={selectedId === popup.id}
+							onclick={() => selectPopUp(popup)}
+						>
+							<div class="item-thumb-wrap">
+								{#if popup.image_path}
+									<MediaPreview class="item-thumb-img" src={imgUrl(popup.image_path)} alt={popup.name} />
+								{:else}
+									<div class="item-thumb item-thumb-empty">—</div>
+								{/if}
+							</div>
+							<div class="item-info">
+								<div class="item-name-row">
+									<span class="item-name">{popup.name}</span>
+									<span class="chip-plugin">Plugin</span>
+								</div>
+								<span class="item-meta">{popup.media_type}</span>
+							</div>
+						</button>
+					{/each}
+				{/if}
+
 			</div>
 		</aside>
 
@@ -263,140 +344,246 @@
 		<main class="editor-main">
 			{#if hasSelection}
 				<div class="editor-panel">
-					<div class="panel-header">
-						<div class="panel-title-area">
-							<h1>{isNew ? 'New PopUp' : (editName || 'Untitled')}</h1>
-							{#if !isNew}
+
+					{#if isPluginPopup}
+						<!-- ── Plugin pop-up: read-only view ── -->
+						<div class="plugin-notice">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+								<path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+							</svg>
+							<div>
+								<strong>Plugin Pop-Up</strong> — This pop-up is bundled with a plugin and cannot be edited directly.
+								Duplicate it to create your own editable copy.
+							</div>
+						</div>
+
+						<div class="panel-header">
+							<div class="panel-title-area">
+								<h1>{editName || 'Untitled'}</h1>
 								<span class="panel-id">ID #{editId}</span>
+								<span class="chip-plugin chip-plugin--lg">Plugin</span>
+							</div>
+							<div class="panel-actions">
+								<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+									Cancel
+								</button>
+								<button class="btn btn-primary" onclick={duplicateCurrentPopup}>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+										<rect x="9" y="9" width="13" height="13" rx="2"/>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+									</svg>
+									Duplicate to Edit
+								</button>
+							</div>
+						</div>
+
+						<div class="form-body">
+							<div class="form-grid">
+								<div class="field-group">
+									<span class="field-label">PopUp Name</span>
+									<div class="readonly-value">{editName}</div>
+								</div>
+
+								{#if editSponsor}
+									<div class="field-group">
+										<span class="field-label">Sponsor Name</span>
+										<div class="readonly-value">{editSponsor}</div>
+									</div>
+								{/if}
+
+								{#if editComments}
+									<div class="field-group span-2">
+										<span class="field-label">Comments</span>
+										<div class="readonly-value">{editComments}</div>
+									</div>
+								{/if}
+
+								<div class="field-group">
+									<span class="field-label">Slide-in Direction</span>
+									<div class="readonly-value">{editDirection}</div>
+								</div>
+
+								<div class="field-group">
+									<span class="field-label">Position along edge</span>
+									<div class="readonly-value">{editPosition}%</div>
+								</div>
+
+								<div class="field-group">
+									<span class="field-label">Media Type</span>
+									<div class="readonly-value">{editMediaType}</div>
+								</div>
+							</div>
+
+							{#if editMediaType === 'html' && editHtmlContent}
+								<div class="field-group">
+									<span class="field-label">HTML Content</span>
+									<textarea
+										class="form-input html-editor form-input--readonly"
+										value={editHtmlContent}
+										readonly
+										spellcheck="false"
+										aria-label="HTML content (read-only)"
+									></textarea>
+								</div>
+
+								{#if editWidth || editHeight}
+									<div class="size-row">
+										{#if editWidth}
+											<div class="field-group">
+												<span class="field-label">Width</span>
+												<div class="readonly-value">{editWidth}px</div>
+											</div>
+										{/if}
+										{#if editHeight}
+											<div class="field-group">
+												<span class="field-label">Height</span>
+												<div class="readonly-value">{editHeight}px</div>
+											</div>
+										{/if}
+									</div>
+								{/if}
 							{/if}
 						</div>
-						<div class="panel-actions">
-							{#if !isNew}
-								<button class="btn btn-danger btn-sm" onclick={deleteCurrentPopUp}>Delete</button>
-							{/if}
-							<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
-								Cancel
-							</button>
-							<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
-								{saving ? 'Saving…' : isNew ? 'Create PopUp' : 'Save Changes'}
-							</button>
-						</div>
-					</div>
 
-					<div class="form-body">
-						<div class="form-grid">
-							<div class="field-group">
-								<label class="field-label" for="popup-name">PopUp Name</label>
-								<input id="popup-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Summer Campaign" />
+					{:else}
+						<!-- ── Normal editable pop-up ── -->
+						<div class="panel-header">
+							<div class="panel-title-area">
+								<h1>{isNew ? 'New PopUp' : (editName || 'Untitled')}</h1>
+								{#if !isNew}
+									<span class="panel-id">ID #{editId}</span>
+								{/if}
 							</div>
-
-							<div class="field-group">
-								<label class="field-label" for="sponsor-name">Sponsor Name</label>
-								<input id="sponsor-name" class="form-input" type="text" bind:value={editSponsor} placeholder="e.g. Acme Corp" />
+							<div class="panel-actions">
+								{#if !isNew}
+									<button class="btn btn-danger btn-sm" onclick={deleteCurrentPopUp}>Delete</button>
+								{/if}
+								<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+									Cancel
+								</button>
+								<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
+									{saving ? 'Saving…' : isNew ? 'Create PopUp' : 'Save Changes'}
+								</button>
 							</div>
-
-							<div class="field-group span-2">
-								<label class="field-label" for="comments">Comments</label>
-								<input id="comments" class="form-input" type="text" bind:value={editComments} placeholder="Optional notes" />
-							</div>
-
-							<div class="field-group">
-								<label class="field-label" for="popup-direction">Slide-in Direction</label>
-								<select id="popup-direction" class="form-input form-select" bind:value={editDirection}>
-									<option value="bottom">Bottom → Up</option>
-									<option value="top">Top → Down</option>
-									<option value="left">Left → Right</option>
-									<option value="right">Right → Left</option>
-								</select>
-							</div>
-
-							<div class="field-group">
-								<label class="field-label" for="popup-position">
-									Position along edge <span class="field-hint">({editPosition}%)</span>
-								</label>
-								<div class="position-row">
-									<input
-										id="popup-position"
-										class="form-input position-number"
-										type="number"
-										min="0"
-										max="100"
-										bind:value={editPosition}
-									/>
-									<input
-										class="position-slider"
-										type="range"
-										min="0"
-										max="100"
-										bind:value={editPosition}
-									/>
-								</div>
-							</div>
-
-							<div class="field-group">
-								<label class="field-label" for="popup-media-type">Media Type</label>
-								<select id="popup-media-type" class="form-input form-select" bind:value={editMediaType}>
-									<option value="image">Image</option>
-									<option value="video">Video</option>
-									<option value="html">HTML</option>
-								</select>
-							</div>
-
 						</div>
 
-						{#if editMediaType === 'html'}
-							<div class="field-group">
-								<label class="field-label" for="popup-html">HTML Content</label>
-								<textarea
-									id="popup-html"
-									class="form-input html-editor"
-									bind:value={editHtmlContent}
-									placeholder={'<div style="color: white; padding: 20px;">\n  Sponsor Message\n</div>'}
-									spellcheck="false"
-								></textarea>
-								<p class="field-hint-block">
-									Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
-								</p>
-							</div>
-
-							<div class="size-row">
+						<div class="form-body">
+							<div class="form-grid">
 								<div class="field-group">
-									<label class="field-label" for="popup-width">Width <span class="field-hint">(px, blank = auto)</span></label>
-									<input id="popup-width" class="form-input" type="number" min="1" bind:value={editWidth} placeholder="e.g. 640" />
+									<label class="field-label" for="popup-name">PopUp Name</label>
+									<input id="popup-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Summer Campaign" />
 								</div>
+
 								<div class="field-group">
-									<label class="field-label" for="popup-height">Height <span class="field-hint">(px, blank = auto)</span></label>
-									<input id="popup-height" class="form-input" type="number" min="1" bind:value={editHeight} placeholder="e.g. 360" />
+									<label class="field-label" for="sponsor-name">Sponsor Name</label>
+									<input id="sponsor-name" class="form-input" type="text" bind:value={editSponsor} placeholder="e.g. Acme Corp" />
 								</div>
-							</div>
-						{/if}
 
-						{#if !isNew && editMediaType !== 'html'}
-							<div class="field-group">
-								<span class="field-label">PopUp Image / Media</span>
-								<ImageUpload
-									inputId="popup-image-upload"
-									endpoint="/popups/upload-image"
-									id={editId!}
-									currentPath={editImagePath}
-									onuploaded={(path) => { editImagePath = path; }}
-					onuploadingchange={(v) => { uploading = v; }}
-								/>
-							</div>
+								<div class="field-group span-2">
+									<label class="field-label" for="comments">Comments</label>
+									<input id="comments" class="form-input" type="text" bind:value={editComments} placeholder="Optional notes" />
+								</div>
 
-							{#if popups.find(p => p.id === editId)?.programs?.length}
-								{@const currentPopUp = popups.find(p => p.id === editId)!}
 								<div class="field-group">
-									<span class="field-label">Used in Programs</span>
-									<div class="prog-pills">
-										{#each currentPopUp.programs as p}
-											<span class="prog-pill">{p.name}</span>
-										{/each}
+									<label class="field-label" for="popup-direction">Slide-in Direction</label>
+									<select id="popup-direction" class="form-input form-select" bind:value={editDirection}>
+										<option value="bottom">Bottom → Up</option>
+										<option value="top">Top → Down</option>
+										<option value="left">Left → Right</option>
+										<option value="right">Right → Left</option>
+									</select>
+								</div>
+
+								<div class="field-group">
+									<label class="field-label" for="popup-position">
+										Position along edge <span class="field-hint">({editPosition}%)</span>
+									</label>
+									<div class="position-row">
+										<input
+											id="popup-position"
+											class="form-input position-number"
+											type="number"
+											min="0"
+											max="100"
+											bind:value={editPosition}
+										/>
+										<input
+											class="position-slider"
+											type="range"
+											min="0"
+											max="100"
+											bind:value={editPosition}
+										/>
+									</div>
+								</div>
+
+								<div class="field-group">
+									<label class="field-label" for="popup-media-type">Media Type</label>
+									<select id="popup-media-type" class="form-input form-select" bind:value={editMediaType}>
+										<option value="image">Image</option>
+										<option value="video">Video</option>
+										<option value="html">HTML</option>
+									</select>
+								</div>
+
+							</div>
+
+							{#if editMediaType === 'html'}
+								<div class="field-group">
+									<label class="field-label" for="popup-html">HTML Content</label>
+									<textarea
+										id="popup-html"
+										class="form-input html-editor"
+										bind:value={editHtmlContent}
+										placeholder={'<div style="color: white; padding: 20px;">\n  Sponsor Message\n</div>'}
+										spellcheck="false"
+									></textarea>
+									<p class="field-hint-block">
+										Use <code>{`{{var:program_name}}`}</code>, <code>{`{{var:current_time}}`}</code>, or <code>{`{{db:table.column:id}}`}</code> for dynamic content.
+									</p>
+								</div>
+
+								<div class="size-row">
+									<div class="field-group">
+										<label class="field-label" for="popup-width">Width <span class="field-hint">(px, blank = auto)</span></label>
+										<input id="popup-width" class="form-input" type="number" min="1" bind:value={editWidth} placeholder="e.g. 640" />
+									</div>
+									<div class="field-group">
+										<label class="field-label" for="popup-height">Height <span class="field-hint">(px, blank = auto)</span></label>
+										<input id="popup-height" class="form-input" type="number" min="1" bind:value={editHeight} placeholder="e.g. 360" />
 									</div>
 								</div>
 							{/if}
-						{/if}
-					</div>
+
+							{#if !isNew && editMediaType !== 'html'}
+								<div class="field-group">
+									<span class="field-label">PopUp Image / Media</span>
+									<ImageUpload
+										inputId="popup-image-upload"
+										endpoint="/popups/upload-image"
+										id={editId!}
+										currentPath={editImagePath}
+										onuploaded={(path) => { editImagePath = path; }}
+										onuploadingchange={(v) => { uploading = v; }}
+									/>
+								</div>
+
+								{#if popups.find(p => p.id === editId)?.programs?.length}
+									{@const currentPopUp = popups.find(p => p.id === editId)!}
+									<div class="field-group">
+										<span class="field-label">Used in Programs</span>
+										<div class="prog-pills">
+											{#each currentPopUp.programs as p}
+												<span class="prog-pill">{p.name}</span>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</div>
+					{/if}
+
 				</div>
 			{:else}
 				<div class="empty-state">
@@ -455,6 +642,30 @@
 		overflow-y: auto;
 	}
 
+	/* Section labels */
+	.sidebar-section-label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px 4px;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-3);
+		margin-top: 4px;
+	}
+
+	.sidebar-section-label--plugin {
+		margin-top: 8px;
+		padding-top: 12px;
+		border-top: 1px solid var(--border-1);
+	}
+
+	.sidebar-section-label--plugin svg {
+		opacity: 0.7;
+	}
+
 	.sidebar-item {
 		display: flex;
 		align-items: center;
@@ -476,6 +687,10 @@
 	.sidebar-item.selected {
 		background: var(--accent-dim);
 		border-left-color: var(--accent);
+	}
+
+	.sidebar-item--plugin {
+		opacity: 0.9;
 	}
 
 	.item-thumb-wrap {
@@ -517,6 +732,36 @@
 		gap: 2px;
 	}
 
+	.item-name-row {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		min-width: 0;
+	}
+
+	/* ── Plugin chip ── */
+	.chip-plugin {
+		display: inline-flex;
+		align-items: center;
+		font-size: 0.6rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		background: color-mix(in srgb, var(--accent) 18%, transparent);
+		color: var(--accent);
+		border-radius: 3px;
+		padding: 1px 5px;
+		white-space: nowrap;
+		flex-shrink: 0;
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	.chip-plugin--lg {
+		font-size: 0.7rem;
+		padding: 2px 7px;
+		border-radius: 4px;
+	}
+
 	/* ── Main editor area ── */
 	.editor-main {
 		flex: 1;
@@ -527,6 +772,31 @@
 
 	.editor-panel {
 		max-width: 760px;
+	}
+
+	/* ── Plugin notice banner ── */
+	.plugin-notice {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+		border-radius: var(--r);
+		padding: 12px 16px;
+		font-size: 0.8125rem;
+		color: var(--text-2);
+		margin-bottom: 28px;
+	}
+
+	.plugin-notice svg {
+		flex-shrink: 0;
+		margin-top: 1px;
+		color: var(--accent);
+		opacity: 0.8;
+	}
+
+	.plugin-notice strong {
+		color: var(--text-1);
 	}
 
 	/* ── Panel header ── */
@@ -543,8 +813,9 @@
 	.panel-title-area {
 		display: flex;
 		align-items: baseline;
-		gap: 12px;
+		gap: 10px;
 		min-width: 0;
+		flex-wrap: wrap;
 	}
 
 	.panel-id {
@@ -599,6 +870,27 @@
 
 	.form-input:focus {
 		border-color: var(--accent);
+	}
+
+	/* Read-only input appearance */
+	.form-input--readonly {
+		cursor: default;
+		color: var(--text-2);
+		background: var(--surface-1);
+	}
+
+	.form-input--readonly:focus {
+		border-color: var(--border-1);
+	}
+
+	/* Inline read-only value (non-input display) */
+	.readonly-value {
+		padding: 9px 12px;
+		background: var(--surface-1);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-sm);
+		color: var(--text-2);
+		font-size: 0.875rem;
 	}
 
 	:global(.image-preview-box img),

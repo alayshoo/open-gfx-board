@@ -28,7 +28,12 @@
 				return;
 			}
 
-			const jsUrl = pluginAssetUrl(pluginId, compDef.component);
+			// Append the plugin version as a cache-buster so the browser fetches
+			// a fresh module whenever the plugin is updated.  Without this, browsers
+			// permanently cache the ES module by URL and ignore file changes on disk.
+			const jsUrl =
+				pluginAssetUrl(pluginId, compDef.component) +
+				`?v=${encodeURIComponent(manifest.version ?? Date.now())}`;
 
 			try {
 				const module = await import(/* @vite-ignore */ jsUrl);

@@ -54,6 +54,10 @@ pub struct Screen {
     pub html_content: Option<String>,
     pub programs: Vec<ScreenProgram>,
     pub created_at: String,
+    /// Set when this screen was installed by a plugin; `None` for user-created screens.
+    pub plugin_id: Option<String>,
+    /// The template id within the plugin manifest that produced this screen.
+    pub plugin_template_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +80,10 @@ pub struct Popup {
     pub height: Option<i64>,
     pub programs: Vec<PopupProgram>,
     pub created_at: String,
+    /// Set when this pop-up was installed by a plugin; `None` for user-created pop-ups.
+    pub plugin_id: Option<String>,
+    /// The template id within the plugin manifest that produced this pop-up.
+    pub plugin_template_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

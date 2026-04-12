@@ -17,6 +17,7 @@ pub fn router() -> Router<AppState> {
         .route("/upload-image", post(upload_screen_image))
         .route("/{id}", put(update_screen))
         .route("/{id}", delete(delete_screen))
+        .route("/{id}/duplicate", post(duplicate_screen))
 }
 
 async fn list_screens(State(state): State<AppState>) -> impl IntoResponse {
@@ -112,6 +113,27 @@ async fn delete_screen(
             Json(json!({ "success": true, "id": id })).into_response()
         }
         Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Screen not found" }))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+async fn duplicate_screen(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    match tokio::task::block_in_place(|| crate::db::screens::duplicate_screen(&db, id)) {
+        Ok(Some(screen)) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("screen-created", &json!({ "success": true, "screen": &screen })).await;
+                    let _ = io.emit("update-screens", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "screen": screen })).into_response()
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Screen not found" }))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

@@ -9,6 +9,9 @@ export interface Screen {
 	comments: string;
 	programs: { id: number; name: string }[];
 	created_at: string;
+	/** Set when this screen was installed by a plugin; null for user-created screens. */
+	plugin_id: string | null;
+	plugin_template_id: string | null;
 }
 
 // Graphic is an alias for Screen for backward compat
@@ -51,6 +54,9 @@ export interface PopUp {
 	height: number | null;
 	programs: { id: number; name: string }[];
 	created_at: string;
+	/** Set when this pop-up was installed by a plugin; null for user-created pop-ups. */
+	plugin_id: string | null;
+	plugin_template_id: string | null;
 }
 
 export interface ObsCommand {
