@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .scoreboard {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.88);
+    border-radius: 10px;
+    padding: 10px 24px;
+    gap: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  .team {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .team-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.02em;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .score {
+    font-size: 30px;
+    font-weight: 900;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    min-width: 30px;
+    text-align: center;
+  }
+
+  .separator {
+    width: 1px;
+    height: 32px;
+    background: rgba(255,255,255,0.2);
+  }
+
+  .timer-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .timer {
+    font-size: 18px;
+    font-weight: 600;
+    color: #a1a1aa;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .half-label {
+    font-size: 10px;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .color-bar {
+    width: 4px;
+    height: 28px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="scoreboard">
+    <div class="team">
+      <div class="color-bar" id="home-color" style="background:{{plugin:football:home_primary_color}}"></div>
+      <span class="team-name" data-plugin-var="home_team_name">{{plugin:football:home_team_name}}</span>
+    </div>
+    <span class="score" data-plugin-var="home_score">{{plugin:football:home_score}}</span>
+    <div class="separator"></div>
+    <div class="timer-block">
+      <span class="timer" id="timer">00:00</span>
+      <span class="half-label" id="half-label">1st Half</span>
+    </div>
+    <div class="separator"></div>
+    <span class="score" data-plugin-var="away_score">{{plugin:football:away_score}}</span>
+    <div class="team">
+      <span class="team-name" data-plugin-var="away_team_name">{{plugin:football:away_team_name}}</span>
+      <div class="color-bar" id="away-color" style="background:{{plugin:football:away_primary_color}}"></div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    let state = {};
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function getTimerSec() {
+      let t = Number(state.timer_accumulated) || 0;
+      if (state.timer_running && state.timer_start_epoch) {
+        t += Math.floor(Date.now() / 1000) - Number(state.timer_start_epoch);
+      }
+      return Math.max(0, t);
+    }
+
+    function update() {
+      const timerEl = document.getElementById('timer');
+      if (timerEl) timerEl.textContent = formatTime(getTimerSec());
+      requestAnimationFrame(update);
+    }
+
+    function applyState(s) {
+      state = s;
+      const halfEl = document.getElementById('half-label');
+      if (halfEl) halfEl.textContent = Number(s.half) === 2 ? '2nd Half' : '1st Half';
+
+      const homeColor = document.getElementById('home-color');
+      if (homeColor && s.home_primary_color) homeColor.style.background = s.home_primary_color;
+      const awayColor = document.getElementById('away-color');
+      if (awayColor && s.away_primary_color) awayColor.style.background = s.away_primary_color;
+
+      // data-plugin-var auto-updates are handled by the injected SDK
+    }
+
+    // Listen for state updates from the injected SDK
+    window.addEventListener('plugin-state', function(e) {
+      applyState(e.detail);
+    });
+
+    // Initial state from SDK
+    if (window.__pluginSDK) {
+      window.__pluginSDK.getState().then(applyState);
+    }
+
+    requestAnimationFrame(update);
+  })();
+  </script>
+</body>
+</html>

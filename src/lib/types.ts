@@ -116,3 +116,50 @@ export interface Toast {
 	type: 'success' | 'error' | 'info';
 	message: string;
 }
+
+// ── Plugin types ─────────────────────────────────────────────────────────────
+
+export interface PluginInfo {
+	id: string;
+	name: string;
+	version: string;
+	description: string;
+	author: string;
+	enabled: boolean;
+	has_control: boolean;
+	has_editor: boolean;
+	is_bundled: boolean;
+}
+
+export interface PluginManifest {
+	id: string;
+	name: string;
+	version: string;
+	description: string;
+	author: string;
+	database: Record<string, { columns: Record<string, string> }>;
+	state: Record<string, { type: string; default: any }>;
+	events: string[];
+	control?: { component: string };
+	editor?: { component: string };
+	screens: PluginScreenDef[];
+	popups: PluginPopupDef[];
+}
+
+export interface PluginScreenDef {
+	template_id: string;
+	name: string;
+	template: string;
+	allow_popups: boolean;
+}
+
+export interface PluginPopupDef {
+	template_id: string;
+	name: string;
+	template: string;
+	direction: string;
+	position: number;
+	width: number | null;
+	height: number | null;
+	duration: number;
+}

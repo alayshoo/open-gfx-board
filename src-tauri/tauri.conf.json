@@ -54,7 +54,8 @@
       "signingIdentity": null
     },
     "resources": {
-      "../build": "_up_/build"
+      "../build": "_up_/build",
+      "plugins": "_up_/plugins"
     },
     "icon": [
       "icons/32x32.png",

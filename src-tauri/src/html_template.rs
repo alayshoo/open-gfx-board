@@ -7,12 +7,21 @@ use rusqlite::Connection;
 /// so time-based values reflect the moment of activation.
 pub struct TemplateContext {
     pub variables: HashMap<String, String>,
+    /// Plugin runtime state: plugin_id -> (key -> string value).
+    pub plugin_contexts: HashMap<String, HashMap<String, String>>,
+    /// Per-invocation context (e.g. popup trigger context).
+    pub popup_context: HashMap<String, String>,
+    /// When processing a plugin template, this holds the plugin id.
+    pub popup_plugin_id: Option<String>,
 }
 
 impl TemplateContext {
     pub fn new() -> Self {
         Self {
             variables: HashMap::new(),
+            plugin_contexts: HashMap::new(),
+            popup_context: HashMap::new(),
+            popup_plugin_id: None,
         }
     }
 
@@ -45,7 +54,12 @@ impl TemplateContext {
             now.format("%Y-%m-%d %H:%M:%S").to_string(),
         );
 
-        Self { variables: vars }
+        Self {
+            variables: vars,
+            plugin_contexts: HashMap::new(),
+            popup_context: HashMap::new(),
+            popup_plugin_id: None,
+        }
     }
 }
 
@@ -121,10 +135,79 @@ fn resolve_expression(
         // Database lookup: {{db:programs.name:1}}
         resolve_db_lookup(db_expr.trim(), conn)
             .unwrap_or_else(|| format!("{{{{{}}}}}", expr))
+    } else if let Some(plugin_expr) = expr.strip_prefix("plugin:") {
+        // Plugin expressions: {{plugin:football:home_score}}
+        //                     {{plugin:football:db:teams.name:1}}
+        //                     {{plugin:football:context:player_name}}
+        resolve_plugin_expression(plugin_expr.trim(), ctx, conn)
+            .unwrap_or_else(|| format!("{{{{{}}}}}", expr))
     } else {
         // Unknown expression type – leave as-is
         format!("{{{{{}}}}}", expr)
     }
+}
+
+/// Resolve a plugin-namespaced expression.
+///
+/// Formats:
+/// - `plugin_id:state_key`          — plugin runtime state variable
+/// - `plugin_id:db:table.column:id` — plugin database lookup
+/// - `plugin_id:context:key`        — popup trigger context variable
+/// - `plugin_id:asset:path`         — plugin asset URL (resolved to /plugins/{id}/assets/{path})
+fn resolve_plugin_expression(
+    expr: &str,
+    ctx: &TemplateContext,
+    conn: Option<&Connection>,
+) -> Option<String> {
+    // Split on first ':'
+    let (plugin_id, rest) = expr.split_once(':')?;
+    let plugin_id = plugin_id.trim();
+
+    if let Some(db_expr) = rest.strip_prefix("db:") {
+        // Plugin database lookup: {{plugin:football:db:teams.name:1}}
+        resolve_plugin_db_lookup(plugin_id, db_expr.trim(), conn)
+    } else if let Some(ctx_key) = rest.strip_prefix("context:") {
+        // Popup trigger context: {{plugin:football:context:player_name}}
+        ctx.popup_context.get(ctx_key.trim()).cloned()
+    } else if let Some(asset_path) = rest.strip_prefix("asset:") {
+        // Asset URL: {{plugin:football:asset:media/logo.png}}
+        Some(format!("/plugins/{}/assets/{}", plugin_id, asset_path.trim()))
+    } else {
+        // State variable: {{plugin:football:home_score}}
+        let key = rest.trim();
+        ctx.plugin_contexts
+            .get(plugin_id)
+            .and_then(|vars| vars.get(key))
+            .cloned()
+    }
+}
+
+/// Resolve a plugin database lookup.
+///
+/// Format: `table.column:id`
+/// The actual table name is `plugin_{plugin_id}_{table}`.
+fn resolve_plugin_db_lookup(
+    plugin_id: &str,
+    expr: &str,
+    conn: Option<&Connection>,
+) -> Option<String> {
+    let conn = conn?;
+
+    let (table_col, id_str) = expr.split_once(':')?;
+    let (table, column) = table_col.split_once('.')?;
+    let id: i64 = id_str.trim().parse().ok()?;
+
+    // Validate identifiers
+    if !crate::plugins::manifest::validate_identifier(table)
+        || !crate::plugins::manifest::validate_identifier(column)
+        || !crate::plugins::manifest::validate_plugin_id(plugin_id)
+    {
+        return None;
+    }
+
+    let full_table = format!("plugin_{}_{}", plugin_id.replace('-', "_"), table);
+    let query = format!("SELECT \"{}\" FROM \"{}\" WHERE id = ?1", column, full_table);
+    conn.query_row(&query, [id], |row| row.get::<_, String>(0)).ok()
 }
 
 /// Resolve a database lookup expression.

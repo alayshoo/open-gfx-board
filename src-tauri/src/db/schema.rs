@@ -131,5 +131,47 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 6 — plugin system core tables.
+    if version < 6 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS plugins (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 version TEXT NOT NULL,
+                 description TEXT NOT NULL DEFAULT '',
+                 author TEXT NOT NULL DEFAULT '',
+                 enabled INTEGER NOT NULL DEFAULT 1,
+                 manifest_json TEXT NOT NULL,
+                 installed_at TEXT NOT NULL DEFAULT (datetime('now'))
+             );
+             CREATE TABLE IF NOT EXISTS plugin_state (
+                 plugin_id TEXT NOT NULL REFERENCES plugins(id) ON DELETE CASCADE,
+                 key TEXT NOT NULL,
+                 value TEXT,
+                 PRIMARY KEY (plugin_id, key)
+             );
+             INSERT INTO schema_version VALUES (6);",
+        )?;
+    }
+
+    // Migration 7 — link plugin-managed screens and popups.
+    if version < 7 {
+        conn.execute_batch(
+            "ALTER TABLE screens ADD COLUMN plugin_id TEXT REFERENCES plugins(id) ON DELETE CASCADE;
+             ALTER TABLE screens ADD COLUMN plugin_template_id TEXT;
+             ALTER TABLE popups  ADD COLUMN plugin_id TEXT REFERENCES plugins(id) ON DELETE CASCADE;
+             ALTER TABLE popups  ADD COLUMN plugin_template_id TEXT;
+             INSERT INTO schema_version VALUES (7);",
+        )?;
+    }
+
+    // Migration 8 — distinguish bundled (shipped with the app) plugins from user-installed ones.
+    if version < 8 {
+        conn.execute_batch(
+            "ALTER TABLE plugins ADD COLUMN is_bundled INTEGER NOT NULL DEFAULT 0;
+             INSERT INTO schema_version VALUES (8);",
+        )?;
+    }
+
     Ok(())
 }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .lineup {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 40px;
+    gap: 12px;
+  }
+
+  .lineup-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 16px;
+  }
+
+  .pitch {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 24px;
+    width: 600px;
+    max-height: 700px;
+  }
+
+  .pitch-row {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .player-dot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    animation: fadeUp 0.5s ease-out both;
+  }
+
+  @keyframes fadeUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .player-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  .player-label {
+    font-size: 11px;
+    color: #a1a1aa;
+    text-align: center;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .loading {
+    color: #71717a;
+    font-size: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="lineup">
+    <div class="lineup-title" id="title">Starting XI</div>
+    <div class="pitch" id="pitch">
+      <div class="loading" id="loading">Loading lineup...</div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    async function load() {
+      if (!window.__pluginSDK) {
+        document.getElementById('loading').textContent = 'SDK not available';
+        return;
+      }
+
+      const sdk = window.__pluginSDK;
+
+      try {
+        const state = await sdk.getState();
+        const teamId = state.home_team_id;
+        if (!teamId) {
+          document.getElementById('loading').textContent = 'No home team selected';
+          return;
+        }
+
+        const titleEl = document.getElementById('title');
+        titleEl.textContent = (state.home_team_name || 'HOME') + ' - Starting XI';
+
+        const formation = await sdk.getData('formation');
+        const teamFormation = formation.filter(f => f.team_id === teamId);
+
+        const players = await sdk.getData('players');
+        const teamPlayers = players.filter(p => p.team_id === teamId);
+        const playerMap = {};
+        for (const p of teamPlayers) playerMap[p.number] = p.name;
+
+        // Group by row
+        const rows = {};
+        for (const f of teamFormation) {
+          if (!rows[f.row_index]) rows[f.row_index] = [];
+          rows[f.row_index].push(f);
+        }
+
+        // Sort rows and slots
+        const sortedRowIndices = Object.keys(rows).map(Number).sort((a, b) => a - b);
+
+        const pitch = document.getElementById('pitch');
+        pitch.innerHTML = '';
+
+        for (const ri of sortedRowIndices) {
+          const rowSlots = rows[ri].sort((a, b) => a.slot_index - b.slot_index);
+          const rowEl = document.createElement('div');
+          rowEl.className = 'pitch-row';
+
+          for (const slot of rowSlots) {
+            const delay = (ri * 0.15 + slot.slot_index * 0.08).toFixed(2);
+            const name = playerMap[slot.player_number] || '';
+            rowEl.innerHTML += `
+              <div class="player-dot" style="animation-delay:${delay}s">
+                <div class="player-circle">${slot.player_number}</div>
+                <span class="player-label">${name}</span>
+              </div>
+            `;
+          }
+
+          pitch.appendChild(rowEl);
+        }
+
+        if (sortedRowIndices.length === 0) {
+          pitch.innerHTML = '<div class="loading">No formation set up</div>';
+        }
+      } catch (e) {
+        document.getElementById('loading').textContent = 'Error loading lineup';
+        console.error(e);
+      }
+    }
+
+    // Wait for SDK injection
+    if (window.__pluginSDK) {
+      load();
+    } else {
+      const check = setInterval(() => {
+        if (window.__pluginSDK) {
+          clearInterval(check);
+          load();
+        }
+      }, 100);
+      setTimeout(() => clearInterval(check), 5000);
+    }
+  })();
+  </script>
+</body>
+</html>

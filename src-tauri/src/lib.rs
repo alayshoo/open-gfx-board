@@ -5,6 +5,7 @@ mod db;
 mod commands;
 mod server;
 pub mod html_template;
+pub mod plugins;
 
 use state::AppState;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -153,11 +154,55 @@ pub fn run() {
             db::schema::run_migrations(&conn)?;
             db::studios::ensure_default_studio(&conn)?;
 
+            // Initialise plugin system
+            let plugins_dir = app_data_dir.join("plugins");
+            std::fs::create_dir_all(&plugins_dir)?;
+
+            // Locate the bundled plugins directory (resource dir in production, dev path otherwise).
+            let bundled_plugins_dir: Option<PathBuf> = app.path().resource_dir().ok()
+                .map(|d: PathBuf| d.join("_up_/plugins"))
+                .filter(|d: &PathBuf| d.exists())
+                .or_else(|| {
+                    let dev = PathBuf::from("plugins");
+                    if dev.exists() { Some(dev) } else { None }
+                });
+
+            // Copy any bundled plugin that hasn't been installed yet, and track their IDs.
+            let mut bundled_plugin_ids: Vec<String> = Vec::new();
+            if let Some(bundled_dir) = &bundled_plugins_dir {
+                if let Ok(entries) = std::fs::read_dir(bundled_dir) {
+                    for entry in entries.flatten() {
+                        let src = entry.path();
+                        if src.is_dir() && src.join("plugin.json").exists() {
+                            let name = entry.file_name();
+                            let dst = plugins_dir.join(&name);
+                            if !dst.exists() {
+                                let _ = plugins::manager::copy_dir_public(&src, &dst);
+                            }
+                            if let Some(id) = name.to_str() {
+                                bundled_plugin_ids.push(id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+
+            let plugin_manifests = plugins::manager::startup_sync(&app_data_dir, &bundled_plugin_ids, &conn)
+                .unwrap_or_else(|e| {
+                    eprintln!("Plugin startup error: {e}");
+                    HashMap::new()
+                });
+            let plugin_states = plugins::state::load_all_states(&conn, &plugin_manifests)
+                .unwrap_or_default();
+
             let app_state = AppState {
                 db: Arc::new(Mutex::new(conn)),
                 studio_states: Arc::new(Mutex::new(HashMap::new())),
                 app_data_dir: app_data_dir.clone(),
                 io: Arc::new(std::sync::Mutex::new(None)),
+                plugin_states: Arc::new(Mutex::new(plugin_states)),
+                plugin_manifests: Arc::new(Mutex::new(plugin_manifests)),
+                bundled_plugins_dir,
             };
 
             // Find build dir for static file serving

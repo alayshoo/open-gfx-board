@@ -6,9 +6,15 @@
 	import { addToast } from '$lib/toasts';
 	import { IS_TAURI, getCurrentPort } from '$lib/bridge';
 	import { showConfirm } from '$lib/confirm';
+	import { fetchPlugins, enablePlugin, disablePlugin, uninstallPlugin, refreshPlugin } from '$lib/api/plugins';
+	import type { PluginInfo } from '$lib/types';
 
-	type Tab = 'import-export' | 'server' | 'updates' | 'about';
+	type Tab = 'import-export' | 'server' | 'updates' | 'about' | 'plugins';
 	let activeTab = $state<Tab>('import-export');
+
+	let plugins = $state<PluginInfo[]>([]);
+	let pluginsLoading = $state(false);
+	let refreshingPluginId = $state<string | null>(null);
 
 	let appVersion = $state('');
 	let canExport = $state(false);
@@ -29,9 +35,65 @@
 	let portSaving = $state(false);
 	let portSaved = $state(false);
 
+	async function loadPlugins() {
+		pluginsLoading = true;
+		try {
+			plugins = await fetchPlugins();
+		} catch {
+			plugins = [];
+		} finally {
+			pluginsLoading = false;
+		}
+	}
+
+	async function togglePlugin(plugin: PluginInfo) {
+		try {
+			if (plugin.enabled) {
+				await disablePlugin(plugin.id);
+			} else {
+				await enablePlugin(plugin.id);
+			}
+			await loadPlugins();
+		} catch {
+			addToast('error', 'Failed to toggle plugin.');
+		}
+	}
+
+	async function handleRefreshPlugin(plugin: PluginInfo) {
+		refreshingPluginId = plugin.id;
+		try {
+			const result = await refreshPlugin(plugin.id);
+			if (result.error) throw new Error(result.error);
+			addToast('success', `Plugin "${plugin.name}" refreshed.`);
+			await loadPlugins();
+		} catch (e: any) {
+			addToast('error', e?.message ?? 'Failed to refresh plugin.');
+		} finally {
+			refreshingPluginId = null;
+		}
+	}
+
+	async function removePlugin(plugin: PluginInfo) {
+		const confirmed = await showConfirm({
+			title: 'Uninstall Plugin',
+			message: `Uninstall "${plugin.name}"? This will delete all plugin data and cannot be undone.`,
+			confirmLabel: 'Uninstall',
+			danger: true,
+		});
+		if (!confirmed) return;
+		try {
+			await uninstallPlugin(plugin.id);
+			addToast('success', `Plugin "${plugin.name}" uninstalled.`);
+			await loadPlugins();
+		} catch {
+			addToast('error', 'Failed to uninstall plugin.');
+		}
+	}
+
 	onMount(async () => {
 		canExport = await hasData();
 		currentPort = getCurrentPort();
+		loadPlugins();
 		if (IS_TAURI) {
 			const { getVersion } = await import('@tauri-apps/api/app');
 			appVersion = await getVersion();
@@ -233,6 +295,17 @@
 						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M450-290h60v-230h-60v230Zm52.92-307.75q9.39-9.29 9.39-23.02t-9.29-23.02q-9.29-9.28-23.02-9.28t-23.02 9.28q-9.29 9.29-9.29 23.02t9.39 23.02q9.38 9.29 22.92 9.29 13.54 0 22.92-9.29ZM480.07-100q-78.84 0-148.21-29.92t-120.68-81.21q-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100Zm-.07-60q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
 					</div>
 					<span class="item-label">About</span>
+				</button>
+
+				<button
+					class="sidebar-item"
+					class:selected={activeTab === 'plugins'}
+					onclick={() => (activeTab = 'plugins')}
+				>
+					<div class="item-icon">
+						<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M352-120H200q-33 0-56.5-23.5T120-200v-152q48 0 84-30.5t36-77.5q0-47-36-77.5T120-568v-152q0-33 23.5-56.5T200-800h160q0-42 29-71t71-29q42 0 71 29t29 71h160q33 0 56.5 23.5T800-720v160q42 0 71 29t29 71q0 42-29 71t-71 29v160q0 33-23.5 56.5T720-120H568q0-50-31.5-85T460-240q-45 0-76.5 35T352-120Z"/></svg>
+					</div>
+					<span class="item-label">Plugins</span>
 				</button>
 			</nav>
 		</aside>
@@ -479,6 +552,103 @@
 						<p class="about-credit">
 							Developed by <a href="https://github.com/alayshoo" target="_blank" rel="noopener noreferrer" class="about-link">Alayshoo</a>.
 						</p>
+					</div>
+				</div>
+
+			{:else if activeTab === 'plugins'}
+				<div class="editor-panel">
+					<div class="panel-header">
+						<div class="panel-title-area">
+							<h1>Plugins</h1>
+						</div>
+					</div>
+
+					<div class="form-body">
+						<p>
+							Plugins extend Open GFX Board with custom control panels, overlays,
+							and data management. Place plugin folders in the <code>plugins</code> directory
+							to install them.
+						</p>
+
+						{#if pluginsLoading}
+							<p class="helper-text">Loading plugins...</p>
+						{:else if plugins.length === 0}
+							<div class="empty-state">
+								<p>No plugins installed.</p>
+								<p class="helper-text">
+									To install a plugin, place its folder (containing a <code>plugin.json</code>)
+									in the <code>plugins</code> directory inside the app data folder, then restart.
+								</p>
+							</div>
+						{:else}
+							<div class="plugin-list">
+								{#each plugins as plugin (plugin.id)}
+									<div class="plugin-card" class:disabled={!plugin.enabled}>
+										<div class="plugin-info">
+											<div class="plugin-header-row">
+												<span class="plugin-name">{plugin.name}</span>
+												<span class="plugin-version">v{plugin.version}</span>
+											</div>
+											{#if plugin.description}
+												<p class="plugin-desc">{plugin.description}</p>
+											{/if}
+											{#if plugin.author}
+												<span class="plugin-author">by {plugin.author}</span>
+											{/if}
+											<div class="plugin-badges">
+												{#if plugin.is_bundled}
+													<span class="badge badge-sm badge-bundled">Built-in</span>
+												{/if}
+												{#if plugin.has_control}
+													<span class="badge badge-sm">Control</span>
+												{/if}
+												{#if plugin.has_editor}
+													<span class="badge badge-sm">Editor</span>
+												{/if}
+											</div>
+										</div>
+										<div class="plugin-actions">
+											<label class="toggle-switch">
+												<input
+													type="checkbox"
+													checked={plugin.enabled}
+													onchange={() => togglePlugin(plugin)}
+												/>
+												<span class="toggle-slider"></span>
+											</label>
+											{#if plugin.is_bundled}
+												<button
+													class="btn btn-secondary btn-sm"
+													onclick={() => handleRefreshPlugin(plugin)}
+													disabled={refreshingPluginId === plugin.id}
+													title="Refresh from source"
+												>
+													{#if refreshingPluginId === plugin.id}
+														<svg class="spin" xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160q133 0 226.5-93.5T800-480q0-17 11.5-28.5T840-520q17 0 28.5 11.5T880-480q0 82-31.5 155t-86 127.5Q707-143 634.5-111.5T480-80Z"/></svg>
+													{:else}
+														<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>
+													{/if}
+												</button>
+											{:else}
+												<button
+													class="btn btn-danger btn-sm"
+													onclick={() => removePlugin(plugin)}
+													title="Uninstall"
+												>
+													<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Z"/></svg>
+												</button>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+
+							{#if plugins.some(p => p.has_editor)}
+								<div class="plugin-editor-link">
+									<a href="/plugin-editor" class="btn btn-primary">Open Plugin Editor</a>
+								</div>
+							{/if}
+						{/if}
 					</div>
 				</div>
 			{/if}
@@ -962,5 +1132,147 @@
 
 	@keyframes spin {
 		to { transform: rotate(360deg); }
+	}
+
+	/* ── Plugins tab ── */
+	.empty-state {
+		text-align: center;
+		padding: 32px 16px;
+		color: var(--text-3);
+	}
+
+	.plugin-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.plugin-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 14px 18px;
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-lg);
+		transition: opacity 0.15s;
+	}
+
+	.plugin-card.disabled {
+		opacity: 0.5;
+	}
+
+	.plugin-info {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.plugin-header-row {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+	}
+
+	.plugin-name {
+		font-weight: 600;
+		color: var(--text-1);
+		font-size: 0.9375rem;
+	}
+
+	.plugin-version {
+		font-size: 0.75rem;
+		color: var(--text-3);
+	}
+
+	.plugin-desc {
+		font-size: 0.8125rem;
+		color: var(--text-2);
+		margin: 0;
+	}
+
+	.plugin-author {
+		font-size: 0.75rem;
+		color: var(--text-3);
+	}
+
+	.plugin-badges {
+		display: flex;
+		gap: 4px;
+		margin-top: 2px;
+	}
+
+	.plugin-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.plugin-editor-link {
+		margin-top: 8px;
+	}
+
+	.badge-bundled {
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	.spin {
+		animation: spin 0.8s linear infinite;
+	}
+
+	/* Toggle switch */
+	.toggle-switch {
+		position: relative;
+		display: inline-block;
+		width: 40px;
+		height: 22px;
+	}
+
+	.toggle-switch input {
+		opacity: 0;
+		width: 0;
+		height: 0;
+	}
+
+	.toggle-slider {
+		position: absolute;
+		cursor: pointer;
+		inset: 0;
+		background: var(--surface-3);
+		border: 1px solid var(--border-2);
+		border-radius: 22px;
+		transition: 0.2s;
+	}
+
+	.toggle-slider::before {
+		content: '';
+		position: absolute;
+		height: 16px;
+		width: 16px;
+		left: 2px;
+		bottom: 2px;
+		background: var(--text-3);
+		border-radius: 50%;
+		transition: 0.2s;
+	}
+
+	.toggle-switch input:checked + .toggle-slider {
+		background: var(--accent-dim);
+		border-color: var(--accent);
+	}
+
+	.toggle-switch input:checked + .toggle-slider::before {
+		background: var(--accent);
+		transform: translateX(18px);
+	}
+
+	.btn-sm {
+		padding: 4px 8px;
+		font-size: 0.75rem;
 	}
 </style>

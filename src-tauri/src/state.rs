@@ -2,6 +2,8 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use socketioxide::SocketIo;
 
+use crate::plugins::manifest::PluginManifest;
+
 #[derive(Debug, Clone, Default)]
 pub struct StudioRuntimeState {
     pub program_id: Option<i64>,
@@ -31,4 +33,10 @@ pub struct AppState {
     pub studio_states: Arc<Mutex<HashMap<i64, StudioRuntimeState>>>,
     pub app_data_dir: PathBuf,
     pub io: Arc<std::sync::Mutex<Option<SocketIo>>>,
+    /// In-memory cache: plugin_id -> (key -> JSON value).
+    pub plugin_states: Arc<Mutex<HashMap<String, HashMap<String, serde_json::Value>>>>,
+    /// Cached manifests for enabled plugins.
+    pub plugin_manifests: Arc<Mutex<HashMap<String, PluginManifest>>>,
+    /// Directory containing the original bundled plugin sources (None when not available).
+    pub bundled_plugins_dir: Option<PathBuf>,
 }

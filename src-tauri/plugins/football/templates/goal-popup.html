@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .goal-popup {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 12px;
+    padding: 20px 32px;
+    animation: goalPulse 0.6s ease-out;
+  }
+
+  @keyframes goalPulse {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .team-bar {
+    width: 6px;
+    height: 60px;
+    border-radius: 3px;
+    background: {{plugin:football:context:team_color}};
+  }
+
+  .goal-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .goal-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #22c55e;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .player-name {
+    font-size: 28px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+
+  .player-number {
+    font-size: 16px;
+    color: #a1a1aa;
+  }
+
+  .team-name {
+    font-size: 14px;
+    color: #71717a;
+  }
+</style>
+</head>
+<body>
+  <div class="goal-popup">
+    <div class="team-bar"></div>
+    <div class="goal-info">
+      <span class="goal-label">GOAL</span>
+      <span class="player-name">{{plugin:football:context:player_name}}</span>
+      <span class="player-number">#{{plugin:football:context:player_number}}</span>
+      <span class="team-name">{{plugin:football:context:team_name}}</span>
+    </div>
+  </div>
+</body>
+</html>

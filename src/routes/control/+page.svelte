@@ -5,8 +5,10 @@
 	import ScreenSelector from "$lib/components/ScreensSelector.svelte";
 	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
 	import StatusDot from "$lib/components/StatusDot.svelte";
+	import PluginHost from "$lib/components/PluginHost.svelte";
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
+	import { fetchPlugins, fetchPluginManifest } from "$lib/api/plugins";
 	import { addToast } from "$lib/toasts";
 	import type {
 		Program,
@@ -15,6 +17,8 @@
 		Graphic,
 		ProgramPopUp,
 		ActivePopUp,
+		PluginInfo,
+		PluginManifest,
 	} from "$lib/types";
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
     import { IS_TAURI } from "$lib/bridge";
@@ -29,6 +33,10 @@
 	let studioCommands = $state<ObsCommand[]>([]);
 	let isPopUpPlaying = $state(false);
 	let popupEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Plugin state
+	let controlPlugins = $state<PluginInfo[]>([]);
+	let pluginManifests = $state<Record<string, PluginManifest>>({});
 
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
@@ -140,6 +148,17 @@
 
 		// Fetch studio commands for selected preset
 		fetchStudioCommands();
+
+		// Load enabled plugins with control components
+		fetchPlugins().then(async (allPlugins) => {
+			const withControl = allPlugins.filter((p) => p.enabled && p.has_control);
+			for (const p of withControl) {
+				try {
+					pluginManifests[p.id] = await fetchPluginManifest(p.id);
+				} catch { /* skip */ }
+			}
+			controlPlugins = withControl.filter((p) => pluginManifests[p.id]);
+		}).catch(() => {});
 
 		return () => {
 			socket.off("studio-state", onStudioState);
@@ -315,6 +334,22 @@
 				onTrigger={triggerPopUp}
 			/>
 		</section>
+
+		<!-- Plugin control sections -->
+		{#each controlPlugins as plugin (plugin.id)}
+			{#if pluginManifests[plugin.id]}
+				<section class="panel-section plugin-section">
+					<div class="plugin-section-header">
+						<span class="plugin-section-title">{plugin.name}</span>
+					</div>
+					<PluginHost
+						pluginId={plugin.id}
+						componentType="control"
+						manifest={pluginManifests[plugin.id]}
+					/>
+				</section>
+			{/if}
+		{/each}
 	</div>
 
 	<!-- Dragable divider -->
@@ -516,5 +551,18 @@
 		height: 100%;
 		box-sizing: border-box;
 		padding: 10px;
+	}
+
+	/* Plugin sections */
+	.plugin-section-header {
+		margin-bottom: 8px;
+	}
+
+	.plugin-section-title {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-3);
 	}
 </style>
