@@ -42,7 +42,7 @@
 
 <div class="editor-wrap">
 	{#if !IS_TAURI}
-		<TopNav back={{ href: '/settings', label: 'Settings' }} />
+		<TopNav />
 	{/if}
 
 	<div class="editor-body">
