@@ -173,5 +173,28 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 9 — add 'hidden' launch type.
+    // SQLite cannot ALTER a CHECK constraint, so we recreate program_popups.
+    if version < 9 {
+        conn.execute_batch(
+            "PRAGMA foreign_keys=OFF;
+             CREATE TABLE program_popups_new (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+                 popup_id   INTEGER NOT NULL REFERENCES popups(id)   ON DELETE CASCADE,
+                 trigger_type TEXT NOT NULL DEFAULT 'manual'
+                     CHECK(trigger_type IN ('manual','automatic','both','filler','hidden')),
+                 duration  INTEGER NOT NULL DEFAULT 10,
+                 frequency INTEGER NOT NULL DEFAULT 1,
+                 UNIQUE(program_id, popup_id)
+             );
+             INSERT INTO program_popups_new SELECT * FROM program_popups;
+             DROP TABLE program_popups;
+             ALTER TABLE program_popups_new RENAME TO program_popups;
+             PRAGMA foreign_keys=ON;
+             INSERT INTO schema_version VALUES (9);",
+        )?;
+    }
+
     Ok(())
 }

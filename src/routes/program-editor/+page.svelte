@@ -1,26 +1,31 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchPrograms, fetchPopUps, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
+	import { fetchPlugins } from '$lib/api/plugins';
 	import { addToast } from '$lib/toasts';
-	import type { Program, PopUp, Screen, ProgramPopUp } from '$lib/types';
+	import type { Program, PopUp, Screen, ProgramPopUp, PluginInfo } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
 	import { showConfirm } from '$lib/confirm';
+	import { getProgramPluginIds, setProgramPluginIds } from '$lib/programPlugins';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
 	let allPopUps = $state<PopUp[]>([]);
 	let allScreens = $state<Screen[]>([]);
+	let allControlPlugins = $state<PluginInfo[]>([]);
 	let addPopUpModalOpen = $state(false);
 	let addScreenModalOpen = $state(false);
 
 	// Selection state
 	let selectedId = $state<number | null>(null);
 	let isCreatingNew = $state(false);
+	let activeTab = $state<'details' | 'plugins'>('details');
 
 	// Edit state
 	let editId = $state<number | null>(null);
@@ -29,22 +34,50 @@
 	let editBgPath = $state<string | null>(null);
 	let editScreenIds = $state<number[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
+	let editPluginIds = $state<string[]>([]);
 
 	let saving = $state(false);
 
+	/* ─── Dirty tracking ─────────────────────────────────── */
+	let savedSnapshot = $state('');
+
+	function makeSnapshot(): string {
+		return JSON.stringify([
+			editName,
+			editLogoPath,
+			editBgPath,
+			editScreenIds,
+			editProgramPopUps.map((pa) => [pa.popup_id, pa.popup_launch_type, pa.duration, pa.frequency]),
+			[...editPluginIds].sort(),
+		]);
+	}
+
+	function takeSnapshot() {
+		savedSnapshot = makeSnapshot();
+	}
+
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
+	const isDirty = $derived(hasSelection && makeSnapshot() !== savedSnapshot);
 
 	const editScreens = $derived<Screen[]>(
 		editScreenIds.map((id) => allScreens.find((s) => s.id === id)).filter((s): s is Screen => !!s)
 	);
 
+	/* ─── Navigation guard ──────────────────────────────────── */
+	beforeNavigate(({ cancel }) => {
+		if (isDirty && !window.confirm('You have unsaved changes. Leave this page?')) {
+			cancel();
+		}
+	});
+
 	/* ─── Lifecycle ──────────────────────────────────────────── */
 	onMount(() => {
-		Promise.all([fetchPrograms(), fetchPopUps(), fetchScreens()]).then(([p, a, s]) => {
+		Promise.all([fetchPrograms(), fetchPopUps(), fetchScreens(), fetchPlugins()]).then(([p, a, s, pl]) => {
 			programs = p;
 			allPopUps = a;
 			allScreens = s;
+			allControlPlugins = pl.filter((plug) => plug.enabled && plug.has_control);
 		});
 
 		socket.on('program-created', (data: any) => {
@@ -98,7 +131,15 @@
 	});
 
 	/* ─── Selection ──────────────────────────────────────────── */
-	function openNew() {
+	async function openNew() {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: 'Discard unsaved changes and create a new program?',
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
 		isCreatingNew = true;
 		selectedId = null;
 		editId = null;
@@ -107,9 +148,20 @@
 		editBgPath = null;
 		editScreenIds = [];
 		editProgramPopUps = [];
+		editPluginIds = [];
+		activeTab = 'details';
+		takeSnapshot();
 	}
 
-	function selectProgram(p: Program) {
+	async function selectProgram(p: Program) {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: `Discard unsaved changes and switch to "${p.name}"?`,
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
 		isCreatingNew = false;
 		selectedId = p.id;
 		editId = p.id;
@@ -118,6 +170,24 @@
 		editBgPath = p.background_graphics_path;
 		editScreenIds = p.graphics.map((g) => g.id);
 		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
+		// Load saved plugin preferences; default to none (all disabled until user opts in)
+		const savedPlugins = getProgramPluginIds(p.id);
+		editPluginIds = savedPlugins ?? [];
+		activeTab = 'details';
+		takeSnapshot();
+	}
+
+	async function cancelEdit() {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: 'Discard unsaved changes?',
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
+		selectedId = null;
+		isCreatingNew = false;
 	}
 
 	/* ─── Program CRUD ───────────────────────────────────────── */
@@ -156,6 +226,10 @@
 					editBgPath = data.program.background_graphics_path;
 					editScreenIds = [];
 					editProgramPopUps = [];
+					// Persist plugin preferences for the newly-created program.
+					// Store null (= "none") when empty so there's no stale key in localStorage.
+					setProgramPluginIds(data.program.id, editPluginIds.length === 0 ? null : editPluginIds);
+					takeSnapshot();
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -177,6 +251,13 @@
 					}),
 				});
 				const data = await res.json();
+				if (data.success && editId !== null) {
+					// Persist plugin preferences. Store null (= "none", the default)
+					// when no plugins are enabled, so new programs start clean.
+					// Otherwise store the explicit list the user opted into.
+					setProgramPluginIds(editId, editPluginIds.length === 0 ? null : editPluginIds);
+					takeSnapshot();
+				}
 				if (!data.success) addToast('error', data.error ?? 'Save failed.');
 			}
 		} catch {
@@ -266,6 +347,17 @@
 	const availablePopUps = $derived(
 		allPopUps.filter((a) => !editProgramPopUps.some((pa) => pa.popup_id === a.id))
 	);
+
+	/* ─── Plugin helpers ────────────────────────────────────────── */
+	function togglePlugin(pluginId: string, enabled: boolean) {
+		if (enabled) {
+			if (!editPluginIds.includes(pluginId)) {
+				editPluginIds = [...editPluginIds, pluginId];
+			}
+		} else {
+			editPluginIds = editPluginIds.filter((id) => id !== pluginId);
+		}
+	}
 
 	/* ─── Image file input refs ─────────────────────────────────── */
 	let logoInput = $state() as unknown as HTMLInputElement;
@@ -366,6 +458,9 @@
 					<div class="panel-header">
 						<div class="panel-title-area">
 							<h1 class="panel-title">{isNew ? 'New Program' : (editName || 'Untitled')}</h1>
+							{#if isDirty}
+								<span class="unsaved-badge">Unsaved</span>
+							{/if}
 							{#if !isNew}
 								<span class="panel-id">ID #{editId}</span>
 							{/if}
@@ -374,7 +469,7 @@
 							{#if !isNew}
 								<button class="btn btn-danger btn-sm" onclick={deleteCurrentProgram}>Delete</button>
 							{/if}
-							<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+							<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>
 								Cancel
 							</button>
 							<button class="btn btn-primary" onclick={save} disabled={saving}>
@@ -384,13 +479,56 @@
 					</div>
 
 					<div class="form-body">
+						{#if isNew}
 						<!-- Program Name -->
 						<div class="field-group">
 							<label class="field-label" for="program-name">Program Name</label>
 							<input id="program-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Morning News" />
 						</div>
+						{/if}
 
 						{#if !isNew}
+						<!-- Tab nav -->
+						<div class="tab-nav">
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'details'}
+								onclick={() => (activeTab = 'details')}
+							>Details</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'screens'}
+								onclick={() => (activeTab = 'screens')}
+							>
+								Screens
+								<span class="tab-pill">{editScreenIds.length}</span>
+							</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'popups'}
+								onclick={() => (activeTab = 'popups')}
+							>
+								PopUps
+								<span class="tab-pill">{editProgramPopUps.length}</span>
+							</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'plugins'}
+								onclick={() => (activeTab = 'plugins')}
+							>
+								Plugins
+								<span class="tab-pill">{editPluginIds.length}</span>
+							</button>
+						</div>
+						{/if}
+
+						{#if !isNew && activeTab === 'details'}
+							<!-- Program Name -->
+							<div class="field-group">
+								<label class="field-label" for="program-name">Program Name</label>
+								<input id="program-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Morning News" />
+							</div>
+
 							<!-- Logo + Background side by side -->
 							<div class="image-pair">
 								<div class="field-group">
@@ -432,6 +570,7 @@
 								</div>
 							</div>
 
+						{:else if !isNew && activeTab === 'screens'}
 							<!-- Screens -->
 							<div class="field-group">
 								<div class="field-group-header">
@@ -495,6 +634,7 @@
 								</div>
 							</div>
 
+						{:else if !isNew && activeTab === 'popups'}
 							<!-- PopUps -->
 							<div class="field-group">
 								<div class="field-group-header">
@@ -561,6 +701,7 @@
 																<option value="automatic">Automatic</option>
 																<option value="both">Both</option>
 																<option value="filler">Filler</option>
+																<option value="hidden">Hidden</option>
 															</select>
 														</td>
 														<td>
@@ -579,7 +720,7 @@
 																type="number"
 																min="0"
 																value={pa.frequency}
-																disabled={pa.popup_launch_type === 'manual' || pa.popup_launch_type === 'filler'}
+																disabled={pa.popup_launch_type === 'manual' || pa.popup_launch_type === 'filler' || pa.popup_launch_type === 'hidden'}
 																oninput={(e) => updateProgramPopUp(pa.popup_id, { frequency: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
 														</td>
@@ -597,6 +738,42 @@
 									{/if}
 								</div>
 							</div>
+
+						{:else if !isNew && activeTab === 'plugins'}
+
+							<!-- ── Plugins tab ── -->
+							{#if allControlPlugins.length > 0}
+								<div class="plugin-list sub-card">
+									{#each allControlPlugins as plugin (plugin.id)}
+										{@const enabled = editPluginIds.includes(plugin.id)}
+										<label class="plugin-row" class:plugin-row-disabled={!enabled}>
+											<div class="plugin-row-info">
+												<span class="plugin-row-name">{plugin.name}</span>
+												<span class="plugin-row-meta">{plugin.description}</span>
+											</div>
+											<button
+												type="button"
+												role="switch"
+												aria-checked={enabled}
+												class="plugin-toggle"
+												class:plugin-toggle-on={enabled}
+												onclick={() => togglePlugin(plugin.id, !enabled)}
+											>
+												<span class="plugin-toggle-thumb"></span>
+											</button>
+										</label>
+									{/each}
+								</div>
+								<p class="plugins-hint">Disabled plugins won't show their control section on the control page for this program.</p>
+							{:else}
+								<div class="sub-card">
+									<p class="sub-empty">
+										No system-wide enabled plugins with controls.
+										<a href="/plugin-editor" class="helper-link">Manage plugins →</a>
+									</p>
+								</div>
+							{/if}
+
 						{/if}
 					</div>
 				</div>
@@ -1073,5 +1250,157 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
+	}
+
+	/* ── Unsaved badge ── */
+	.unsaved-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 8px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		border-radius: 20px;
+	}
+
+	/* ── Tab nav ── */
+	.tab-nav {
+		display: flex;
+		gap: 4px;
+		border-bottom: 1px solid var(--border-1);
+		padding-bottom: 0;
+		margin-bottom: 4px;
+	}
+
+	.tab-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px;
+		font-size: 13px;
+		font-weight: 500;
+		font-family: inherit;
+		color: var(--text-3);
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		transition: color 0.15s, border-color 0.15s;
+		margin-bottom: -1px;
+	}
+
+	.tab-btn:hover {
+		color: var(--text-1);
+	}
+
+	.tab-btn.active {
+		color: var(--text-1);
+		border-bottom-color: var(--accent);
+	}
+
+	.tab-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1px 6px;
+		font-size: 10px;
+		font-weight: 700;
+		background: var(--accent-dim);
+		color: var(--accent);
+		border-radius: 20px;
+	}
+
+	/* ── Plugin list ── */
+	.plugin-list {
+		display: flex;
+		flex-direction: column;
+		divide-y: 1px solid var(--border-1);
+	}
+
+	.plugin-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 12px 16px;
+		cursor: pointer;
+		transition: background 0.1s;
+		border-bottom: 1px solid var(--border-1);
+	}
+
+	.plugin-row:last-child {
+		border-bottom: none;
+	}
+
+	.plugin-row:hover {
+		background: var(--surface-2);
+	}
+
+	.plugin-row-disabled .plugin-row-name {
+		color: var(--text-3);
+	}
+
+	.plugin-row-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.plugin-row-name {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-1);
+		transition: color 0.15s;
+	}
+
+	.plugin-row-meta {
+		font-size: 11px;
+		color: var(--text-3);
+	}
+
+	/* Toggle switch */
+	.plugin-toggle {
+		flex-shrink: 0;
+		position: relative;
+		width: 36px;
+		height: 20px;
+		border-radius: 10px;
+		border: none;
+		background: var(--surface-3);
+		cursor: pointer;
+		padding: 0;
+		transition: background 0.2s;
+	}
+
+	.plugin-toggle-on {
+		background: var(--accent);
+	}
+
+	.plugin-toggle-thumb {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: #fff;
+		transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+		pointer-events: none;
+	}
+
+	.plugin-toggle-on .plugin-toggle-thumb {
+		transform: translateX(16px);
+	}
+
+	.plugins-hint {
+		font-size: 11px;
+		color: var(--text-3);
+		margin: 0;
+		padding-top: 6px;
 	}
 </style>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .sub-popup {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 12px;
+    padding: 18px 28px;
+    animation: subSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes subSlide {
+    0%   { transform: translateY(24px); opacity: 0; }
+    100% { transform: translateY(0);    opacity: 1; }
+  }
+
+  .team-bar {
+    width: 6px;
+    height: 80px;
+    border-radius: 3px;
+    background: {{plugin:football:context:team_color}};
+    flex-shrink: 0;
+  }
+
+  .sub-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sub-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #a855f7;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .sub-players {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .sub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sub-arrow {
+    font-size: 14px;
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+  }
+
+  .arrow-in  { color: #22c55e; }
+  .arrow-out { color: #ef4444; }
+
+  .sub-player-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sub-player-num {
+    font-size: 13px;
+    color: #a1a1aa;
+    flex-shrink: 0;
+  }
+
+  .team-name {
+    font-size: 12px;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+    align-self: center;
+  }
+</style>
+</head>
+<body>
+  <div class="sub-popup">
+    <div class="team-bar"></div>
+    <div class="sub-body">
+      <span class="sub-label">Substitution</span>
+      <div class="sub-players">
+        <div class="sub-row">
+          <span class="sub-arrow arrow-in">▲</span>
+          <span class="sub-player-name">{{plugin:football:context:player_in_name}}</span>
+          <span class="sub-player-num">#{{plugin:football:context:player_in_number}}</span>
+        </div>
+        <div class="sub-row">
+          <span class="sub-arrow arrow-out">▼</span>
+          <span class="sub-player-name">{{plugin:football:context:player_out_name}}</span>
+          <span class="sub-player-num">#{{plugin:football:context:player_out_number}}</span>
+        </div>
+      </div>
+    </div>
+    <span class="team-name">{{plugin:football:context:team_name}}</span>
+  </div>
+</body>
+</html>

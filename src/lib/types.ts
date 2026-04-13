@@ -21,7 +21,7 @@ export interface ProgramPopUp {
 	id: number;
 	popup_id: number;
 	program_id: number;
-	popup_launch_type: 'automatic' | 'manual' | 'both' | 'filler';
+	popup_launch_type: 'automatic' | 'manual' | 'both' | 'filler' | 'hidden';
 	duration: number;
 	frequency: number;
 	popup: PopUp;

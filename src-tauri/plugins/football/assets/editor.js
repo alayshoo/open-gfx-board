@@ -114,7 +114,7 @@ class FootballEditor extends HTMLElement {
         <div class="fe-tabs">
           <button class="fe-tab ${this._tab === 'teams' ? 'active' : ''}" data-tab="teams">Teams</button>
           <button class="fe-tab ${this._tab === 'players' ? 'active' : ''}" data-tab="players">Players</button>
-          <button class="fe-tab ${this._tab === 'formation' ? 'active' : ''}" data-tab="formation">Starting XI</button>
+          <button class="fe-tab ${this._tab === 'formation' ? 'active' : ''}" data-tab="formation">Starting 11</button>
         </div>
         <div class="fe-content" id="fe-content"></div>
 

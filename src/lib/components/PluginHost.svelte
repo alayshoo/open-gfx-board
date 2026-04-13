@@ -3,6 +3,7 @@
 	import { socket } from '$lib/api/socket';
 	import { pluginAssetUrl } from '$lib/api/plugins';
 	import { PluginSDK } from '$lib/plugins/sdk';
+	import { injectControlStyles } from '$lib/plugins/control-styles';
 	import type { PluginManifest } from '$lib/types';
 
 	interface Props {
@@ -20,6 +21,9 @@
 	onMount(() => {
 		let destroyed = false;
 		let element: HTMLElement | null = null;
+
+		// Inject shared touch-first button/layout styles once, before any plugin renders.
+		injectControlStyles();
 
 		async function loadComponent() {
 			const compDef = componentType === 'control' ? manifest.control : manifest.editor;

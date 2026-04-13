@@ -9,6 +9,7 @@
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
 	import { fetchPlugins, fetchPluginManifest } from "$lib/api/plugins";
+	import { getProgramPluginIds } from "$lib/programPlugins";
 	import { addToast } from "$lib/toasts";
 	import type {
 		Program,
@@ -38,6 +39,17 @@
 	let controlPlugins = $state<PluginInfo[]>([]);
 	let pluginManifests = $state<Record<string, PluginManifest>>({});
 
+	// Per-program plugin filter: reads the per-program plugin preferences from
+	// localStorage. null = no preference saved = show none (plugins are opt-in per program).
+	const programPluginFilter = $derived(
+		program ? getProgramPluginIds(program.id) : null
+	);
+	const visibleControlPlugins = $derived(
+		programPluginFilter === null
+			? []
+			: controlPlugins.filter((p) => programPluginFilter.includes(p.id))
+	);
+
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
 	const allowPopUpsMode = $derived(
@@ -51,6 +63,15 @@
 	onMount(() => {
 		socket.emit("join-studio-room", {});
 		socket.emit("get-studio-state", {});
+
+		// Re-join the studio room after a socket reconnect so we keep receiving
+		// broadcasts (plugin-state-updated, overlay-activated, etc.).  Without
+		// this, a server restart or network drop silently breaks all live updates.
+		function onReconnect() {
+			socket.emit("join-studio-room", {});
+			socket.emit("get-studio-state", {});
+		}
+		socket.on("connect", onReconnect);
 
 		// Named handlers prevent removing every global listener on cleanup
 		function onStudioState(data: StudioState) {
@@ -99,11 +120,30 @@
 		function onPopUpStarted(data: any) {
 			isPopUpPlaying = true;
 			activePopUpId = data.popupId;
+			// Schedule end-popup for all popup types (manual, automatic, and
+			// plugin/hidden). The popup-started payload always carries duration,
+			// so this is the single canonical place to start the countdown.
+			if (popupEndTimer) {
+				clearTimeout(popupEndTimer);
+				popupEndTimer = null;
+			}
+			const dur: number = data.duration ?? 0;
+			if (dur > 0) {
+				popupEndTimer = setTimeout(() => {
+					socket.emit("end-popup", {});
+					popupEndTimer = null;
+				}, dur * 1000);
+			}
 		}
 
 		function onPopUpEnded(_data: any) {
 			isPopUpPlaying = false;
 			activePopUpId = null;
+			// Cancel any pending auto-end timer (e.g. operator dismissed early).
+			if (popupEndTimer) {
+				clearTimeout(popupEndTimer);
+				popupEndTimer = null;
+			}
 		}
 
 		// ── Data-change listeners ─────────────────
@@ -161,6 +201,7 @@
 		}).catch(() => {});
 
 		return () => {
+			socket.off("connect", onReconnect);
 			socket.off("studio-state", onStudioState);
 			socket.off("program-selected", onProgramSelected);
 			socket.off("program-cleared", onProgramCleared);
@@ -209,11 +250,7 @@
 				popupId: pa.popup_id,
 				duration: pa.duration,
 			});
-			// Auto-end after the pop-up's duration has elapsed
-			popupEndTimer = setTimeout(() => {
-				socket.emit("end-popup", {});
-				popupEndTimer = null;
-			}, pa.duration * 1000);
+			// Timer is started in onPopUpStarted when the server echoes popup-started back.
 		}
 	}
 
@@ -336,7 +373,7 @@
 		</section>
 
 		<!-- Plugin control sections -->
-		{#each controlPlugins as plugin (plugin.id)}
+		{#each visibleControlPlugins as plugin (plugin.id)}
 			{#if pluginManifests[plugin.id]}
 				<section class="panel-section plugin-section">
 					<div class="plugin-section-header">

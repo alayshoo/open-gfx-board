@@ -498,6 +498,15 @@
 		// Request the current studio state so we can warm the cache immediately.
 		socket.emit("get-studio-state", {});
 
+		// Re-join the studio room after a socket reconnect (e.g. server restart,
+		// network drop).  Socket.io rooms are server-side; they are lost on
+		// disconnect, so without this the overlay stops receiving all broadcasts.
+		function onReconnect() {
+			socket.emit("join-studio-room", {});
+			socket.emit("get-studio-state", {});
+		}
+		socket.on("connect", onReconnect);
+
 		function onStudioState(data: StudioState) {
 			preloadProgram(data.program);
 			stopAllScheduling();
@@ -683,6 +692,7 @@
 		return () => {
 			stopAllScheduling();
 			socket.emit("leave-studio-room", {});
+			socket.off("connect", onReconnect);
 			socket.off("studio-state", onStudioState);
 			socket.off("program-selected", onProgramSelected);
 			socket.off("program-cleared", onProgramCleared);

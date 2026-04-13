@@ -4,7 +4,10 @@ use crate::models::{Screen, ScreenProgram};
 
 pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id FROM screens ORDER BY id"
+        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id \
+         FROM screens \
+         WHERE plugin_id IS NULL OR plugin_id IN (SELECT id FROM plugins WHERE enabled = 1) \
+         ORDER BY id"
     )?;
 
     let mut screens = Vec::new();

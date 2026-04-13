@@ -1,9 +1,9 @@
 {
   "id": "football",
   "name": "Football",
-  "version": "0.1.7",
+  "version": "0.1.28",
   "description": "Live scoreboard, timer, goals, cards, and lineup overlays for football matches.",
-  "author": "Open GFX Board",
+  "author": "Alayshoo",
 
   "database": {
     "teams": {
@@ -45,7 +45,6 @@
     "timer_accumulated": { "type": "integer", "default": 0 },
     "timer_start_epoch": { "type": "integer", "default": null },
     "timer_running":     { "type": "boolean", "default": false },
-    "half":              { "type": "integer", "default": 1 },
     "stoppage_time":     { "type": "integer", "default": 0 }
   },
 
@@ -54,7 +53,6 @@
     "yellow-card",
     "red-card",
     "substitution",
-    "half-time",
     "full-time",
     "reset-match"
   ],
@@ -96,6 +94,16 @@
       "width": 500,
       "height": 140,
       "duration": 6
+    },
+    {
+      "template_id": "sub-popup",
+      "name": "Substitution",
+      "template": "templates/sub-popup.html",
+      "direction": "bottom",
+      "position": 50,
+      "width": 700,
+      "height": 160,
+      "duration": 8
     },
     {
       "template_id": "lineup",

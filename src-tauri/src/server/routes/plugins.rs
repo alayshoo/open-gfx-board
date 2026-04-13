@@ -200,10 +200,20 @@ async fn disable_plugin(
     if let Err(e) = manager::disable_plugin(&db, &id) {
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()})));
     }
+
+    // Collect any programs that reference this plugin's screens or popups
+    // before clearing the caches, so the warning is included in the response.
+    let affected = check_plugin_usage_in_programs(&db, &id);
+
     state.plugin_manifests.lock().await.remove(&id);
     state.plugin_states.lock().await.remove(&id);
     broadcast_event(&state, "plugin-disabled", json!({"pluginId": id}));
-    (StatusCode::OK, Json(json!({"success": true})))
+
+    let mut resp = json!({"success": true});
+    if let Some(warning) = affected {
+        resp["warning"] = warning;
+    }
+    (StatusCode::OK, Json(resp))
 }
 
 async fn refresh_plugin(
@@ -604,10 +614,62 @@ async fn serve_asset(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/// Returns a JSON warning value when any program references screens or popups
+/// belonging to `plugin_id`, or `None` when the plugin is not in use.
+fn check_plugin_usage_in_programs(conn: &rusqlite::Connection, plugin_id: &str) -> Option<Value> {
+    let mut screen_programs: Vec<Value> = Vec::new();
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT DISTINCT p.id, p.name FROM programs p \
+         JOIN program_screens ps ON ps.program_id = p.id \
+         JOIN screens s ON s.id = ps.screen_id \
+         WHERE s.plugin_id = ?1",
+    ) {
+        if let Ok(rows) = stmt.query_map([plugin_id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        }) {
+            for row in rows.flatten() {
+                screen_programs.push(json!({"id": row.0, "name": row.1}));
+            }
+        }
+    }
+
+    let mut popup_programs: Vec<Value> = Vec::new();
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT DISTINCT p.id, p.name FROM programs p \
+         JOIN program_popups pp ON pp.program_id = p.id \
+         JOIN popups po ON po.id = pp.popup_id \
+         WHERE po.plugin_id = ?1",
+    ) {
+        if let Ok(rows) = stmt.query_map([plugin_id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        }) {
+            for row in rows.flatten() {
+                popup_programs.push(json!({"id": row.0, "name": row.1}));
+            }
+        }
+    }
+
+    if screen_programs.is_empty() && popup_programs.is_empty() {
+        return None;
+    }
+
+    Some(json!({
+        "message": "Some programs are using screens or popups from this plugin. They will no longer be available while the plugin is disabled.",
+        "affectedPrograms": {
+            "screens": screen_programs,
+            "popups": popup_programs,
+        }
+    }))
+}
+
 fn broadcast_event(state: &AppState, event: &str, data: Value) {
     if let Ok(guard) = state.io.lock() {
         if let Some(io) = guard.as_ref() {
-            let _ = io.to("studio").emit(event, &data);
+            let io = io.clone();
+            let event = event.to_string();
+            tokio::spawn(async move {
+                let _ = io.to("studio").emit(&event, &data).await;
+            });
         }
     }
 }

@@ -4,7 +4,10 @@ use crate::models::{PopupProgram, Popup};
 
 pub fn get_all_popups(conn: &Connection) -> Result<Vec<Popup>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id FROM popups ORDER BY id"
+        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id \
+         FROM popups \
+         WHERE plugin_id IS NULL OR plugin_id IN (SELECT id FROM plugins WHERE enabled = 1) \
+         ORDER BY id"
     )?;
 
     let mut popups = Vec::new();

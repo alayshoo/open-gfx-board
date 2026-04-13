@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchScreens, imgUrl, uploadImage } from '$lib/api/api';
@@ -33,6 +34,26 @@
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
 	const selectedScreen = $derived(screens.find(s => s.id === selectedId) ?? null);
 	const isPluginScreen = $derived(!isNew && selectedScreen?.plugin_id != null);
+
+	/* ─── Dirty tracking ─────────────────────────────────── */
+	let savedSnapshot = $state('');
+
+	function makeSnapshot(): string {
+		return JSON.stringify([editName, editComments, editAllowPopUps, editMediaType, editHtmlContent]);
+	}
+
+	function takeSnapshot() {
+		savedSnapshot = makeSnapshot();
+	}
+
+	// Plugin screens are read-only, never dirty
+	const isDirty = $derived(hasSelection && !isPluginScreen && makeSnapshot() !== savedSnapshot);
+
+	beforeNavigate(({ cancel }) => {
+		if (isDirty && !window.confirm('You have unsaved changes. Leave this page?')) {
+			cancel();
+		}
+	});
 
 	// Split screens into user-created and plugin-bundled
 	const userScreens = $derived(screens.filter(s => s.plugin_id == null));
@@ -94,7 +115,11 @@
 		};
 	});
 
-	function openNew() {
+	async function openNew() {
+		if (isDirty) {
+			const ok = await showConfirm({ title: 'Unsaved Changes', message: 'Discard unsaved changes and create a new screen?', confirmLabel: 'Discard' });
+			if (!ok) return;
+		}
 		isCreatingNew = true;
 		selectedId = null;
 		editId = null;
@@ -104,9 +129,14 @@
 		editMediaType = 'image';
 		editMediaPath = null;
 		editHtmlContent = '';
+		takeSnapshot();
 	}
 
-	function selectScreen(s: Screen) {
+	async function selectScreen(s: Screen) {
+		if (isDirty) {
+			const ok = await showConfirm({ title: 'Unsaved Changes', message: `Discard unsaved changes and switch to "${s.graphics_name}"?`, confirmLabel: 'Discard' });
+			if (!ok) return;
+		}
 		isCreatingNew = false;
 		selectedId = s.id;
 		editId = s.id;
@@ -116,6 +146,16 @@
 		editMediaType = s.media_type;
 		editMediaPath = s.graphics_path;
 		editHtmlContent = s.html_content ?? '';
+		takeSnapshot();
+	}
+
+	async function cancelEdit() {
+		if (isDirty) {
+			const ok = await showConfirm({ title: 'Unsaved Changes', message: 'Discard unsaved changes?', confirmLabel: 'Discard' });
+			if (!ok) return;
+		}
+		selectedId = null;
+		isCreatingNew = false;
 	}
 
 	async function deleteCurrentScreen() {
@@ -146,6 +186,7 @@
 				editMediaType = data.screen.media_type;
 				editMediaPath = data.screen.graphics_path;
 				editHtmlContent = data.screen.html_content ?? '';
+				takeSnapshot();
 				addToast('success', 'Screen duplicated — you can now edit your copy.');
 			} else {
 				addToast('error', data.error ?? 'Duplicate failed.');
@@ -188,6 +229,7 @@
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
 					editHtmlContent = data.screen.html_content ?? '';
+					takeSnapshot();
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -204,6 +246,7 @@
 					}),
 				});
 				const data = await res.json();
+				if (data.success) takeSnapshot();
 				if (!data.success) addToast('error', data.error ?? 'Save failed.');
 			}
 		} catch {
@@ -299,11 +342,7 @@
 				<!-- Plugin screens section -->
 				{#if pluginScreens.length > 0}
 					<div class="sidebar-section-label sidebar-section-label--plugin">
-						<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-							<path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/>
-							<line x1="16" y1="8" x2="2" y2="22"/>
-							<line x1="17.5" y1="15" x2="9" y2="15"/>
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" height="12px" viewBox="0 -960 960 960" width="12px" fill="currentColor"><path d="M455.38-200h49.24v-78.62L640-414v-173.69q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H332.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46V-414l135.38 135.38V-200Zm-59.99 60v-113.08L260-388.46v-199.23q0-29.92 21.19-51.12Q302.39-660 332.31-660h44.61l-29.99 30v-190h59.99v160h146.16v-160h59.99v190l-29.99-30h44.61q29.92 0 51.12 21.19Q700-617.61 700-587.69v199.23L564.61-253.08V-140H395.39ZM480-400Z"/></svg>
 						From Plugins
 						<span class="badge-sm">{pluginScreens.length}</span>
 					</div>
@@ -360,7 +399,7 @@
 							</div>
 							<div class="panel-header-end">
 								<div class="panel-actions">
-									<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+									<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>
 										Cancel
 									</button>
 									<button class="btn btn-primary" onclick={duplicateCurrentScreen}>
@@ -430,6 +469,9 @@
 						<div class="panel-header">
 							<div class="panel-title-area">
 								<h1>{isNew ? 'New Screen' : (editName || 'Untitled')}</h1>
+								{#if isDirty}
+									<span class="unsaved-badge">Unsaved</span>
+								{/if}
 								{#if !isNew}
 									<span class="panel-id">ID #{editId}</span>
 								{/if}
@@ -439,7 +481,7 @@
 									{#if !isNew}
 										<button class="btn btn-danger btn-sm" onclick={deleteCurrentScreen}>Delete</button>
 									{/if}
-									<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+									<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>
 										Cancel
 									</button>
 									<button class="btn btn-primary" onclick={save} disabled={saving || uploading}>
@@ -965,6 +1007,21 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 		border: 1px solid var(--border-1);
+	}
+
+	/* ── Unsaved badge ── */
+	.unsaved-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 8px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		border-radius: 20px;
 	}
 
 	/* ── Empty state ── */
