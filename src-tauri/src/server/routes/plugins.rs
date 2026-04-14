@@ -472,6 +472,125 @@ async fn trigger_popup(
 
     let duration = body.duration.unwrap_or(popup_def.duration);
 
+    // ── Check for a per-program popup override ────────────────────────────────
+    // If the currently-active program has a user-configured popup mapped to this
+    // plugin template, trigger that popup instead of the plugin's built-in one.
+    let program_id = {
+        let states = state.studio_states.lock().await;
+        states.get(&1).and_then(|s| s.program_id)
+    };
+
+    if let Some(pid) = program_id {
+        let db = state.db.lock().await;
+
+        // Look up the override popup id (NULL rows mean "no override set").
+        let override_popup_id: Option<i64> = db
+            .query_row(
+                "SELECT popup_id FROM program_plugin_popup_overrides \
+                 WHERE program_id = ?1 AND plugin_id = ?2 AND template_id = ?3 \
+                 AND popup_id IS NOT NULL",
+                rusqlite::params![pid, &id, &body.template_id],
+                |r| r.get(0),
+            )
+            .ok();
+
+        // Load the override popup data inline (only the columns we need).
+        let override_data = if let Some(opid) = override_popup_id {
+            db.query_row(
+                "SELECT id, media_type, html_content, media_path, \
+                         direction, position, width, height \
+                  FROM popups WHERE id = ?1",
+                [opid],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                        r.get::<_, Option<String>>(3)?,
+                        r.get::<_, String>(4)?,
+                        r.get::<_, i64>(5)?,
+                        r.get::<_, Option<i64>>(6)?,
+                        r.get::<_, Option<i64>>(7)?,
+                    ))
+                },
+            )
+            .ok()
+        } else {
+            None
+        };
+        drop(db);
+
+        if let Some((ov_id, ov_media_type, ov_html_content, ov_media_path,
+                     ov_direction, ov_position, ov_width, ov_height)) = override_data
+        {
+            let (final_html, final_image_path, final_media_type) =
+                if ov_media_type == "html" {
+                    // Build the same template context used for default plugin popups
+                    // so that `{{plugin:...:context:…}}` variables still resolve.
+                    let plugin_states = state.plugin_states.lock().await;
+                    let plugin_st = plugin_states.get(&id).cloned().unwrap_or_default();
+                    drop(plugin_states);
+
+                    let mut ctx = crate::html_template::TemplateContext::new();
+                    let mut plugin_vars = HashMap::new();
+                    for (key, val) in &plugin_st {
+                        plugin_vars.insert(key.clone(), value_to_string(val));
+                    }
+                    ctx.plugin_contexts.insert(id.clone(), plugin_vars);
+                    ctx.popup_context = body.context.clone();
+                    ctx.popup_plugin_id = Some(id.clone());
+
+                    let raw_html = ov_html_content.unwrap_or_default();
+                    let db = state.db.lock().await;
+                    let processed = {
+                        let p = crate::html_template::process_template(&raw_html, &ctx, Some(&db));
+                        crate::plugins::sdk_injection::inject_sdk(&p, &id, false)
+                    };
+                    drop(db);
+
+                    (Some(processed), None::<String>, "html".to_string())
+                } else {
+                    (None, ov_media_path, ov_media_type.clone())
+                };
+
+            // Update runtime state
+            {
+                let mut studio_states = state.studio_states.lock().await;
+                let st = studio_states.entry(1).or_default();
+                st.active_popup_id = Some(ov_id);
+                st.active_popup_path = final_image_path.clone();
+                st.active_popup_duration = duration;
+                st.active_popup_direction = Some(ov_direction.clone());
+                st.active_popup_position = Some(ov_position);
+                st.active_popup_media_type = Some(final_media_type.clone());
+                st.active_popup_html_content = final_html.clone();
+                st.active_popup_width = ov_width;
+                st.active_popup_height = ov_height;
+            }
+
+            broadcast_event(
+                &state,
+                "popup-started",
+                json!({
+                    "studioId": 1,
+                    "popupId": ov_id,
+                    "imagePath": final_image_path,
+                    "duration": duration,
+                    "direction": ov_direction,
+                    "position": ov_position,
+                    "mediaType": final_media_type,
+                    "htmlContent": final_html,
+                    "width": ov_width,
+                    "height": ov_height,
+                }),
+            );
+
+            return (StatusCode::OK, Json(json!({"success": true})));
+        }
+    }
+
+    // ── Default: use the plugin's built-in popup template ────────────────────
+
     // Read template from disk
     let template_path = state
         .app_data_dir

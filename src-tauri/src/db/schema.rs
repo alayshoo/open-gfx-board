@@ -209,5 +209,21 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 11 — per-program plugin popup overrides.
+    // Allows users to choose which popup is triggered for each plugin popup
+    // template on a per-program basis, overriding the plugin's built-in default.
+    if version < 11 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS program_plugin_popup_overrides (
+                 program_id  INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+                 plugin_id   TEXT    NOT NULL,
+                 template_id TEXT    NOT NULL,
+                 popup_id    INTEGER REFERENCES popups(id) ON DELETE SET NULL,
+                 PRIMARY KEY (program_id, plugin_id, template_id)
+             );
+             INSERT INTO schema_version VALUES (11);",
+        )?;
+    }
+
     Ok(())
 }

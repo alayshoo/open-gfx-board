@@ -5,7 +5,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 use crate::db::programs::ProgramPopupInput;
@@ -19,6 +19,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", delete(delete_program))
         .route("/{id}/upload-image", post(upload_program_image))
         .route("/{id}/plugin-prefs", get(get_plugin_prefs).put(set_plugin_prefs))
+        .route("/{id}/plugin-popup-overrides", get(get_popup_overrides).put(set_popup_overrides))
 }
 
 async fn list_programs(State(state): State<AppState>) -> impl IntoResponse {
@@ -262,6 +263,77 @@ async fn set_plugin_prefs(
              ON CONFLICT(program_id) DO UPDATE SET plugin_ids = excluded.plugin_ids",
             rusqlite::params![id, json_str],
         )
+    });
+    match result {
+        Ok(_) => Json(json!({ "success": true })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+// ── Per-program plugin popup overrides ───────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone)]
+struct PluginPopupOverride {
+    plugin_id: String,
+    template_id: String,
+    popup_id: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct SetPopupOverridesBody {
+    overrides: Vec<PluginPopupOverride>,
+}
+
+async fn get_popup_overrides(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    let result = tokio::task::block_in_place(|| {
+        let mut stmt = db.prepare(
+            "SELECT plugin_id, template_id, popup_id \
+             FROM program_plugin_popup_overrides \
+             WHERE program_id = ?1 \
+             ORDER BY plugin_id, template_id",
+        )?;
+        let overrides: Vec<PluginPopupOverride> = stmt
+            .query_map([id], |r| {
+                Ok(PluginPopupOverride {
+                    plugin_id: r.get(0)?,
+                    template_id: r.get(1)?,
+                    popup_id: r.get(2)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok::<_, anyhow::Error>(overrides)
+    });
+    match result {
+        Ok(overrides) => Json(json!({ "overrides": overrides })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+async fn set_popup_overrides(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<SetPopupOverridesBody>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    let result = tokio::task::block_in_place(|| {
+        // Replace all overrides for this program atomically.
+        db.execute(
+            "DELETE FROM program_plugin_popup_overrides WHERE program_id = ?1",
+            [id],
+        )?;
+        for ov in &body.overrides {
+            db.execute(
+                "INSERT INTO program_plugin_popup_overrides \
+                     (program_id, plugin_id, template_id, popup_id) \
+                     VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![id, &ov.plugin_id, &ov.template_id, ov.popup_id],
+            )?;
+        }
+        Ok::<_, anyhow::Error>(())
     });
     match result {
         Ok(_) => Json(json!({ "success": true })).into_response(),

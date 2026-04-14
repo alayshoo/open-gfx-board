@@ -5,20 +5,27 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchPrograms, fetchPopUps, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
-	import { fetchPlugins } from '$lib/api/plugins';
+	import { fetchPlugins, fetchPluginManifest } from '$lib/api/plugins';
 	import { addToast } from '$lib/toasts';
-	import type { Program, PopUp, Screen, ProgramPopUp, PluginInfo } from '$lib/types';
+	import type { Program, PopUp, Screen, ProgramPopUp, PluginInfo, PluginManifest } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
 	import { showConfirm } from '$lib/confirm';
-	import { fetchProgramPluginIds, setProgramPluginIds } from '$lib/programPlugins';
+	import {
+		fetchProgramPluginIds,
+		setProgramPluginIds,
+		fetchPluginPopupOverrides,
+		setPluginPopupOverrides,
+		type PluginPopupOverride,
+	} from '$lib/programPlugins';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
 	let allPopUps = $state<PopUp[]>([]);
 	let allScreens = $state<Screen[]>([]);
 	let allControlPlugins = $state<PluginInfo[]>([]);
+	let pluginManifests = $state<Record<string, PluginManifest>>({});
 	let addPopUpModalOpen = $state(false);
 	let addScreenModalOpen = $state(false);
 
@@ -35,6 +42,8 @@
 	let editScreenIds = $state<number[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
 	let editPluginIds = $state<string[]>([]);
+	// pluginId → templateId → popupId (null = use plugin default)
+	let editPluginPopupOverrides = $state<Record<string, Record<string, number | null>>>({});
 
 	let saving = $state(false);
 
@@ -42,6 +51,13 @@
 	let savedSnapshot = $state('');
 
 	function makeSnapshot(): string {
+		// Produce a stable sorted representation of the popup overrides map.
+		const sortedOverrides = Object.entries(editPluginPopupOverrides)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([pluginId, templates]) => [
+				pluginId,
+				Object.entries(templates).sort(([a], [b]) => a.localeCompare(b)),
+			]);
 		return JSON.stringify([
 			editName,
 			editLogoPath,
@@ -49,6 +65,7 @@
 			editScreenIds,
 			editProgramPopUps.map((pa) => [pa.popup_id, pa.popup_launch_type, pa.duration, pa.frequency]),
 			[...editPluginIds].sort(),
+			sortedOverrides,
 		]);
 	}
 
@@ -149,6 +166,7 @@
 		editScreenIds = [];
 		editProgramPopUps = [];
 		editPluginIds = [];
+		editPluginPopupOverrides = {};
 		activeTab = 'details';
 		takeSnapshot();
 	}
@@ -172,6 +190,16 @@
 		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
 		// Load saved plugin preferences from the server; default to none if unset
 		editPluginIds = await fetchProgramPluginIds(p.id);
+		// Load popup overrides
+		const rawOverrides = await fetchPluginPopupOverrides(p.id);
+		const overridesObj: Record<string, Record<string, number | null>> = {};
+		for (const ov of rawOverrides) {
+			if (!overridesObj[ov.plugin_id]) overridesObj[ov.plugin_id] = {};
+			overridesObj[ov.plugin_id][ov.template_id] = ov.popup_id;
+		}
+		editPluginPopupOverrides = overridesObj;
+		// Pre-load manifests for enabled plugins so popup slots render immediately
+		await Promise.all(editPluginIds.map(loadPluginManifest));
 		activeTab = 'details';
 		takeSnapshot();
 	}
@@ -197,6 +225,17 @@
 		const res = await fetch(`${getBackendUrl()}/programs/${program.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
+	}
+
+	/** Flatten the nested override map into the array format the API expects. */
+	function buildOverridesArray(): PluginPopupOverride[] {
+		const result: PluginPopupOverride[] = [];
+		for (const [pluginId, templates] of Object.entries(editPluginPopupOverrides)) {
+			for (const [templateId, popupId] of Object.entries(templates)) {
+				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: popupId });
+			}
+		}
+		return result;
 	}
 
 	async function save() {
@@ -225,8 +264,9 @@
 					editBgPath = data.program.background_graphics_path;
 					editScreenIds = [];
 					editProgramPopUps = [];
-					// Persist plugin preferences for the newly-created program.
+					// Persist plugin preferences and popup overrides for the newly-created program.
 					await setProgramPluginIds(data.program.id, editPluginIds);
+					await setPluginPopupOverrides(data.program.id, buildOverridesArray());
 					takeSnapshot();
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
@@ -250,8 +290,9 @@
 				});
 				const data = await res.json();
 				if (data.success && editId !== null) {
-					// Persist plugin preferences server-side.
+					// Persist plugin preferences and popup overrides server-side.
 					await setProgramPluginIds(editId, editPluginIds);
+					await setPluginPopupOverrides(editId, buildOverridesArray());
 					takeSnapshot();
 				}
 				if (!data.success) addToast('error', data.error ?? 'Save failed.');
@@ -345,14 +386,39 @@
 	);
 
 	/* ─── Plugin helpers ────────────────────────────────────────── */
-	function togglePlugin(pluginId: string, enabled: boolean) {
+
+	/** Fetch and cache a plugin's manifest (no-op if already loaded). */
+	async function loadPluginManifest(pluginId: string) {
+		if (pluginManifests[pluginId]) return;
+		try {
+			const manifest = await fetchPluginManifest(pluginId);
+			pluginManifests = { ...pluginManifests, [pluginId]: manifest };
+		} catch {
+			// ignore — manifest simply won't be available for popup slots
+		}
+	}
+
+	async function togglePlugin(pluginId: string, enabled: boolean) {
 		if (enabled) {
 			if (!editPluginIds.includes(pluginId)) {
 				editPluginIds = [...editPluginIds, pluginId];
 			}
+			// Load manifest so popup-slot dropdowns can render immediately.
+			await loadPluginManifest(pluginId);
 		} else {
 			editPluginIds = editPluginIds.filter((id) => id !== pluginId);
 		}
+	}
+
+	/** Update a single plugin popup override, triggering Svelte reactivity. */
+	function setPopupOverride(pluginId: string, templateId: string, popupId: number | null) {
+		editPluginPopupOverrides = {
+			...editPluginPopupOverrides,
+			[pluginId]: {
+				...(editPluginPopupOverrides[pluginId] ?? {}),
+				[templateId]: popupId,
+			},
+		};
 	}
 
 	/* ─── Image file input refs ─────────────────────────────────── */
@@ -742,22 +808,51 @@
 								<div class="plugin-list sub-card">
 									{#each allControlPlugins as plugin (plugin.id)}
 										{@const enabled = editPluginIds.includes(plugin.id)}
-										<label class="plugin-row" class:plugin-row-disabled={!enabled}>
-											<div class="plugin-row-info">
-												<span class="plugin-row-name">{plugin.name}</span>
-												<span class="plugin-row-meta">{plugin.description}</span>
+										{@const manifest = pluginManifests[plugin.id]}
+										<div class="plugin-entry" class:plugin-entry-disabled={!enabled}>
+											<!-- Plugin header row -->
+											<div class="plugin-row">
+												<div class="plugin-row-info">
+													<span class="plugin-row-name">{plugin.name}</span>
+													<span class="plugin-row-meta">{plugin.description}</span>
+												</div>
+												<button
+													type="button"
+													role="switch"
+													aria-checked={enabled}
+													class="plugin-toggle"
+													class:plugin-toggle-on={enabled}
+													onclick={() => togglePlugin(plugin.id, !enabled)}
+												>
+													<span class="plugin-toggle-thumb"></span>
+												</button>
 											</div>
-											<button
-												type="button"
-												role="switch"
-												aria-checked={enabled}
-												class="plugin-toggle"
-												class:plugin-toggle-on={enabled}
-												onclick={() => togglePlugin(plugin.id, !enabled)}
-											>
-												<span class="plugin-toggle-thumb"></span>
-											</button>
-										</label>
+
+											<!-- Popup override slots (visible only when plugin is enabled and has popup templates) -->
+											{#if enabled && manifest?.popups?.length}
+												<div class="plugin-popup-slots">
+													<div class="plugin-popup-slots-header">Popup overrides</div>
+													{#each manifest.popups as popupDef (popupDef.template_id)}
+														<div class="plugin-popup-slot">
+															<span class="plugin-popup-slot-name">{popupDef.name}</span>
+															<select
+																class="form-select plugin-popup-select"
+																value={String(editPluginPopupOverrides[plugin.id]?.[popupDef.template_id] ?? '')}
+																onchange={(e) => {
+																	const v = (e.target as HTMLSelectElement).value;
+																	setPopupOverride(plugin.id, popupDef.template_id, v === '' ? null : Number(v));
+																}}
+															>
+																<option value="">Default (plugin popup)</option>
+																{#each allPopUps as popup (popup.id)}
+																	<option value={String(popup.id)}>{popup.name}</option>
+																{/each}
+															</select>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
 									{/each}
 								</div>
 								<p class="plugins-hint">Disabled plugins won't show their control section on the control page for this program.</p>
@@ -1314,7 +1409,15 @@
 	.plugin-list {
 		display: flex;
 		flex-direction: column;
-		divide-y: 1px solid var(--border-1);
+	}
+
+	/* Each plugin entry (header row + optional popup slots) */
+	.plugin-entry {
+		border-bottom: 1px solid var(--border-1);
+	}
+
+	.plugin-entry:last-child {
+		border-bottom: none;
 	}
 
 	.plugin-row {
@@ -1323,20 +1426,14 @@
 		justify-content: space-between;
 		gap: 16px;
 		padding: 12px 16px;
-		cursor: pointer;
 		transition: background 0.1s;
-		border-bottom: 1px solid var(--border-1);
 	}
 
-	.plugin-row:last-child {
-		border-bottom: none;
-	}
-
-	.plugin-row:hover {
+	.plugin-entry:hover > .plugin-row {
 		background: var(--surface-2);
 	}
 
-	.plugin-row-disabled .plugin-row-name {
+	.plugin-entry-disabled .plugin-row-name {
 		color: var(--text-3);
 	}
 
@@ -1391,6 +1488,40 @@
 
 	.plugin-toggle-on .plugin-toggle-thumb {
 		transform: translateX(16px);
+	}
+
+	/* ── Popup override slots ── */
+	.plugin-popup-slots {
+		padding: 0 16px 14px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.plugin-popup-slots-header {
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-3);
+		margin-bottom: 2px;
+	}
+
+	.plugin-popup-slot {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.plugin-popup-slot-name {
+		flex-shrink: 0;
+		width: 120px;
+		font-size: 12px;
+		color: var(--text-2);
+	}
+
+	.plugin-popup-select {
+		flex: 1;
 	}
 
 	.plugins-hint {

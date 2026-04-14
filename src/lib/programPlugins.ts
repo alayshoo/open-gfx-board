@@ -32,3 +32,45 @@ export async function setProgramPluginIds(programId: number, ids: string[]): Pro
 		// best-effort — silently ignore network errors
 	}
 }
+
+// ── Plugin popup overrides ────────────────────────────────────────────────────
+
+export interface PluginPopupOverride {
+	plugin_id: string;
+	template_id: string;
+	/** null means "no override — use the plugin's default popup". */
+	popup_id: number | null;
+}
+
+/**
+ * Returns the popup overrides configured for each plugin template on a program.
+ * Returns an empty array when none have been set yet.
+ */
+export async function fetchPluginPopupOverrides(programId: number): Promise<PluginPopupOverride[]> {
+	try {
+		const res = await fetch(`${getBaseUrl()}/programs/${programId}/plugin-popup-overrides`);
+		if (!res.ok) return [];
+		const data = await res.json();
+		return Array.isArray(data.overrides) ? (data.overrides as PluginPopupOverride[]) : [];
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Persists the popup overrides for a program's plugins, server-side.
+ */
+export async function setPluginPopupOverrides(
+	programId: number,
+	overrides: PluginPopupOverride[],
+): Promise<void> {
+	try {
+		await fetch(`${getBaseUrl()}/programs/${programId}/plugin-popup-overrides`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ overrides }),
+		});
+	} catch {
+		// best-effort — silently ignore network errors
+	}
+}
