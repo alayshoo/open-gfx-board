@@ -1,7 +1,7 @@
 {
   "id": "football",
   "name": "Football",
-  "version": "0.1.28",
+  "version": "0.1.31",
   "description": "Live scoreboard, timer, goals, cards, and lineup overlays for football matches.",
   "author": "Alayshoo",
 
@@ -36,10 +36,15 @@
   "state": {
     "home_team_id":      { "type": "integer", "default": null },
     "away_team_id":      { "type": "integer", "default": null },
-    "home_team_name":    { "type": "string",  "default": "HOME" },
-    "away_team_name":    { "type": "string",  "default": "AWAY" },
-    "home_primary_color":{ "type": "string",  "default": "#ffffff" },
-    "away_primary_color":{ "type": "string",  "default": "#ffffff" },
+    "home_team_name":       { "type": "string",  "default": "HOME" },
+    "away_team_name":       { "type": "string",  "default": "AWAY" },
+    "home_short_name":      { "type": "string",  "default": "HOME" },
+    "away_short_name":      { "type": "string",  "default": "AWAY" },
+    "home_primary_color":   { "type": "string",  "default": "#ffffff" },
+    "away_primary_color":   { "type": "string",  "default": "#ffffff" },
+    "home_secondary_color": { "type": "string",  "default": "#000000" },
+    "away_secondary_color": { "type": "string",  "default": "#000000" },
+    "logo_data_url":        { "type": "string",  "default": null },
     "home_score":        { "type": "integer", "default": 0 },
     "away_score":        { "type": "integer", "default": 0 },
     "timer_accumulated": { "type": "integer", "default": 0 },

@@ -196,5 +196,18 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 10 — per-program plugin preferences stored server-side.
+    // Replaces the previous localStorage-based approach so preferences roam
+    // across all clients (Tauri window, browser, remote devices).
+    if version < 10 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS program_plugin_prefs (
+                 program_id INTEGER PRIMARY KEY REFERENCES programs(id) ON DELETE CASCADE,
+                 plugin_ids TEXT NOT NULL DEFAULT '[]'
+             );
+             INSERT INTO schema_version VALUES (10);",
+        )?;
+    }
+
     Ok(())
 }

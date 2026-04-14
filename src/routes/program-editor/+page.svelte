@@ -12,7 +12,7 @@
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
 	import { showConfirm } from '$lib/confirm';
-	import { getProgramPluginIds, setProgramPluginIds } from '$lib/programPlugins';
+	import { fetchProgramPluginIds, setProgramPluginIds } from '$lib/programPlugins';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
@@ -170,9 +170,8 @@
 		editBgPath = p.background_graphics_path;
 		editScreenIds = p.graphics.map((g) => g.id);
 		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
-		// Load saved plugin preferences; default to none (all disabled until user opts in)
-		const savedPlugins = getProgramPluginIds(p.id);
-		editPluginIds = savedPlugins ?? [];
+		// Load saved plugin preferences from the server; default to none if unset
+		editPluginIds = await fetchProgramPluginIds(p.id);
 		activeTab = 'details';
 		takeSnapshot();
 	}
@@ -227,8 +226,7 @@
 					editScreenIds = [];
 					editProgramPopUps = [];
 					// Persist plugin preferences for the newly-created program.
-					// Store null (= "none") when empty so there's no stale key in localStorage.
-					setProgramPluginIds(data.program.id, editPluginIds.length === 0 ? null : editPluginIds);
+					await setProgramPluginIds(data.program.id, editPluginIds);
 					takeSnapshot();
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
@@ -252,10 +250,8 @@
 				});
 				const data = await res.json();
 				if (data.success && editId !== null) {
-					// Persist plugin preferences. Store null (= "none", the default)
-					// when no plugins are enabled, so new programs start clean.
-					// Otherwise store the explicit list the user opted into.
-					setProgramPluginIds(editId, editPluginIds.length === 0 ? null : editPluginIds);
+					// Persist plugin preferences server-side.
+					await setProgramPluginIds(editId, editPluginIds);
 					takeSnapshot();
 				}
 				if (!data.success) addToast('error', data.error ?? 'Save failed.');

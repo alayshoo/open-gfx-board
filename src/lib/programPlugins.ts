@@ -1,32 +1,34 @@
-const KEY_PREFIX = 'pgfx-program-plugins-';
+import { getBaseUrl } from '$lib/api/api';
 
 /**
- * Returns the plugin IDs explicitly enabled for a program.
- * Returns `null` when no preference has been saved, which means
- * "no plugins enabled" (the default — all plugins are off until the user
- * explicitly enables them for this program).
+ * Returns the plugin IDs enabled for a program, fetched from the server.
+ * Returns an empty array when no preference has been saved yet.
+ *
+ * Preferences are stored server-side so they are shared across all clients
+ * (Tauri window, browser, remote devices) rather than being per-device.
  */
-export function getProgramPluginIds(programId: number): string[] | null {
-	if (typeof localStorage === 'undefined') return null;
+export async function fetchProgramPluginIds(programId: number): Promise<string[]> {
 	try {
-		const raw = localStorage.getItem(`${KEY_PREFIX}${programId}`);
-		return raw !== null ? (JSON.parse(raw) as string[]) : null;
+		const res = await fetch(`${getBaseUrl()}/programs/${programId}/plugin-prefs`);
+		if (!res.ok) return [];
+		const data = await res.json();
+		return Array.isArray(data.plugin_ids) ? (data.plugin_ids as string[]) : [];
 	} catch {
-		return null;
+		return [];
 	}
 }
 
 /**
- * Persists the plugin IDs enabled for a program.
- * Pass `null` to remove the preference and revert to "show none" (the default).
+ * Persists the plugin IDs enabled for a program, server-side.
  */
-export function setProgramPluginIds(programId: number, ids: string[] | null): void {
-	if (typeof localStorage === 'undefined') return;
+export async function setProgramPluginIds(programId: number, ids: string[]): Promise<void> {
 	try {
-		if (ids === null) {
-			localStorage.removeItem(`${KEY_PREFIX}${programId}`);
-		} else {
-			localStorage.setItem(`${KEY_PREFIX}${programId}`, JSON.stringify(ids));
-		}
-	} catch {}
+		await fetch(`${getBaseUrl()}/programs/${programId}/plugin-prefs`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ plugin_ids: ids }),
+		});
+	} catch {
+		// best-effort — silently ignore network errors
+	}
 }

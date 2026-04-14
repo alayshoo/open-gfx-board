@@ -9,7 +9,7 @@
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
 	import { fetchPlugins, fetchPluginManifest } from "$lib/api/plugins";
-	import { getProgramPluginIds } from "$lib/programPlugins";
+	import { fetchProgramPluginIds } from "$lib/programPlugins";
 	import { addToast } from "$lib/toasts";
 	import type {
 		Program,
@@ -39,15 +39,29 @@
 	let controlPlugins = $state<PluginInfo[]>([]);
 	let pluginManifests = $state<Record<string, PluginManifest>>({});
 
-	// Per-program plugin filter: reads the per-program plugin preferences from
-	// localStorage. null = no preference saved = show none (plugins are opt-in per program).
-	const programPluginFilter = $derived(
-		program ? getProgramPluginIds(program.id) : null
-	);
+	// Per-program plugin filter: fetched from the server so it is shared across
+	// all clients. null = no program loaded; [] = program loaded, no plugins enabled.
+	let programPluginFilter = $state<string[] | null>(null);
+
+	$effect(() => {
+		const currentProgram = program;
+		if (!currentProgram) {
+			programPluginFilter = null;
+			return;
+		}
+		const pid = currentProgram.id;
+		fetchProgramPluginIds(pid).then((ids) => {
+			// Guard against a stale response if program changed while fetching
+			if (program?.id === pid) {
+				programPluginFilter = ids;
+			}
+		});
+	});
+
 	const visibleControlPlugins = $derived(
 		programPluginFilter === null
 			? []
-			: controlPlugins.filter((p) => programPluginFilter.includes(p.id))
+			: controlPlugins.filter((p) => programPluginFilter!.includes(p.id))
 	);
 
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);

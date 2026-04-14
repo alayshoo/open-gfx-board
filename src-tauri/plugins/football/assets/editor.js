@@ -115,6 +115,7 @@ class FootballEditor extends HTMLElement {
           <button class="fe-tab ${this._tab === 'teams' ? 'active' : ''}" data-tab="teams">Teams</button>
           <button class="fe-tab ${this._tab === 'players' ? 'active' : ''}" data-tab="players">Players</button>
           <button class="fe-tab ${this._tab === 'formation' ? 'active' : ''}" data-tab="formation">Starting 11</button>
+          <button class="fe-tab ${this._tab === 'media' ? 'active' : ''}" data-tab="media">Media</button>
         </div>
         <div class="fe-content" id="fe-content"></div>
 
@@ -263,11 +264,15 @@ class FootballEditor extends HTMLElement {
       const stateUpdates = {};
       if (Number(this._state.home_team_id) === id) {
         stateUpdates.home_team_name = name;
+        stateUpdates.home_short_name = short_name;
         stateUpdates.home_primary_color = primary_color;
+        stateUpdates.home_secondary_color = secondary_color;
       }
       if (Number(this._state.away_team_id) === id) {
         stateUpdates.away_team_name = name;
+        stateUpdates.away_short_name = short_name;
         stateUpdates.away_primary_color = primary_color;
+        stateUpdates.away_secondary_color = secondary_color;
       }
       if (Object.keys(stateUpdates).length) {
         this._state = await this._sdk.setState(stateUpdates);
@@ -296,6 +301,7 @@ class FootballEditor extends HTMLElement {
     if (this._tab === 'teams') this._renderTeams(container);
     else if (this._tab === 'players') this._renderPlayers(container);
     else if (this._tab === 'formation') this._renderFormation(container);
+    else if (this._tab === 'media') this._renderMedia(container);
   }
 
   // ── Teams Tab ──
@@ -325,8 +331,8 @@ class FootballEditor extends HTMLElement {
               <td><span class="fe-color-dot" style="background:${t.primary_color}"></span> <span class="fe-color-dot" style="background:${t.secondary_color}"></span></td>
               <td>
                 <div class="fe-td-actions">
-                  <button class="fe-btn ${isHome ? 'fe-btn-home' : ''}" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Home">Home</button>
-                  <button class="fe-btn ${isAway ? 'fe-btn-away' : ''}" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-color="${t.primary_color}" title="Set as Away">Away</button>
+                  <button class="fe-btn ${isHome ? 'fe-btn-home' : ''}" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Home">Home</button>
+                  <button class="fe-btn ${isAway ? 'fe-btn-away' : ''}" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Away">Away</button>
                   <div class="fe-action-sep"></div>
                   <button class="fe-btn" data-edit-team="${t.id}">Edit</button>
                   <button class="fe-btn fe-btn-danger" data-del-team="${t.id}">Del</button>
@@ -362,7 +368,9 @@ class FootballEditor extends HTMLElement {
         this._state = await this._sdk.setState({
           home_team_id: Number(btn.dataset.setTeam),
           home_team_name: btn.dataset.teamName,
+          home_short_name: btn.dataset.teamShort,
           home_primary_color: btn.dataset.teamColor,
+          home_secondary_color: btn.dataset.teamColor2,
         });
         this._renderContent();
       });
@@ -373,7 +381,9 @@ class FootballEditor extends HTMLElement {
         this._state = await this._sdk.setState({
           away_team_id: Number(btn.dataset.setAway),
           away_team_name: btn.dataset.teamName,
+          away_short_name: btn.dataset.teamShort,
           away_primary_color: btn.dataset.teamColor,
+          away_secondary_color: btn.dataset.teamColor2,
         });
         this._renderContent();
       });
@@ -619,6 +629,74 @@ class FootballEditor extends HTMLElement {
     if (!val) { input.classList.remove('fe-input-error'); return; }
     const valid = this._players.some(p => p.number === Number(val));
     input.classList.toggle('fe-input-error', !valid);
+  }
+
+  // ── Media Tab ──
+
+  _renderMedia(el) {
+    const hasLogo = !!this._state.logo_data_url;
+    el.innerHTML = `
+      <div class="fe-section">
+        <div class="fe-label">Scoreboard Logo</div>
+        <div class="fe-row" style="align-items:flex-start;gap:20px;flex-wrap:wrap">
+
+          <div id="fe-logo-preview-wrap" style="flex-shrink:0">
+            ${hasLogo
+              ? `<div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                   <img id="fe-logo-preview" style="width:100px;height:100px;object-fit:contain;border:1px solid var(--border-1,#3f3f46);border-radius:8px;background:#111;padding:8px" />
+                   <button class="fe-btn fe-btn-danger" id="fe-logo-remove">Remove</button>
+                 </div>`
+              : `<div style="width:100px;height:100px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-1,#3f3f46);border-radius:8px;color:var(--text-3,#71717a);font-size:0.75rem;text-align:center;padding:8px;line-height:1.4">
+                   No logo set
+                 </div>`
+            }
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:2px">
+            <label class="fe-btn fe-btn-primary" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+              <input type="file" accept="image/*" id="fe-logo-upload" style="display:none" />
+              ${hasLogo ? 'Replace image' : 'Upload image'}
+            </label>
+            <p class="fe-help">PNG, JPG, WEBP or SVG. Scaled to fit the logo cell.</p>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    // Set preview src via JS — avoids embedding the full data URL in innerHTML
+    const previewImg = el.querySelector('#fe-logo-preview');
+    if (previewImg && this._state.logo_data_url) previewImg.src = this._state.logo_data_url;
+
+    el.querySelector('#fe-logo-upload')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const dataUrl = await this._resizeImage(file, 240);
+      this._state = await this._sdk.setState({ logo_data_url: dataUrl });
+      this._renderContent();
+    });
+
+    el.querySelector('#fe-logo-remove')?.addEventListener('click', async () => {
+      this._state = await this._sdk.setState({ logo_data_url: null });
+      this._renderContent();
+    });
+  }
+
+  _resizeImage(file, maxSize) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = url;
+    });
   }
 
   _esc(str) {

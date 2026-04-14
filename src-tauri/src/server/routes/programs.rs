@@ -18,6 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}", put(update_program))
         .route("/{id}", delete(delete_program))
         .route("/{id}/upload-image", post(upload_program_image))
+        .route("/{id}/plugin-prefs", get(get_plugin_prefs).put(set_plugin_prefs))
 }
 
 async fn list_programs(State(state): State<AppState>) -> impl IntoResponse {
@@ -209,6 +210,61 @@ async fn upload_program_image(
             }
             Json(json!({ "success": true, "imagePath": rel_path })).into_response()
         }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+// ── Per-program plugin preferences ───────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SetPluginPrefsBody {
+    plugin_ids: Vec<String>,
+}
+
+async fn get_plugin_prefs(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    let result = tokio::task::block_in_place(|| {
+        db.query_row(
+            "SELECT plugin_ids FROM program_plugin_prefs WHERE program_id = ?1",
+            rusqlite::params![id],
+            |r| r.get::<_, String>(0),
+        )
+    });
+    match result {
+        Ok(json_str) => {
+            let ids: Vec<String> = serde_json::from_str(&json_str).unwrap_or_default();
+            Json(json!({ "plugin_ids": ids })).into_response()
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            let empty: Vec<String> = vec![];
+            Json(json!({ "plugin_ids": empty })).into_response()
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+async fn set_plugin_prefs(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<SetPluginPrefsBody>,
+) -> impl IntoResponse {
+    let json_str = match serde_json::to_string(&body.plugin_ids) {
+        Ok(s) => s,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    };
+    let db = state.db.lock().await;
+    let result = tokio::task::block_in_place(|| {
+        db.execute(
+            "INSERT INTO program_plugin_prefs (program_id, plugin_ids) VALUES (?1, ?2)
+             ON CONFLICT(program_id) DO UPDATE SET plugin_ids = excluded.plugin_ids",
+            rusqlite::params![id, json_str],
+        )
+    });
+    match result {
+        Ok(_) => Json(json!({ "success": true })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

@@ -52,7 +52,7 @@
   }
 
   .player-detail {
-    font-size: 13px;
+    font-size: 28px;
     color: #a1a1aa;
   }
 </style>
@@ -61,10 +61,10 @@
   <div class="card-popup">
     <div class="card-icon"></div>
     <div class="card-info">
-      <span class="card-type">{{plugin:football:context:card_type}}</span>
+      <span class="card-type">{{plugin:football:context:team_name}}</span>
       <span class="player-name">{{plugin:football:context:player_name}}</span>
-      <span class="player-detail">#{{plugin:football:context:player_number}} - {{plugin:football:context:team_name}}</span>
     </div>
+    <span class="player-detail">{{plugin:football:context:player_number}}</span>
   </div>
 </body>
 </html>
