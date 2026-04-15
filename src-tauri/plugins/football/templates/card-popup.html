@@ -6,29 +6,37 @@
   body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
   .card-popup {
-    width: 100%;
-    height: 100%;
+    width: fit-content;
+    height: fit-content;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 18px;
     background: rgba(0, 0, 0, 0.9);
-    border-radius: 10px;
-    padding: 16px 28px;
+    border-radius: 11px;
+    padding: 18px 31px;
     animation: cardSlide 0.4s ease-out;
+    white-space: nowrap;
   }
 
   @keyframes cardSlide {
-    0% { transform: translateY(-20px); opacity: 0; }
+    0% { transform: translateY(-22px); opacity: 0; }
     100% { transform: translateY(0); opacity: 1; }
   }
 
+  @keyframes cardReveal {
+    0%   { transform: scale(0.55) translateY(10px); filter: saturate(0.15) brightness(0.7); }
+    65%  { transform: scale(1.06) translateY(-2px); filter: saturate(1.15) brightness(1.07); }
+    100% { transform: scale(1)   translateY(0);     filter: saturate(1)   brightness(1); }
+  }
+
   .card-icon {
-    width: 36px;
-    height: 50px;
+    width: 40px;
+    height: 55px;
     border-radius: 4px;
     background: {{plugin:football:context:card_color}};
     flex-shrink: 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    animation: cardReveal 0.55s cubic-bezier(0.34, 1.2, 0.64, 1) 0.8s both;
   }
 
   .card-info {
@@ -38,7 +46,7 @@
   }
 
   .card-type {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -46,15 +54,18 @@
   }
 
   .player-name {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 700;
     color: #ffffff;
   }
 
   .player-number {
-    font-size: 28px;
+    font-size: 31px;
     font-weight: 700;
     color: #a1a1aa;
+    line-height: 1;
+    padding-left: 18px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
   }
 </style>
 </head>

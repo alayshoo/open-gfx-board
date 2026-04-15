@@ -34,7 +34,7 @@ struct CreatePopupBody {
     sponsor_name: Option<String>,
     comments: Option<String>,
     direction: Option<String>,
-    position: Option<i64>,
+    position: Option<f64>,
     media_type: Option<String>,
     html_content: Option<String>,
     width: Option<i64>,
@@ -49,7 +49,7 @@ async fn create_popup(
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
-    let position = body.position.unwrap_or(50);
+    let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
     match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {
@@ -73,7 +73,7 @@ struct UpdatePopupBody {
     sponsor_name: Option<String>,
     comments: Option<String>,
     direction: Option<String>,
-    position: Option<i64>,
+    position: Option<f64>,
     media_type: Option<String>,
     html_content: Option<String>,
     width: Option<i64>,
@@ -89,7 +89,7 @@ async fn update_popup(
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
-    let position = body.position.unwrap_or(50);
+    let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
     match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {

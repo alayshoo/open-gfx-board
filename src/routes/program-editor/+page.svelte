@@ -32,7 +32,7 @@
 	// Selection state
 	let selectedId = $state<number | null>(null);
 	let isCreatingNew = $state(false);
-	let activeTab = $state<'details' | 'plugins'>('details');
+	let activeTab = $state<'details' | 'screens' | 'popups' | 'plugins'>('details');
 
 	// Edit state
 	let editId = $state<number | null>(null);
@@ -42,8 +42,13 @@
 	let editScreenIds = $state<number[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
 	let editPluginIds = $state<string[]>([]);
-	// pluginId → templateId → popupId (null = use plugin default)
-	let editPluginPopupOverrides = $state<Record<string, Record<string, number | null>>>({});
+	// pluginId → templateId → { popup_id (null = use plugin default), duration in seconds }
+	let editPluginPopupOverrides = $state<Record<string, Record<string, { popup_id: number | null; duration: number }>>>({});
+
+	// Plugin popup override picker modal
+	let pluginPopupPickerModalOpen = $state(false);
+	let pluginPopupPickerPluginId = $state('');
+	let pluginPopupPickerTemplateId = $state('');
 
 	let saving = $state(false);
 
@@ -192,10 +197,10 @@
 		editPluginIds = await fetchProgramPluginIds(p.id);
 		// Load popup overrides
 		const rawOverrides = await fetchPluginPopupOverrides(p.id);
-		const overridesObj: Record<string, Record<string, number | null>> = {};
+		const overridesObj: Record<string, Record<string, { popup_id: number | null; duration: number }>> = {};
 		for (const ov of rawOverrides) {
 			if (!overridesObj[ov.plugin_id]) overridesObj[ov.plugin_id] = {};
-			overridesObj[ov.plugin_id][ov.template_id] = ov.popup_id;
+			overridesObj[ov.plugin_id][ov.template_id] = { popup_id: ov.popup_id, duration: ov.duration ?? 10 };
 		}
 		editPluginPopupOverrides = overridesObj;
 		// Pre-load manifests for enabled plugins so popup slots render immediately
@@ -231,8 +236,8 @@
 	function buildOverridesArray(): PluginPopupOverride[] {
 		const result: PluginPopupOverride[] = [];
 		for (const [pluginId, templates] of Object.entries(editPluginPopupOverrides)) {
-			for (const [templateId, popupId] of Object.entries(templates)) {
-				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: popupId });
+			for (const [templateId, override] of Object.entries(templates)) {
+				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: override.popup_id, duration: override.duration });
 			}
 		}
 		return result;
@@ -410,13 +415,27 @@
 		}
 	}
 
-	/** Update a single plugin popup override, triggering Svelte reactivity. */
+	/** Update a single plugin popup override, triggering Svelte reactivity. Preserves existing duration. */
 	function setPopupOverride(pluginId: string, templateId: string, popupId: number | null) {
+		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
 		editPluginPopupOverrides = {
 			...editPluginPopupOverrides,
 			[pluginId]: {
 				...(editPluginPopupOverrides[pluginId] ?? {}),
-				[templateId]: popupId,
+				[templateId]: { popup_id: popupId, duration: existing?.duration ?? 10 },
+			},
+		};
+	}
+
+	/** Update the duration for a single plugin popup override slot. */
+	function setPopupOverrideDuration(pluginId: string, templateId: string, duration: number) {
+		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
+		if (!existing) return;
+		editPluginPopupOverrides = {
+			...editPluginPopupOverrides,
+			[pluginId]: {
+				...(editPluginPopupOverrides[pluginId] ?? {}),
+				[templateId]: { ...existing, duration },
 			},
 		};
 	}
@@ -831,23 +850,38 @@
 											<!-- Popup override slots (visible only when plugin is enabled and has popup templates) -->
 											{#if enabled && manifest?.popups?.length}
 												<div class="plugin-popup-slots">
-													<div class="plugin-popup-slots-header">Popup overrides</div>
+													<div class="plugin-popup-slots-header"></div>
 													{#each manifest.popups as popupDef (popupDef.template_id)}
+														{@const override = editPluginPopupOverrides[plugin.id]?.[popupDef.template_id]}
+														{@const selectedPopup = override?.popup_id != null ? allPopUps.find((p) => p.id === override.popup_id) : null}
 														<div class="plugin-popup-slot">
 															<span class="plugin-popup-slot-name">{popupDef.name}</span>
-															<select
-																class="form-select plugin-popup-select"
-																value={String(editPluginPopupOverrides[plugin.id]?.[popupDef.template_id] ?? '')}
-																onchange={(e) => {
-																	const v = (e.target as HTMLSelectElement).value;
-																	setPopupOverride(plugin.id, popupDef.template_id, v === '' ? null : Number(v));
+															<button
+																type="button"
+																class="plugin-popup-btn"
+																onclick={() => {
+																	pluginPopupPickerPluginId = plugin.id;
+																	pluginPopupPickerTemplateId = popupDef.template_id;
+																	pluginPopupPickerModalOpen = true;
 																}}
 															>
-																<option value="">Default (plugin popup)</option>
-																{#each allPopUps as popup (popup.id)}
-																	<option value={String(popup.id)}>{popup.name}</option>
-																{/each}
-															</select>
+																{#if selectedPopup}
+																	<span class="plugin-popup-btn-value">{selectedPopup.name}</span>
+																{:else}
+																	<span class="plugin-popup-btn-placeholder">Default (plugin popup)</span>
+																{/if}
+																<svg class="plugin-popup-btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+															</button>
+															<input
+																class="form-input number-input plugin-popup-duration-input"
+																type="number"
+																min="0"
+																value={override?.duration ?? 10}
+																disabled={override?.popup_id == null}
+																title="Duration (s)"
+																oninput={(e) => setPopupOverrideDuration(plugin.id, popupDef.template_id, Math.max(0, Number((e.target as HTMLInputElement).value)))}
+															/>
+															<span class="plugin-popup-duration-unit">s</span>
 														</div>
 													{/each}
 												</div>
@@ -935,6 +969,61 @@
 			</button>
 		{:else}
 			<p class="picker-empty-msg">No more pop-ups available to add.</p>
+		{/each}
+	</div>
+</Modal>
+
+<!-- Plugin Popup Override Picker Modal -->
+<Modal bind:open={pluginPopupPickerModalOpen} title="Select Popup Override" width="700px">
+	{#snippet footer()}
+		<button class="btn btn-ghost" onclick={() => { pluginPopupPickerModalOpen = false; }}>Done</button>
+	{/snippet}
+	{@const activeOverrideId = editPluginPopupOverrides[pluginPopupPickerPluginId]?.[pluginPopupPickerTemplateId]?.popup_id}
+	<div class="picker-grid">
+		<!-- Default option -->
+		<button
+			class="picker-card"
+			class:picker-card-active={activeOverrideId == null}
+			onclick={() => {
+				setPopupOverride(pluginPopupPickerPluginId, pluginPopupPickerTemplateId, null);
+				pluginPopupPickerModalOpen = false;
+			}}
+			aria-label="Use default plugin popup"
+		>
+			<div class="picker-img-wrap">
+				<span class="picker-empty">—</span>
+			</div>
+			<div class="picker-info">
+				<div class="picker-name">Default</div>
+				<div class="picker-sub">Use plugin's own popup</div>
+			</div>
+			<div class="picker-add-btn">{activeOverrideId == null ? 'Selected' : 'Select'}</div>
+		</button>
+		{#each allPopUps as popup (popup.id)}
+			<button
+				class="picker-card"
+				class:picker-card-active={activeOverrideId === popup.id}
+				onclick={() => {
+					setPopupOverride(pluginPopupPickerPluginId, pluginPopupPickerTemplateId, popup.id);
+					pluginPopupPickerModalOpen = false;
+				}}
+				aria-label="Select {popup.name}"
+			>
+				<div class="picker-img-wrap">
+					{#if popup.image_path}
+						<MediaPreview class="picker-img" src={imgUrl(popup.image_path)} alt={popup.name} />
+					{:else}
+						<span class="picker-empty">—</span>
+					{/if}
+				</div>
+				<div class="picker-info">
+					<div class="picker-name">{popup.name}</div>
+					<div class="picker-sub">{popup.sponsor_name || 'No sponsor'}</div>
+				</div>
+				<div class="picker-add-btn">{activeOverrideId === popup.id ? 'Selected' : 'Select'}</div>
+			</button>
+		{:else}
+			<p class="picker-empty-msg">No pop-ups available.</p>
 		{/each}
 	</div>
 </Modal>
@@ -1520,8 +1609,70 @@
 		color: var(--text-2);
 	}
 
-	.plugin-popup-select {
+	/* Plugin popup override picker button (replaces dropdown) */
+	.plugin-popup-btn {
 		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 6px 10px;
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-sm);
+		cursor: pointer;
+		text-align: left;
+		font-size: 13px;
+		color: var(--text-1);
+		min-width: 0;
+		transition: border-color 0.12s, background 0.12s;
+	}
+
+	.plugin-popup-btn:hover {
+		border-color: var(--accent);
+		background: var(--surface-3);
+	}
+
+	.plugin-popup-btn-value {
+		flex: 1;
+		color: var(--text-1);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.plugin-popup-btn-placeholder {
+		flex: 1;
+		color: var(--text-3);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.plugin-popup-btn-icon {
+		flex-shrink: 0;
+		color: var(--text-3);
+	}
+
+	.plugin-popup-duration-input {
+		width: 64px;
+		flex-shrink: 0;
+	}
+
+	.plugin-popup-duration-unit {
+		font-size: 12px;
+		color: var(--text-3);
+		flex-shrink: 0;
+	}
+
+	/* Active/selected state for picker cards (used in override picker) */
+	.picker-card-active {
+		border-color: var(--accent) !important;
+		background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+	}
+
+	.picker-card-active .picker-add-btn {
+		opacity: 1;
 	}
 
 	.plugins-hint {

@@ -443,6 +443,12 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		container-type: inline-size;
+		/* Move scrollbar to the left so it doesn't crowd the resize divider */
+		direction: rtl;
+	}
+
+	.main-panel > * {
+		direction: ltr;
 	}
 
 	/* Header */

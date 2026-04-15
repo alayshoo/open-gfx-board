@@ -72,7 +72,7 @@ pub struct Popup {
     /// Raw HTML template. Only populated when `media_type` is `"html"`.
     pub html_content: Option<String>,
     pub direction: String,
-    pub position: i64,
+    pub position: f64,
     /// Explicit width in pixels.  When `None`, image/video popups use their
     /// natural media dimensions; HTML popups fall back to a client-side default.
     pub width: Option<i64>,
@@ -154,7 +154,7 @@ pub struct ActivePopup {
     pub image_path: Option<String>,
     pub duration: i64,
     pub direction: String,
-    pub position: i64,
+    pub position: f64,
     #[serde(rename = "mediaType")]
     pub media_type: String,
     /// Processed HTML content (template expressions already resolved).

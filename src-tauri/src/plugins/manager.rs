@@ -316,6 +316,37 @@ pub fn create_plugin_tables(conn: &Connection, manifest: &PluginManifest) -> Res
             col_defs.join(", ")
         );
         conn.execute_batch(&sql)?;
+
+        // Migrate: add any columns that exist in the manifest but are absent
+        // from the real table (e.g. columns added to plugin.json after the DB
+        // was first created).
+        let existing_cols: Vec<String> = {
+            let mut stmt = conn.prepare(&format!(
+                "PRAGMA table_info(\"{}\")",
+                full_table_name
+            ))?;
+            let cols: std::result::Result<Vec<_>, _> = stmt
+                .query_map([], |row| row.get::<_, String>(1))?
+                .collect();
+            cols?
+        };
+
+        for (col_name, col_type) in &table_def.columns {
+            if !validate_identifier(col_name) {
+                continue;
+            }
+            if !existing_cols.contains(col_name) {
+                if let Err(e) = conn.execute_batch(&format!(
+                    "ALTER TABLE \"{}\" ADD COLUMN \"{}\" {}",
+                    full_table_name, col_name, col_type
+                )) {
+                    eprintln!(
+                        "Plugin '{}': could not add column '{}' to table '{}': {}",
+                        manifest.id, col_name, full_table_name, e
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }

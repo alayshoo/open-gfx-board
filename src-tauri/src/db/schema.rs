@@ -225,5 +225,13 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 12 — add duration to plugin popup overrides.
+    if version < 12 {
+        conn.execute_batch(
+            "ALTER TABLE program_plugin_popup_overrides ADD COLUMN duration INTEGER NOT NULL DEFAULT 10;
+             INSERT INTO schema_version VALUES (12);",
+        )?;
+    }
+
     Ok(())
 }

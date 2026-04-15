@@ -470,8 +470,6 @@ async fn trigger_popup(
         None => return (StatusCode::NOT_FOUND, Json(json!({"error": "Popup template not found"}))),
     };
 
-    let duration = body.duration.unwrap_or(popup_def.duration);
-
     // ── Check for a per-program popup override ────────────────────────────────
     // If the currently-active program has a user-configured popup mapped to this
     // plugin template, trigger that popup instead of the plugin's built-in one.
@@ -483,16 +481,22 @@ async fn trigger_popup(
     if let Some(pid) = program_id {
         let db = state.db.lock().await;
 
-        // Look up the override popup id (NULL rows mean "no override set").
-        let override_popup_id: Option<i64> = db
+        // Look up the override popup id and its configured duration (NULL popup_id rows mean "no override set").
+        let override_row: Option<(i64, i64)> = db
             .query_row(
-                "SELECT popup_id FROM program_plugin_popup_overrides \
+                "SELECT popup_id, duration FROM program_plugin_popup_overrides \
                  WHERE program_id = ?1 AND plugin_id = ?2 AND template_id = ?3 \
                  AND popup_id IS NOT NULL",
                 rusqlite::params![pid, &id, &body.template_id],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .ok();
+        let override_popup_id = override_row.as_ref().map(|(pid, _)| *pid);
+        // Plugin body duration takes highest precedence, then the per-program override
+        // duration, then the manifest default.
+        let duration = body.duration
+            .or_else(|| override_row.as_ref().map(|(_, d)| *d))
+            .unwrap_or(popup_def.duration);
 
         // Load the override popup data inline (only the columns we need).
         let override_data = if let Some(opid) = override_popup_id {
@@ -508,7 +512,7 @@ async fn trigger_popup(
                         r.get::<_, Option<String>>(2)?,
                         r.get::<_, Option<String>>(3)?,
                         r.get::<_, String>(4)?,
-                        r.get::<_, i64>(5)?,
+                        r.get::<_, f64>(5)?,
                         r.get::<_, Option<i64>>(6)?,
                         r.get::<_, Option<i64>>(7)?,
                     ))
@@ -590,6 +594,8 @@ async fn trigger_popup(
     }
 
     // ── Default: use the plugin's built-in popup template ────────────────────
+    // No per-program override was active — fall back to the manifest duration.
+    let duration = body.duration.unwrap_or(popup_def.duration);
 
     // Read template from disk
     let template_path = state

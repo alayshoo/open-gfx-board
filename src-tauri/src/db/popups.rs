@@ -49,7 +49,7 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
             row.get::<_, String>(5)?,
             row.get::<_, Option<String>>(6)?,
             row.get::<_, String>(7)?,
-            row.get::<_, i64>(8)?,
+            row.get::<_, f64>(8)?,
             row.get::<_, Option<i64>>(9)?,
             row.get::<_, Option<i64>>(10)?,
             row.get::<_, String>(11)?,
@@ -83,7 +83,7 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
     }
 }
 
-pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Popup> {
+pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Popup> {
     conn.execute(
         "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type, html_content, width, height) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height],
@@ -92,7 +92,7 @@ pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments:
     Ok(get_popup(conn, id)?.expect("popup just inserted must exist"))
 }
 
-pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: i64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Option<Popup>> {
+pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Option<Popup>> {
     let rows = conn.execute(
         "UPDATE popups SET name = ?1, sponsor_name = ?2, comments = ?3, direction = ?4, position = ?5, media_type = ?6, html_content = ?7, width = ?8, height = ?9 WHERE id = ?10",
         rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height, id],

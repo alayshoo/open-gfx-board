@@ -98,7 +98,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         image_path: runtime.active_popup_path.clone(),
                         duration: runtime.active_popup_duration,
                         direction: runtime.active_popup_direction.clone().unwrap_or_else(|| "bottom".to_string()),
-                        position: runtime.active_popup_position.unwrap_or(50),
+                        position: runtime.active_popup_position.unwrap_or(50.0),
                         media_type: runtime.active_popup_media_type.clone().unwrap_or_else(|| "image".to_string()),
                         html_content: runtime.active_popup_html_content.clone(),
                         width: runtime.active_popup_width,

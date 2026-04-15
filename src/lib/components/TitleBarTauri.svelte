@@ -41,7 +41,6 @@
 		{ href: "/screen-editor", label: "Screens" },
 		{ href: "/popup-editor", label: "PopUps" },
 		{ href: "/plugin-editor", label: "Plugins" },
-		{ href: "/studio-editor", label: "Presets" },
 	] as const;
 
 	$effect(() => {
@@ -201,6 +200,11 @@
 			{/if}
 		</div>
 
+		<a
+			href="/studio-editor"
+			class="nav-link"
+			class:active={$page.url.pathname === "/studio-editor"}>Commands</a
+		>
 		<a
 			href="/settings"
 			class="nav-link"

@@ -483,10 +483,6 @@ class FootballControl extends HTMLElement {
         const teamColor = team === 'home' ? this._state.home_primary_color : this._state.away_primary_color;
 
         if (action === 'confirm-goal') {
-          const key      = team === 'home' ? 'home_score' : 'away_score';
-          const newScore = (Number(this._state[key]) || 0) + 1;
-          this._state    = { ...this._state, [key]: newScore };
-          await this._sdk.setState({ [key]: newScore });
           await this._sdk.triggerPopup('goal-popup', {
             player_name:   playerName,
             player_number: String(number),

@@ -164,6 +164,10 @@ class FootballEditor extends HTMLElement {
               <label>Short Name</label>
               <input class="fe-input fe-input-sm" id="fe-edit-short" placeholder="Short" />
             </div>
+            <div class="fe-modal-field">
+              <label>Manager</label>
+              <input class="fe-input" id="fe-edit-manager" placeholder="Manager name" style="width:100%;box-sizing:border-box" />
+            </div>
             <div class="fe-modal-colors">
               <div class="fe-modal-field">
                 <label>Primary Color</label>
@@ -257,20 +261,23 @@ class FootballEditor extends HTMLElement {
       const name = this.querySelector('#fe-edit-name')?.value?.trim();
       if (!name) return;
       const short_name = this.querySelector('#fe-edit-short')?.value?.trim() || '';
+      const manager = this.querySelector('#fe-edit-manager')?.value?.trim() || '';
       const primary_color = this.querySelector('#fe-edit-color1')?.value || '#ffffff';
       const secondary_color = this.querySelector('#fe-edit-color2')?.value || '#000000';
-      await this._sdk.updateRow('teams', id, { name, short_name, primary_color, secondary_color });
-      // If this team is home or away, sync the updated name/color into state too
+      await this._sdk.updateRow('teams', id, { name, short_name, manager, primary_color, secondary_color });
+      // If this team is home or away, sync the updated fields into state too
       const stateUpdates = {};
       if (Number(this._state.home_team_id) === id) {
         stateUpdates.home_team_name = name;
         stateUpdates.home_short_name = short_name;
+        stateUpdates.home_manager = manager;
         stateUpdates.home_primary_color = primary_color;
         stateUpdates.home_secondary_color = secondary_color;
       }
       if (Number(this._state.away_team_id) === id) {
         stateUpdates.away_team_name = name;
         stateUpdates.away_short_name = short_name;
+        stateUpdates.away_manager = manager;
         stateUpdates.away_primary_color = primary_color;
         stateUpdates.away_secondary_color = secondary_color;
       }
@@ -313,6 +320,7 @@ class FootballEditor extends HTMLElement {
         <div class="fe-row">
           <input class="fe-input" id="fe-team-name" placeholder="Team name" />
           <input class="fe-input fe-input-sm" id="fe-team-short" placeholder="Short" />
+          <input class="fe-input" id="fe-team-manager" placeholder="Manager name" />
           <input class="fe-input fe-input-color" id="fe-team-color1" type="color" value="#ffffff" title="Primary color" />
           <input class="fe-input fe-input-color" id="fe-team-color2" type="color" value="#000000" title="Secondary color" />
           <button class="fe-btn fe-btn-primary" id="fe-team-add">Add</button>
@@ -331,8 +339,8 @@ class FootballEditor extends HTMLElement {
               <td><span class="fe-color-dot" style="background:${t.primary_color}"></span> <span class="fe-color-dot" style="background:${t.secondary_color}"></span></td>
               <td>
                 <div class="fe-td-actions">
-                  <button class="fe-btn ${isHome ? 'fe-btn-home' : ''}" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Home">Home</button>
-                  <button class="fe-btn ${isAway ? 'fe-btn-away' : ''}" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Away">Away</button>
+                  <button class="fe-btn ${isHome ? 'fe-btn-home' : ''}" data-set-team="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-manager="${this._esc(t.manager || '')}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Home">Home</button>
+                  <button class="fe-btn ${isAway ? 'fe-btn-away' : ''}" data-set-away="${t.id}" data-team-name="${this._esc(t.name)}" data-team-short="${this._esc(t.short_name)}" data-team-manager="${this._esc(t.manager || '')}" data-team-color="${t.primary_color}" data-team-color2="${t.secondary_color}" title="Set as Away">Away</button>
                   <div class="fe-action-sep"></div>
                   <button class="fe-btn" data-edit-team="${t.id}">Edit</button>
                   <button class="fe-btn fe-btn-danger" data-del-team="${t.id}">Del</button>
@@ -348,9 +356,10 @@ class FootballEditor extends HTMLElement {
       const name = el.querySelector('#fe-team-name')?.value?.trim();
       if (!name) return;
       const short_name = el.querySelector('#fe-team-short')?.value?.trim() || '';
+      const manager = el.querySelector('#fe-team-manager')?.value?.trim() || '';
       const primary_color = el.querySelector('#fe-team-color1')?.value || '#ffffff';
       const secondary_color = el.querySelector('#fe-team-color2')?.value || '#000000';
-      await this._sdk.insertRow('teams', { name, short_name, primary_color, secondary_color });
+      await this._sdk.insertRow('teams', { name, short_name, manager, primary_color, secondary_color });
       await this._loadTeams();
       this._renderContent();
     });
@@ -369,6 +378,7 @@ class FootballEditor extends HTMLElement {
           home_team_id: Number(btn.dataset.setTeam),
           home_team_name: btn.dataset.teamName,
           home_short_name: btn.dataset.teamShort,
+          home_manager: btn.dataset.teamManager || '',
           home_primary_color: btn.dataset.teamColor,
           home_secondary_color: btn.dataset.teamColor2,
         });
@@ -382,6 +392,7 @@ class FootballEditor extends HTMLElement {
           away_team_id: Number(btn.dataset.setAway),
           away_team_name: btn.dataset.teamName,
           away_short_name: btn.dataset.teamShort,
+          away_manager: btn.dataset.teamManager || '',
           away_primary_color: btn.dataset.teamColor,
           away_secondary_color: btn.dataset.teamColor2,
         });
@@ -397,6 +408,7 @@ class FootballEditor extends HTMLElement {
         modal.dataset.editId = team.id;
         this.querySelector('#fe-edit-name').value = team.name;
         this.querySelector('#fe-edit-short').value = team.short_name;
+        this.querySelector('#fe-edit-manager').value = team.manager || '';
         this.querySelector('#fe-edit-color1').value = team.primary_color;
         this.querySelector('#fe-edit-color2').value = team.secondary_color;
         modal.style.display = 'flex';

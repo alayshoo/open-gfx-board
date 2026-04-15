@@ -1,7 +1,7 @@
 {
   "id": "football",
   "name": "Football",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Live scoreboard, timer, goals, cards, and lineup overlays for football matches.",
   "author": "Alayshoo",
 
@@ -10,6 +10,7 @@
       "columns": {
         "name": "TEXT NOT NULL",
         "short_name": "TEXT NOT NULL DEFAULT ''",
+        "manager": "TEXT NOT NULL DEFAULT ''",
         "primary_color": "TEXT NOT NULL DEFAULT '#ffffff'",
         "secondary_color": "TEXT NOT NULL DEFAULT '#000000'",
         "logo_path": "TEXT"
@@ -40,6 +41,8 @@
     "away_team_name":       { "type": "string",  "default": "AWAY" },
     "home_short_name":      { "type": "string",  "default": "HOME" },
     "away_short_name":      { "type": "string",  "default": "AWAY" },
+    "home_manager":         { "type": "string",  "default": "" },
+    "away_manager":         { "type": "string",  "default": "" },
     "home_primary_color":   { "type": "string",  "default": "#ffffff" },
     "away_primary_color":   { "type": "string",  "default": "#ffffff" },
     "home_secondary_color": { "type": "string",  "default": "#000000" },
@@ -84,37 +87,37 @@
       "template_id": "goal-popup",
       "name": "Goal",
       "template": "templates/goal-popup.html",
-      "direction": "bottom",
-      "position": 50,
+      "direction": "left",
+      "position": 26.4,
       "width": 700,
       "height": 180,
-      "duration": 8
+      "duration": 10
     },
     {
       "template_id": "card-popup",
       "name": "Card",
       "template": "templates/card-popup.html",
-      "direction": "top",
-      "position": 80,
-      "width": 500,
-      "height": 140,
-      "duration": 6
+      "direction": "left",
+      "position": 25,
+      "width": 550,
+      "height": 154,
+      "duration": 10
     },
     {
       "template_id": "sub-popup",
       "name": "Substitution",
       "template": "templates/sub-popup.html",
-      "direction": "bottom",
-      "position": 50,
+      "direction": "left",
+      "position": 25.4,
       "width": 700,
       "height": 160,
-      "duration": 8
+      "duration": 10
     },
     {
       "template_id": "lineup",
       "name": "Starting Lineup",
       "template": "templates/lineup.html",
-      "direction": "left",
+      "direction": "bottom",
       "position": 50,
       "width": 1920,
       "height": 1080,

@@ -83,7 +83,7 @@ pub struct PluginPopupDef {
     #[serde(default = "default_direction")]
     pub direction: String,
     #[serde(default = "default_position")]
-    pub position: i64,
+    pub position: f64,
     pub width: Option<i64>,
     pub height: Option<i64>,
     #[serde(default = "default_duration")]
@@ -96,8 +96,8 @@ fn default_true() -> bool {
 fn default_direction() -> String {
     "bottom".to_string()
 }
-fn default_position() -> i64 {
-    50
+fn default_position() -> f64 {
+    50.0
 }
 fn default_duration() -> i64 {
     10

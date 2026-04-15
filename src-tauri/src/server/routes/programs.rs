@@ -277,6 +277,7 @@ struct PluginPopupOverride {
     plugin_id: String,
     template_id: String,
     popup_id: Option<i64>,
+    duration: i64,
 }
 
 #[derive(Deserialize)]
@@ -291,7 +292,7 @@ async fn get_popup_overrides(
     let db = state.db.lock().await;
     let result = tokio::task::block_in_place(|| {
         let mut stmt = db.prepare(
-            "SELECT plugin_id, template_id, popup_id \
+            "SELECT plugin_id, template_id, popup_id, duration \
              FROM program_plugin_popup_overrides \
              WHERE program_id = ?1 \
              ORDER BY plugin_id, template_id",
@@ -302,6 +303,7 @@ async fn get_popup_overrides(
                     plugin_id: r.get(0)?,
                     template_id: r.get(1)?,
                     popup_id: r.get(2)?,
+                    duration: r.get(3)?,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -328,9 +330,9 @@ async fn set_popup_overrides(
         for ov in &body.overrides {
             db.execute(
                 "INSERT INTO program_plugin_popup_overrides \
-                     (program_id, plugin_id, template_id, popup_id) \
-                     VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, &ov.plugin_id, &ov.template_id, ov.popup_id],
+                     (program_id, plugin_id, template_id, popup_id, duration) \
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![id, &ov.plugin_id, &ov.template_id, ov.popup_id, ov.duration],
             )?;
         }
         Ok::<_, anyhow::Error>(())

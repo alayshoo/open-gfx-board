@@ -40,6 +40,8 @@ export interface PluginPopupOverride {
 	template_id: string;
 	/** null means "no override — use the plugin's default popup". */
 	popup_id: number | null;
+	/** Duration in seconds for the overriding popup (ignored when popup_id is null). */
+	duration: number;
 }
 
 /**

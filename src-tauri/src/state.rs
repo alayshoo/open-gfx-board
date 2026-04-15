@@ -19,7 +19,7 @@ pub struct StudioRuntimeState {
     pub active_popup_path: Option<String>,
     pub active_popup_duration: i64,
     pub active_popup_direction: Option<String>,
-    pub active_popup_position: Option<i64>,
+    pub active_popup_position: Option<f64>,
     pub active_popup_media_type: Option<String>,
     /// Processed HTML (template already resolved) for the active popup.
     pub active_popup_html_content: Option<String>,
