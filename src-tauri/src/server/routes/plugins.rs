@@ -557,19 +557,20 @@ async fn trigger_popup(
                     (None, ov_media_path, ov_media_type.clone())
                 };
 
-            // Update runtime state
+            // Update runtime state (plugin overrides always use layer 1)
             {
                 let mut studio_states = state.studio_states.lock().await;
                 let st = studio_states.entry(1).or_default();
-                st.active_popup_id = Some(ov_id);
-                st.active_popup_path = final_image_path.clone();
-                st.active_popup_duration = duration;
-                st.active_popup_direction = Some(ov_direction.clone());
-                st.active_popup_position = Some(ov_position);
-                st.active_popup_media_type = Some(final_media_type.clone());
-                st.active_popup_html_content = final_html.clone();
-                st.active_popup_width = ov_width;
-                st.active_popup_height = ov_height;
+                let ls = st.layer_mut(1);
+                ls.popup_id = Some(ov_id);
+                ls.popup_path = final_image_path.clone();
+                ls.popup_duration = duration;
+                ls.popup_direction = Some(ov_direction.clone());
+                ls.popup_position = Some(ov_position);
+                ls.popup_media_type = Some(final_media_type.clone());
+                ls.popup_html_content = final_html.clone();
+                ls.popup_width = ov_width;
+                ls.popup_height = ov_height;
             }
 
             broadcast_event(
@@ -577,6 +578,7 @@ async fn trigger_popup(
                 "popup-started",
                 json!({
                     "studioId": 1,
+                    "layer": 1,
                     "popupId": ov_id,
                     "imagePath": final_image_path,
                     "duration": duration,
@@ -645,19 +647,20 @@ async fn trigger_popup(
 
     let popup_id = popup_db_id.unwrap_or(0);
 
-    // Update runtime state
+    // Update runtime state (plugin built-in popups always use layer 1)
     {
         let mut studio_states = state.studio_states.lock().await;
-        let studio_state = studio_states.entry(1).or_default();
-        studio_state.active_popup_id = Some(popup_id);
-        studio_state.active_popup_path = None;
-        studio_state.active_popup_duration = duration;
-        studio_state.active_popup_direction = Some(popup_def.direction.clone());
-        studio_state.active_popup_position = Some(popup_def.position);
-        studio_state.active_popup_media_type = Some("html".to_string());
-        studio_state.active_popup_html_content = Some(processed_html.clone());
-        studio_state.active_popup_width = popup_def.width;
-        studio_state.active_popup_height = popup_def.height;
+        let st = studio_states.entry(1).or_default();
+        let ls = st.layer_mut(1);
+        ls.popup_id = Some(popup_id);
+        ls.popup_path = None;
+        ls.popup_duration = duration;
+        ls.popup_direction = Some(popup_def.direction.clone());
+        ls.popup_position = Some(popup_def.position);
+        ls.popup_media_type = Some("html".to_string());
+        ls.popup_html_content = Some(processed_html.clone());
+        ls.popup_width = popup_def.width;
+        ls.popup_height = popup_def.height;
     }
 
     // Broadcast popup-started (same event as core popups)
@@ -666,6 +669,7 @@ async fn trigger_popup(
         "popup-started",
         json!({
             "studioId": 1,
+            "layer": 1,
             "popupId": popup_id,
             "imagePath": null,
             "duration": duration,

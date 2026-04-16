@@ -3,11 +3,17 @@ use rusqlite::Connection;
 use crate::models::{Program, ProgramPopup, Screen};
 use crate::db::popups::get_popup;
 
+pub struct ProgramScreenInput {
+    pub screen_id: i64,
+    pub layer: i64,
+}
+
 pub struct ProgramPopupInput {
     pub popup_id: i64,
     pub trigger_type: String,
     pub duration: i64,
     pub frequency: i64,
+    pub layer: i64,
 }
 
 pub fn get_all_programs(conn: &Connection) -> Result<Vec<Program>> {
@@ -81,7 +87,7 @@ pub fn update_program(
     name: &str,
     logo_path: Option<&str>,
     bg_path: Option<&str>,
-    screen_ids: &[i64],
+    screens: &[ProgramScreenInput],
     popups: &[ProgramPopupInput],
 ) -> Result<Option<Program>> {
     let exists: bool = conn.query_row(
@@ -99,21 +105,21 @@ pub fn update_program(
         rusqlite::params![name, logo_path, bg_path, id],
     )?;
 
-    // Replace screen associations
+    // Replace screen associations (preserving layer)
     conn.execute("DELETE FROM program_screens WHERE program_id = ?1", [id])?;
-    for &screen_id in screen_ids {
+    for s in screens {
         conn.execute(
-            "INSERT OR IGNORE INTO program_screens (program_id, screen_id) VALUES (?1, ?2)",
-            rusqlite::params![id, screen_id],
+            "INSERT OR IGNORE INTO program_screens (program_id, screen_id, layer) VALUES (?1, ?2, ?3)",
+            rusqlite::params![id, s.screen_id, s.layer],
         )?;
     }
 
-    // Replace program popups
+    // Replace program popups (preserving layer)
     conn.execute("DELETE FROM program_popups WHERE program_id = ?1", [id])?;
     for popup in popups {
         conn.execute(
-            "INSERT INTO program_popups (program_id, popup_id, trigger_type, duration, frequency) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![id, popup.popup_id, popup.trigger_type, popup.duration, popup.frequency],
+            "INSERT INTO program_popups (program_id, popup_id, trigger_type, duration, frequency, layer) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![id, popup.popup_id, popup.trigger_type, popup.duration, popup.frequency, popup.layer],
         )?;
     }
 
@@ -127,7 +133,9 @@ pub fn delete_program(conn: &Connection, id: i64) -> Result<bool> {
 
 fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups, s.html_content, s.created_at, s.plugin_id, s.plugin_template_id
+        "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups,
+                s.html_content, s.created_at, s.plugin_id, s.plugin_template_id,
+                ps.layer
          FROM screens s
          JOIN program_screens ps ON ps.screen_id = s.id
          WHERE ps.program_id = ?1
@@ -147,6 +155,7 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
             created_at: row.get(7)?,
             plugin_id: row.get(8)?,
             plugin_template_id: row.get(9)?,
+            layer: row.get(10)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(screens)
@@ -154,14 +163,15 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
 
 fn load_program_popups(conn: &Connection, program_id: i64) -> Result<Vec<ProgramPopup>> {
     let mut stmt = conn.prepare(
-        "SELECT id, popup_id, trigger_type, duration, frequency FROM program_popups WHERE program_id = ?1 ORDER BY id"
+        "SELECT id, popup_id, trigger_type, duration, frequency, layer \
+         FROM program_popups WHERE program_id = ?1 ORDER BY id"
     )?;
-    let rows: Vec<(i64, i64, String, i64, i64)> = stmt.query_map([program_id], |row| {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+    let rows: Vec<(i64, i64, String, i64, i64, i64)> = stmt.query_map([program_id], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
 
     let mut program_popups = Vec::new();
-    for (pp_id, popup_id, trigger_type, duration, frequency) in rows {
+    for (pp_id, popup_id, trigger_type, duration, frequency, layer) in rows {
         let popup = get_popup(conn, popup_id)?;
         program_popups.push(ProgramPopup {
             id: pp_id,
@@ -170,6 +180,7 @@ fn load_program_popups(conn: &Connection, program_id: i64) -> Result<Vec<Program
             trigger_type,
             duration,
             frequency,
+            layer,
             popup,
         });
     }

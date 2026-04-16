@@ -7,23 +7,28 @@
 	type Direction = "top" | "bottom" | "left" | "right";
 	type MediaType = "image" | "video" | "html";
 
-	// ── Displayed state ────────────────────────────────────────────────────────
-	let displayedPath = $state<string | null>(null);
-	let displayedType = $state<MediaType>("image");
-	let displayedHtml = $state<string | null>(null);
-	let visible = $state(false);
-
-	// Must stay in sync with the CSS transition duration below.
+	// ── Constants ──────────────────────────────────────────────────────────────
 	const FADE_MS = 500;
 	const POPUP_SLIDE_MS = 1000;
-
-	// Fallback dimensions for HTML pop-ups when no explicit width/height is set.
 	const HTML_POPUP_DEFAULT_WIDTH = 640;
 	const HTML_POPUP_DEFAULT_HEIGHT = 360;
+	const NUM_LAYERS = 3;
+
+	// ── Overlay reactive state – one entry per layer (index 0 = layer 1 = top) ─
+	type LayerOverlayState = {
+		visible: boolean;
+		path: string | null;
+		type: MediaType;
+		html: string | null;
+	};
+
+	let layers = $state<LayerOverlayState[]>([
+		{ visible: false, path: null, type: "image", html: null },
+		{ visible: false, path: null, type: "image", html: null },
+		{ visible: false, path: null, type: "image", html: null },
+	]);
 
 	// ── Media cache ─────────────────────────────────────────────────────────────
-	// Warms the browser's HTTP cache so subsequent renders reuse already-
-	// downloaded bytes without a network round-trip.
 	const preloaded = new Set<string>();
 
 	function getType(rawPath: string | null): MediaType {
@@ -45,11 +50,10 @@
 		}
 	}
 
-	/** Preload every graphic that belongs to the given program. */
 	function preloadProgram(program: Program | null) {
 		if (!program) return;
 		for (const screen of program.graphics ?? []) {
-			if (screen.media_type === "html") continue; // nothing to preload for HTML
+			if (screen.media_type === "html") continue;
 			const url = imgUrl(screen.graphics_path);
 			if (url) preload(url, getType(screen.graphics_path));
 		}
@@ -57,119 +61,117 @@
 		if (bg) preload(bg, getType(program.background_graphics_path));
 	}
 
-	// ── Main overlay transition engine ──────────────────────────────────────────
-	// Rapid events are coalesced: only the latest pending target is kept while
-	// a fade is in progress.
-	let pending: { path: string | null; type: MediaType; html: string | null } | null = null;
-	let busy = false;
+	// ── Per-layer overlay element refs ──────────────────────────────────────────
+	// Svelte 5: bind:this requires individual variables, not arrays.
+	let overlayImg0: HTMLImageElement;
+	let overlayImg1: HTMLImageElement;
+	let overlayImg2: HTMLImageElement;
+	let overlayVid0: HTMLVideoElement;
+	let overlayVid1: HTMLVideoElement;
+	let overlayVid2: HTMLVideoElement;
+
+	function getOverlayImg(li: number): HTMLImageElement {
+		return [overlayImg0, overlayImg1, overlayImg2][li];
+	}
+	function getOverlayVid(li: number): HTMLVideoElement {
+		return [overlayVid0, overlayVid1, overlayVid2][li];
+	}
+
+	// ── Per-layer overlay animation engine ──────────────────────────────────────
+	// Non-reactive: animation sequencing must not be interrupted by reactivity.
+	const overlayBusy: boolean[] = [false, false, false];
+	const overlayPending: ({ path: string | null; type: MediaType; html: string | null } | null)[] = [null, null, null];
 
 	function sleep(ms: number): Promise<void> {
 		return new Promise((r) => setTimeout(r, ms));
 	}
 
-	function waitForMedia(src: string, type: MediaType): Promise<void> {
+	function waitForOverlayMedia(li: number, src: string, type: MediaType): Promise<void> {
 		return new Promise((resolve) => {
-			if (type === "html") {
-				// HTML content is injected via srcdoc – the iframe fires "load"
-				// when ready, but we resolve immediately so the fade-in begins
-				// without delay (the content is already inline, no network fetch).
-				resolve();
-				return;
-			}
+			if (type === "html") { resolve(); return; }
 			if (type === "image") {
-				const img =
-					document.querySelector<HTMLImageElement>(".overlay-media-img");
-				if (!img || !img.src) {
-					resolve();
-					return;
-				}
-				// .decode() resolves when the image is decoded and ready
-				// to composite without jank.
+				const img = getOverlayImg(li);
+				if (!img || !img.src) { resolve(); return; }
 				img.decode().then(resolve, resolve);
 			} else {
-				const vid =
-					document.querySelector<HTMLVideoElement>(".overlay-media-vid");
-				if (!vid) {
-					resolve();
-					return;
-				}
-				if (vid.readyState >= 3) {
-					resolve();
-				} else {
-					vid.addEventListener("canplay", () => resolve(), { once: true });
-				}
+				const vid = getOverlayVid(li);
+				if (!vid) { resolve(); return; }
+				if (vid.readyState >= 3) { resolve(); }
+				else { vid.addEventListener("canplay", () => resolve(), { once: true }); }
 			}
 		});
 	}
 
-	async function show(path: string | null, type: MediaType, html: string | null = null) {
-		pending = { path, type, html };
-		if (busy) return;
-		busy = true;
+	async function show(li: number, path: string | null, type: MediaType, html: string | null = null) {
+		overlayPending[li] = { path, type, html };
+		if (overlayBusy[li]) return;
+		overlayBusy[li] = true;
 
-		while (pending) {
-			const target = pending;
-			pending = null;
+		while (overlayPending[li]) {
+			const target = overlayPending[li]!;
+			overlayPending[li] = null;
 
-			if (visible) {
-				visible = false;
+			if (layers[li].visible) {
+				layers[li] = { ...layers[li], visible: false };
 				await sleep(FADE_MS);
 			}
 
-			displayedPath = target.path;
-			displayedType = target.type;
-			displayedHtml = target.html;
+			layers[li] = { visible: false, path: target.path, type: target.type, html: target.html };
 
-			const hasContent =
-				target.type === "html" ? target.html !== null : target.path !== null;
-
+			const hasContent = target.type === "html" ? target.html !== null : target.path !== null;
 			if (hasContent) {
-				await waitForMedia(target.path ?? "", target.type);
-				if (!pending) {
-					visible = true;
+				await waitForOverlayMedia(li, target.path ?? "", target.type);
+				if (!overlayPending[li]) {
+					layers[li] = { ...layers[li], visible: true };
 				}
 			}
 		}
 
-		busy = false;
+		overlayBusy[li] = false;
 	}
 
-	// ── PopUp overlay – direct DOM management ───────────────────────────────────
-	// All pop-up animation is handled imperatively to avoid reactive overhead and
-	// to guarantee correct sequencing (hide current -> load next -> slide in) with
-	// no visual glitches regardless of how rapidly events arrive.
-	let popupContainer: HTMLDivElement;
-	let popupImg: HTMLImageElement;
-	let popupVideo: HTMLVideoElement;
-	let popupIframe: HTMLIFrameElement;
+	// ── Per-layer popup element refs ─────────────────────────────────────────────
+	let popupContainer0: HTMLDivElement;
+	let popupContainer1: HTMLDivElement;
+	let popupContainer2: HTMLDivElement;
+	let popupImg0: HTMLImageElement;
+	let popupImg1: HTMLImageElement;
+	let popupImg2: HTMLImageElement;
+	let popupVideo0: HTMLVideoElement;
+	let popupVideo1: HTMLVideoElement;
+	let popupVideo2: HTMLVideoElement;
+	let popupIframe0: HTMLIFrameElement;
+	let popupIframe1: HTMLIFrameElement;
+	let popupIframe2: HTMLIFrameElement;
 
+	function getPopupContainer(li: number): HTMLDivElement {
+		return [popupContainer0, popupContainer1, popupContainer2][li];
+	}
+	function getPopupImg(li: number): HTMLImageElement {
+		return [popupImg0, popupImg1, popupImg2][li];
+	}
+	function getPopupVideo(li: number): HTMLVideoElement {
+		return [popupVideo0, popupVideo1, popupVideo2][li];
+	}
+	function getPopupIframe(li: number): HTMLIFrameElement {
+		return [popupIframe0, popupIframe1, popupIframe2][li];
+	}
+
+	// ── Popup animation engine ───────────────────────────────────────────────────
 	type PopUpPayload = {
 		src: string | null;
 		type: MediaType;
 		html: string | null;
 		direction: Direction;
 		position: number;
-		/** Explicit width override (pixels). Null = natural/default. */
 		width: number | null;
-		/** Explicit height override (pixels). Null = natural/default. */
 		height: number | null;
 	} | null;
 
-	// Coalescing queue – only the most-recent pending request is kept so rapid
-	// pop-up changes never queue up a backlog of animations.
-	let popupPending: { payload: PopUpPayload } | null = null;
-	let popupBusy = false;
-	let popupCurrentDirection: Direction = "bottom";
-	let popupIsVisible = false;
-
-	// ── Auto pop-up & filler scheduling state ────────────────────────────────────
-	let currentProgram: Program | null = null;
-	let overlayActive = false;
-	let fillerIsActive = false;
-	let fillerSuppressed = false;
-	let autoPopUpTimers = new Map<number, ReturnType<typeof setTimeout>>();
-	let fillerRotationTimer: ReturnType<typeof setInterval> | null = null;
-	let fillerIndex = 0;
+	const popupBusy: boolean[] = [false, false, false];
+	const popupPending: ({ payload: PopUpPayload } | null)[] = [null, null, null];
+	const popupCurrentDirection: Direction[] = ["bottom", "bottom", "bottom"];
+	const popupIsVisible: boolean[] = [false, false, false];
 
 	function popupSlideOutTransform(dir: Direction): string {
 		if (dir === "bottom") return "translateY(118%)";
@@ -178,105 +180,93 @@
 		return "translateX(118%)";
 	}
 
-	function waitForPopUpMedia(type: MediaType): Promise<void> {
+	function waitForPopUpMedia(li: number, type: MediaType): Promise<void> {
 		return new Promise((resolve) => {
-			if (type === "html") {
-				// Inline srcdoc – resolve immediately
-				resolve();
-				return;
-			}
+			if (type === "html") { resolve(); return; }
+			const img = getPopupImg(li);
+			const vid = getPopupVideo(li);
 			if (type === "image") {
-				if (popupImg.complete && popupImg.naturalWidth > 0) {
-					resolve();
-					return;
-				}
-				popupImg.addEventListener("load", () => resolve(), { once: true });
-				popupImg.addEventListener("error", () => resolve(), { once: true });
+				if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+				img.addEventListener("load", () => resolve(), { once: true });
+				img.addEventListener("error", () => resolve(), { once: true });
 			} else {
-				if (popupVideo.readyState >= 3) {
-					resolve();
-					return;
-				}
-				popupVideo.addEventListener("canplay", () => resolve(), { once: true });
-				popupVideo.addEventListener("error", () => resolve(), { once: true });
+				if (vid.readyState >= 3) { resolve(); return; }
+				vid.addEventListener("canplay", () => resolve(), { once: true });
+				vid.addEventListener("error", () => resolve(), { once: true });
 			}
 		});
 	}
 
-	/** Hide all popup media elements. */
-	function hideAllPopupMedia() {
-		popupImg.src = "";
-		popupImg.style.display = "none";
-		popupVideo.src = "";
-		popupVideo.load();
-		popupVideo.style.display = "none";
-		popupIframe.srcdoc = "";
-		popupIframe.style.display = "none";
+	function hideAllPopupMedia(li: number) {
+		const img = getPopupImg(li);
+		const vid = getPopupVideo(li);
+		const ifr = getPopupIframe(li);
+		img.src = ""; img.style.display = "none";
+		vid.src = ""; vid.load(); vid.style.display = "none";
+		ifr.srcdoc = ""; ifr.style.display = "none";
 	}
 
-	async function triggerPopUp(payload: PopUpPayload) {
-		popupPending = { payload };
-		if (popupBusy) return;
-		popupBusy = true;
+	async function triggerPopUp(li: number, payload: PopUpPayload) {
+		popupPending[li] = { payload };
+		if (popupBusy[li]) return;
+		popupBusy[li] = true;
 
-		while (popupPending) {
-			const { payload: target } = popupPending;
-			popupPending = null;
+		while (popupPending[li]) {
+			const { payload: target } = popupPending[li]!;
+			popupPending[li] = null;
 
-			// ── Step 1: slide out the current pop-up if one is visible ──────────
-			if (popupIsVisible) {
-				popupIsVisible = false;
-				popupContainer.style.transition = `transform ${POPUP_SLIDE_MS}ms cubic-bezier(0.4,0,0.2,1)`;
-				popupContainer.style.transform = popupSlideOutTransform(popupCurrentDirection);
+			const container = getPopupContainer(li);
+
+			// Step 1: slide out current popup if visible
+			if (popupIsVisible[li]) {
+				popupIsVisible[li] = false;
+				container.style.transition = `transform ${POPUP_SLIDE_MS}ms cubic-bezier(0.4,0,0.2,1)`;
+				container.style.transform = popupSlideOutTransform(popupCurrentDirection[li]);
 				await sleep(POPUP_SLIDE_MS);
-				hideAllPopupMedia();
-				popupContainer.style.display = "none";
+				hideAllPopupMedia(li);
+				container.style.display = "none";
 			}
 
-			if (!target) continue; // Pure hide request – nothing more to do
+			if (!target) continue;
+			if (popupPending[li]) continue;
 
-			if (popupPending) continue; // A newer request arrived while hiding – restart
-
-			// ── Step 2: set up the new pop-up media (hidden, off-screen) ────────
-			popupCurrentDirection = target.direction;
+			// Step 2: set up new popup media (hidden, off-screen)
+			popupCurrentDirection[li] = target.direction;
+			const img = getPopupImg(li);
+			const vid = getPopupVideo(li);
+			const ifr = getPopupIframe(li);
 
 			if (target.type === "html") {
-				popupImg.style.display = "none";
-				popupVideo.style.display = "none";
-				popupIframe.style.display = "block";
-				popupIframe.srcdoc = target.html ?? "";
+				img.style.display = "none";
+				vid.style.display = "none";
+				ifr.style.display = "block";
+				ifr.srcdoc = target.html ?? "";
 			} else if (target.type === "video") {
-				popupImg.style.display = "none";
-				popupIframe.style.display = "none";
-				popupVideo.style.display = "block";
-				popupVideo.src = target.src ?? "";
-				popupVideo.load();
+				img.style.display = "none";
+				ifr.style.display = "none";
+				vid.style.display = "block";
+				vid.src = target.src ?? "";
+				vid.load();
 			} else {
-				popupVideo.style.display = "none";
-				popupIframe.style.display = "none";
-				popupImg.style.display = "block";
-				popupImg.src = target.src ?? "";
+				vid.style.display = "none";
+				ifr.style.display = "none";
+				img.style.display = "block";
+				img.src = target.src ?? "";
 			}
 
-			// Place the container off-screen in the incoming direction with no
-			// transition so there is no visible flash while the media loads.
-			popupContainer.style.transition = "none";
-			popupContainer.style.transform = popupSlideOutTransform(target.direction);
-			popupContainer.style.display = "block";
+			container.style.transition = "none";
+			container.style.transform = popupSlideOutTransform(target.direction);
+			container.style.display = "block";
 
-			await waitForPopUpMedia(target.type);
+			await waitForPopUpMedia(li, target.type);
 
-			if (popupPending) {
-				// Superseded while loading – tear down and restart
-				hideAllPopupMedia();
-				popupContainer.style.display = "none";
+			if (popupPending[li]) {
+				hideAllPopupMedia(li);
+				container.style.display = "none";
 				continue;
 			}
 
-			// ── Step 3: size and position the container ──────────────────────
-			// Use explicit width/height from the popup when provided;
-			// otherwise fall back to the media's natural size (image/video)
-			// or a sensible default (HTML).
+			// Step 3: size and position the container
 			let naturalW: number;
 			let naturalH: number;
 
@@ -284,108 +274,92 @@
 				naturalW = target.width ?? HTML_POPUP_DEFAULT_WIDTH;
 				naturalH = target.height ?? HTML_POPUP_DEFAULT_HEIGHT;
 			} else if (target.type === "image") {
-				naturalW = target.width ?? popupImg.naturalWidth;
-				naturalH = target.height ?? popupImg.naturalHeight;
+				naturalW = target.width ?? img.naturalWidth;
+				naturalH = target.height ?? img.naturalHeight;
 			} else {
-				naturalW = target.width ?? popupVideo.videoWidth;
-				naturalH = target.height ?? popupVideo.videoHeight;
+				naturalW = target.width ?? vid.videoWidth;
+				naturalH = target.height ?? vid.videoHeight;
 			}
 
 			const halfW = naturalW / 2;
 			const halfH = naturalH / 2;
 			const pos = target.position;
 
-			popupContainer.style.width = `${naturalW}px`;
-			popupContainer.style.height = `${naturalH}px`;
-			popupContainer.style.top = "";
-			popupContainer.style.bottom = "";
-			popupContainer.style.left = "";
-			popupContainer.style.right = "";
+			container.style.width = `${naturalW}px`;
+			container.style.height = `${naturalH}px`;
+			container.style.top = "";
+			container.style.bottom = "";
+			container.style.left = "";
+			container.style.right = "";
 
 			if (target.direction === "bottom") {
-				popupContainer.style.bottom = "30px";
-				popupContainer.style.left = `calc(${pos}% - ${halfW}px)`;
+				container.style.bottom = "30px";
+				container.style.left = `calc(${pos}% - ${halfW}px)`;
 			} else if (target.direction === "top") {
-				popupContainer.style.top = "30px";
-				popupContainer.style.left = `calc(${pos}% - ${halfW}px)`;
+				container.style.top = "30px";
+				container.style.left = `calc(${pos}% - ${halfW}px)`;
 			} else if (target.direction === "left") {
-				popupContainer.style.left = "30px";
-				popupContainer.style.top = `calc(${pos}% - ${halfH}px)`;
+				container.style.left = "30px";
+				container.style.top = `calc(${pos}% - ${halfH}px)`;
 			} else {
-				popupContainer.style.right = "30px";
-				popupContainer.style.top = `calc(${pos}% - ${halfH}px)`;
+				container.style.right = "30px";
+				container.style.top = `calc(${pos}% - ${halfH}px)`;
 			}
 
-			// ── Step 4: snap to off-screen start position, then slide in ────
-			// transition is already "none" and transform is already the slide-out
-			// value from step 2, so we just need a reflow to commit that state
-			// before re-enabling the transition and moving to translate(0,0).
-			void popupContainer.offsetHeight; // force reflow
+			// Step 4: snap to off-screen start, then slide in
+			void container.offsetHeight; // force reflow
+			container.style.transition = `transform ${POPUP_SLIDE_MS}ms cubic-bezier(0.4,0,0.2,1)`;
+			container.style.transform = "translate(0,0)";
+			popupIsVisible[li] = true;
 
-			popupContainer.style.transition = `transform ${POPUP_SLIDE_MS}ms cubic-bezier(0.4,0,0.2,1)`;
-			popupContainer.style.transform = "translate(0,0)";
-			popupIsVisible = true;
-
-			await sleep(POPUP_SLIDE_MS); // wait for slide-in to finish
+			await sleep(POPUP_SLIDE_MS);
 		}
 
-		popupBusy = false;
+		popupBusy[li] = false;
 	}
 
-	// ── PopUp payload builder ────────────────────────────────────────────────────
+	// ── Popup payload builder ─────────────────────────────────────────────────────
 	function buildPopUpPayload(pa: import("$lib/types").ProgramPopUp): PopUpPayload | null {
 		const popup = pa.popup;
 		if (!popup) return null;
-
 		const w = popup.width ?? null;
 		const h = popup.height ?? null;
-
 		if (popup.media_type === "html") {
 			if (!popup.html_content) return null;
 			return {
-				src: null,
-				type: "html",
-				html: popup.html_content,
+				src: null, type: "html", html: popup.html_content,
 				direction: (popup.direction ?? "bottom") as Direction,
-				position: popup.position ?? 50,
-				width: w,
-				height: h,
+				position: popup.position ?? 50, width: w, height: h,
 			};
 		}
-
 		const rawPath = popup.image_path ?? null;
 		const url = rawPath ? imgUrl(rawPath) : null;
 		if (!url) return null;
 		return {
-			src: url,
-			type: getType(rawPath),
-			html: null,
+			src: url, type: getType(rawPath), html: null,
 			direction: (popup.direction ?? "bottom") as Direction,
-			position: popup.position ?? 50,
-			width: w,
-			height: h,
+			position: popup.position ?? 50, width: w, height: h,
 		};
 	}
 
-	// ── Auto pop-up scheduler ────────────────────────────────────────────────────
-	// Each ProgramPopUp with type 'automatic' or 'both' gets its own timer that
-	// re-schedules itself after each fire. Jitter of +/-25 % prevents clustering
-	// while keeping the average rate equal to the configured frequency/hr.
+	// ── Auto pop-up & filler scheduling state ────────────────────────────────────
+	let currentProgram: Program | null = null;
+	const overlayActive: boolean[] = [false, false, false];
+	const fillerIsActive: boolean[] = [false, false, false];
+	const fillerSuppressed: boolean[] = [false, false, false];
+	const autoPopUpTimers = new Map<number, ReturnType<typeof setTimeout>>();
+	const fillerRotationTimers: (ReturnType<typeof setInterval> | null)[] = [null, null, null];
+	const fillerIndices: number[] = [0, 0, 0];
+
 	function scheduleAutoPopUp(pa: import("$lib/types").ProgramPopUp): void {
+		const li = ((pa.layer ?? 1) - 1);
 		const base = 3_600_000 / Math.max(pa.frequency, 1);
 		const delay = base * (0.75 + Math.random() * 0.5);
 		const handle = setTimeout(async () => {
 			autoPopUpTimers.delete(pa.id);
 			if (!currentProgram) return;
-
-			if (overlayActive) {
-				// Overlay is live – skip this occurrence but reschedule
-				scheduleAutoPopUp(pa);
-				return;
-			}
-
-			if (popupIsVisible && !fillerIsActive) {
-				// A real/manual pop-up is playing – retry in 5 s
+			if (overlayActive[li]) { scheduleAutoPopUp(pa); return; }
+			if (popupIsVisible[li] && !fillerIsActive[li]) {
 				const h2 = setTimeout(() => {
 					autoPopUpTimers.delete(pa.id);
 					scheduleAutoPopUp(pa);
@@ -393,22 +367,18 @@
 				autoPopUpTimers.set(pa.id, h2);
 				return;
 			}
-
-			// Override any active filler
-			if (fillerIsActive) stopFillers();
-
-			fillerSuppressed = true;
+			if (fillerIsActive[li]) stopFillers(li);
+			fillerSuppressed[li] = true;
 			const payload = buildPopUpPayload(pa);
 			if (payload) {
-				await triggerPopUp(payload); // wait for slide-in to complete before counting duration
+				await triggerPopUp(li, payload);
 				await sleep(pa.duration * 1_000);
-				triggerPopUp(null);
+				triggerPopUp(li, null);
 				await sleep(POPUP_SLIDE_MS + 100);
 			}
-			fillerSuppressed = false;
-
-			startFillersIfNeeded();
-			if (currentProgram) scheduleAutoPopUp(pa); // schedule next occurrence
+			fillerSuppressed[li] = false;
+			startFillersIfNeeded(li);
+			if (currentProgram) scheduleAutoPopUp(pa);
 		}, delay);
 		autoPopUpTimers.set(pa.id, handle);
 	}
@@ -416,15 +386,8 @@
 	function startAutoPopUps(program: Program): void {
 		stopAutoPopUps();
 		for (const pa of program.program_popups) {
-			const hasContent =
-				pa.popup?.media_type === "html"
-					? !!pa.popup?.html_content
-					: !!pa.popup?.image_path;
-			if (
-				(pa.popup_launch_type === "automatic" || pa.popup_launch_type === "both") &&
-				pa.frequency > 0 &&
-				hasContent
-			) {
+			const hasContent = pa.popup?.media_type === "html" ? !!pa.popup?.html_content : !!pa.popup?.image_path;
+			if ((pa.popup_launch_type === "automatic" || pa.popup_launch_type === "both") && pa.frequency > 0 && hasContent) {
 				scheduleAutoPopUp(pa);
 			}
 		}
@@ -436,71 +399,60 @@
 	}
 
 	// ── Filler rotator ───────────────────────────────────────────────────────────
-	// Filler pop-ups play whenever nothing else is on screen, rotating every 30 s
-	// when multiple fillers are configured.
-	function playFillerAt(popups: import("$lib/types").ProgramPopUp[], index: number): void {
+	function playFillerAt(popups: import("$lib/types").ProgramPopUp[], index: number, li: number): void {
 		const payload = buildPopUpPayload(popups[index]);
-		if (payload) triggerPopUp(payload);
+		if (payload) triggerPopUp(li, payload);
 	}
 
-	function startFillersIfNeeded(): void {
-		if (fillerSuppressed || overlayActive || popupIsVisible || fillerIsActive) return;
+	function startFillersIfNeeded(li: number): void {
+		if (fillerSuppressed[li] || overlayActive[li] || popupIsVisible[li] || fillerIsActive[li]) return;
 		const popups = (currentProgram?.program_popups ?? []).filter((pa) => {
-			const hasContent =
-				pa.popup?.media_type === "html"
-					? !!pa.popup?.html_content
-					: !!pa.popup?.image_path;
-			return pa.popup_launch_type === "filler" && hasContent;
+			const sameLayer = (pa.layer ?? 1) - 1 === li;
+			const hasContent = pa.popup?.media_type === "html" ? !!pa.popup?.html_content : !!pa.popup?.image_path;
+			return pa.popup_launch_type === "filler" && hasContent && sameLayer;
 		});
 		if (popups.length === 0) return;
-
-		fillerIndex = 0;
-		playFillerAt(popups, 0);
-		fillerIsActive = true;
-
+		fillerIndices[li] = 0;
+		playFillerAt(popups, 0, li);
+		fillerIsActive[li] = true;
 		if (popups.length > 1) {
-			fillerRotationTimer = setInterval(() => {
-				if (fillerSuppressed || overlayActive) {
-					stopFillers();
-					triggerPopUp(null);
+			fillerRotationTimers[li] = setInterval(() => {
+				if (fillerSuppressed[li] || overlayActive[li]) {
+					stopFillers(li);
+					triggerPopUp(li, null);
 					return;
 				}
-				fillerIndex = (fillerIndex + 1) % popups.length;
-				playFillerAt(popups, fillerIndex);
+				fillerIndices[li] = (fillerIndices[li] + 1) % popups.length;
+				playFillerAt(popups, fillerIndices[li], li);
 			}, 30_000);
 		}
 	}
 
-	function stopFillers(): void {
-		if (fillerRotationTimer !== null) {
-			clearInterval(fillerRotationTimer);
-			fillerRotationTimer = null;
+	function stopFillers(li: number): void {
+		if (fillerRotationTimers[li] !== null) {
+			clearInterval(fillerRotationTimers[li]!);
+			fillerRotationTimers[li] = null;
 		}
-		fillerIsActive = false;
-		fillerIndex = 0;
+		fillerIsActive[li] = false;
+		fillerIndices[li] = 0;
 	}
 
 	function stopAllScheduling(): void {
 		stopAutoPopUps();
-		stopFillers();
-		fillerSuppressed = false;
-		overlayActive = false;
-		fillerIsActive = false;
-		// Dismiss any locally-managed pop-up (filler/auto) that may still be
-		// visible. triggerPopUp's coalescing queue ensures that if a new pop-up
-		// is triggered right after, the latest request wins.
-		triggerPopUp(null);
+		for (let li = 0; li < NUM_LAYERS; li++) {
+			stopFillers(li);
+			fillerSuppressed[li] = false;
+			overlayActive[li] = false;
+			fillerIsActive[li] = false;
+			triggerPopUp(li, null);
+		}
 	}
 
 	// ── Socket ─────────────────────────────────────────────────────────────────
 	onMount(() => {
 		socket.emit("join-studio-room", {});
-		// Request the current studio state so we can warm the cache immediately.
 		socket.emit("get-studio-state", {});
 
-		// Re-join the studio room after a socket reconnect (e.g. server restart,
-		// network drop).  Socket.io rooms are server-side; they are lost on
-		// disconnect, so without this the overlay stops receiving all broadcasts.
 		function onReconnect() {
 			socket.emit("join-studio-room", {});
 			socket.emit("get-studio-state", {});
@@ -512,62 +464,51 @@
 			stopAllScheduling();
 			currentProgram = data.program;
 
-			// Restore whatever is currently live so a page load / reconnect is not blank
-			if (data.activeOverlay) {
-				const allowPopUps = data.activeOverlay.allowPopUps ?? false;
-				overlayActive = !allowPopUps;
-				fillerSuppressed = !allowPopUps;
-				const mediaType = (data.activeOverlay.mediaType ?? "image") as MediaType;
-
-				if (mediaType === "html") {
-					show(null, "html", data.activeOverlay.htmlContent ?? null);
-				} else {
-					const rawPath = data.activeOverlay.graphicPath ?? null;
-					const url = rawPath ? imgUrl(rawPath) : null;
-					const type = getType(rawPath);
-					if (url) preload(url, type);
-					show(url, type);
-				}
-			} else if (data.activePopUp) {
-				fillerSuppressed = true;
-				const mediaType = (data.activePopUp.mediaType ?? "image") as MediaType;
-
-				if (mediaType === "html") {
-					triggerPopUp({
-						src: null,
-						type: "html",
-						html: data.activePopUp.htmlContent ?? null,
-						direction: (data.activePopUp.direction ?? "bottom") as Direction,
-						position: data.activePopUp.position ?? 50,
-						width: data.activePopUp.width ?? null,
-						height: data.activePopUp.height ?? null,
-					});
-				} else {
-					const rawPath = data.activePopUp.imagePath ?? null;
-					const url = rawPath ? imgUrl(rawPath) : null;
-					const type = getType(rawPath);
-					if (url) preload(url, type);
-					if (url) {
-						triggerPopUp({
-							src: url,
-							type,
-							html: null,
-							direction: (data.activePopUp.direction ?? "bottom") as Direction,
-							position: data.activePopUp.position ?? 50,
-							width: data.activePopUp.width ?? null,
-							height: data.activePopUp.height ?? null,
-						});
-					}
-				}
-			} else {
-				show(null, "image");
+			// Blank all overlay layers first — any layer absent from activeOverlays must be cleared
+			for (let li = 0; li < NUM_LAYERS; li++) {
+				show(li, null, "image");
 			}
 
-			// Always start auto pop-up schedulers; fillers only when nothing else is active.
-			// Delay startFillersIfNeeded so any ongoing popup slide-out animation from
-			// stopAllScheduling() has time to complete before we check popupIsVisible.
+			// Restore active overlays on each layer
+			for (const overlay of data.activeOverlays ?? []) {
+				const li = (overlay.layer ?? 1) - 1;
+				const allowPopUps = overlay.allowPopUps ?? false;
+				overlayActive[li] = !allowPopUps;
+				fillerSuppressed[li] = !allowPopUps;
+				const mediaType = (overlay.mediaType ?? "image") as MediaType;
+				if (mediaType === "html") {
+					show(li, null, "html", overlay.htmlContent ?? null);
+				} else {
+					const rawPath = overlay.graphicPath ?? null;
+					const url = rawPath ? imgUrl(rawPath) : null;
+					const type = getType(rawPath);
+					if (url) preload(url, type);
+					show(li, url, type);
+				}
+			}
+
+			// Restore active popups on each layer
+			for (const popup of data.activePopUps ?? []) {
+				const li = (popup.layer ?? 1) - 1;
+				fillerSuppressed[li] = true;
+				const mediaType = (popup.mediaType ?? "image") as MediaType;
+				if (mediaType === "html") {
+					const html = popup.htmlContent ?? null;
+					if (html) triggerPopUp(li, { src: null, type: "html", html, direction: (popup.direction ?? "bottom") as Direction, position: popup.position ?? 50, width: popup.width ?? null, height: popup.height ?? null });
+				} else {
+					const rawPath = popup.imagePath ?? null;
+					const url = rawPath ? imgUrl(rawPath) : null;
+					const type = getType(rawPath);
+					if (url) preload(url, type);
+					if (url) triggerPopUp(li, { src: url, type, html: null, direction: (popup.direction ?? "bottom") as Direction, position: popup.position ?? 50, width: popup.width ?? null, height: popup.height ?? null });
+				}
+			}
+
 			if (currentProgram) startAutoPopUps(currentProgram);
-			setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
+			for (let li = 0; li < NUM_LAYERS; li++) {
+				const li_ = li;
+				setTimeout(() => startFillersIfNeeded(li_), POPUP_SLIDE_MS + 100);
+			}
 		}
 
 		function onProgramSelected(data: any) {
@@ -576,54 +517,56 @@
 			currentProgram = data.program as Program;
 			if (currentProgram) {
 				startAutoPopUps(currentProgram);
-				// Delay until any slide-out animation from stopAllScheduling finishes.
-				setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
+				for (let li = 0; li < NUM_LAYERS; li++) {
+					const li_ = li;
+					setTimeout(() => startFillersIfNeeded(li_), POPUP_SLIDE_MS + 100);
+				}
 			}
 		}
 
 		function onProgramCleared(_data: any) {
-			show(null, "image");
+			for (let li = 0; li < NUM_LAYERS; li++) show(li, null, "image");
 			stopAllScheduling();
 			currentProgram = null;
-			triggerPopUp(null);
+			for (let li = 0; li < NUM_LAYERS; li++) triggerPopUp(li, null);
 		}
 
 		function onOverlayActivated(data: any) {
+			const li = ((data.layer ?? 1) - 1);
 			const mediaType = (data.mediaType ?? "image") as MediaType;
 			const allowPopUps = data.allowPopUps ?? false;
 
 			if (mediaType === "html") {
-				show(null, "html", data.htmlContent ?? null);
+				show(li, null, "html", data.htmlContent ?? null);
 			} else {
 				const rawPath: string | null = data.graphicPath ?? null;
 				const url = rawPath ? imgUrl(rawPath) : null;
 				const type = getType(rawPath);
 				if (url) preload(url, type);
-				show(url, type);
+				show(li, url, type);
 			}
 
-			overlayActive = !allowPopUps;
-
+			overlayActive[li] = !allowPopUps;
 			if (!allowPopUps) {
-				// Overlay does not allow pop-ups – suppress everything
-				fillerSuppressed = true;
-				stopFillers();
-				triggerPopUp(null);
+				fillerSuppressed[li] = true;
+				stopFillers(li);
+				triggerPopUp(li, null);
 			} else {
-				// Overlay allows pop-ups – let fillers / auto pop-ups keep running
-				fillerSuppressed = false;
-				startFillersIfNeeded();
+				fillerSuppressed[li] = false;
+				startFillersIfNeeded(li);
 			}
 		}
 
-		function onOverlayDeactivated(_data: any) {
-			show(null, "image");
-			overlayActive = false;
-			fillerSuppressed = false;
-			startFillersIfNeeded();
+		function onOverlayDeactivated(data: any) {
+			const li = ((data.layer ?? 1) - 1);
+			show(li, null, "image");
+			overlayActive[li] = false;
+			fillerSuppressed[li] = false;
+			startFillersIfNeeded(li);
 		}
 
 		function onPopUpStarted(data: any) {
+			const li = ((data.layer ?? 1) - 1);
 			const mediaType = (data.mediaType ?? "image") as MediaType;
 			const popupW: number | null = data.width ?? null;
 			const popupH: number | null = data.height ?? null;
@@ -631,49 +574,27 @@
 			if (mediaType === "html") {
 				const html: string | null = data.htmlContent ?? null;
 				if (!html) return;
-				fillerSuppressed = true;
-				stopFillers();
-				triggerPopUp({
-					src: null,
-					type: "html",
-					html,
-					direction: (data.direction ?? "bottom") as Direction,
-					position: data.position ?? 50,
-					width: popupW,
-					height: popupH,
-				});
+				fillerSuppressed[li] = true;
+				stopFillers(li);
+				triggerPopUp(li, { src: null, type: "html", html, direction: (data.direction ?? "bottom") as Direction, position: data.position ?? 50, width: popupW, height: popupH });
 			} else {
 				const rawPath: string | null = data.imagePath ?? null;
 				const url = rawPath ? imgUrl(rawPath) : null;
 				if (!url) return;
 				const type = getType(rawPath);
-				fillerSuppressed = true;
-				stopFillers();
-				triggerPopUp({
-					src: url,
-					type,
-					html: null,
-					direction: (data.direction ?? "bottom") as Direction,
-					position: data.position ?? 50,
-					width: popupW,
-					height: popupH,
-				});
+				fillerSuppressed[li] = true;
+				stopFillers(li);
+				triggerPopUp(li, { src: url, type, html: null, direction: (data.direction ?? "bottom") as Direction, position: data.position ?? 50, width: popupW, height: popupH });
 			}
 		}
 
-		function onPopUpEnded(_data: any) {
-			triggerPopUp(null);
-			fillerSuppressed = false;
-			// Delay until the slide-out animation finishes so popupIsVisible is false
-			// before startFillersIfNeeded checks it.
-			if (!overlayActive) setTimeout(() => startFillersIfNeeded(), POPUP_SLIDE_MS + 100);
+		function onPopUpEnded(data: any) {
+			const li = ((data.layer ?? 1) - 1);
+			triggerPopUp(li, null);
+			fillerSuppressed[li] = false;
+			if (!overlayActive[li]) setTimeout(() => startFillersIfNeeded(li), POPUP_SLIDE_MS + 100);
 		}
 
-		// ── Data-change listeners ────────────────────────────────────────────
-		// When pop-ups, screens, or programs are edited the server broadcasts
-		// update-* events to all clients.  Re-requesting studio state causes
-		// onStudioState to run again, which re-preloads any assets whose URLs
-		// may have changed, keeping the local HTTP cache warm and correct.
 		function onUpdateData() {
 			socket.emit("get-studio-state", {});
 		}
@@ -709,8 +630,7 @@
 
 <svelte:head>
 	<style>
-		html,
-		body {
+		html, body {
 			margin: 0;
 			padding: 0;
 			background: transparent !important;
@@ -719,47 +639,110 @@
 	</style>
 </svelte:head>
 
-<div class="overlay-root" class:visible>
+<!--
+	Layers are rendered bottom-to-top in the DOM so that higher z-index
+	values correctly sit on top of lower ones visually.
+	  Layer 3 (bottom)  z-index: 10 (overlay), 11 (popup)
+	  Layer 2 (middle)  z-index: 20 (overlay), 21 (popup)
+	  Layer 1 (top)     z-index: 30 (overlay), 31 (popup)
+-->
+
+<!-- ── Layer 3 overlay (bottom) ───────────────────────────── -->
+<div class="overlay-root" class:visible={layers[2].visible} style="z-index:10">
 	<img
+		bind:this={overlayImg2}
 		class="overlay-media overlay-media-img"
-		class:active={displayedType === "image"}
-		src={displayedType === "image" ? (displayedPath ?? "") : ""}
-		alt="overlay"
+		class:active={layers[2].type === "image"}
+		src={layers[2].type === "image" ? (layers[2].path ?? "") : ""}
+		alt="overlay L3"
 	/>
 	<video
+		bind:this={overlayVid2}
 		class="overlay-media overlay-media-vid"
-		class:active={displayedType === "video"}
-		src={displayedType === "video" ? (displayedPath ?? "") : ""}
-		autoplay
-		loop
-		muted
+		class:active={layers[2].type === "video"}
+		src={layers[2].type === "video" ? (layers[2].path ?? "") : ""}
+		autoplay loop muted
 	></video>
 	<iframe
 		class="overlay-media overlay-media-html"
-		class:active={displayedType === "html"}
-		srcdoc={displayedType === "html" ? (displayedHtml ?? "") : ""}
+		class:active={layers[2].type === "html"}
+		srcdoc={layers[2].type === "html" ? (layers[2].html ?? "") : ""}
 		sandbox="allow-scripts allow-same-origin"
-		title="HTML overlay"
+		title="HTML overlay L3"
 	></iframe>
 </div>
 
-<!-- PopUp overlay: sized, positioned, and animated entirely via direct DOM manipulation. -->
-<!-- svelte-ignore a11y_media_has_caption -->
-<div bind:this={popupContainer} class="popup-overlay-root" style="display:none">
-	<img bind:this={popupImg} alt="popup" style="display:none;width:100%;height:100%" />
+<!-- ── Layer 2 overlay (middle) ───────────────────────────── -->
+<div class="overlay-root" class:visible={layers[1].visible} style="z-index:20">
+	<img
+		bind:this={overlayImg1}
+		class="overlay-media overlay-media-img"
+		class:active={layers[1].type === "image"}
+		src={layers[1].type === "image" ? (layers[1].path ?? "") : ""}
+		alt="overlay L2"
+	/>
 	<video
-		bind:this={popupVideo}
-		autoplay
-		loop
-		muted
-		style="display:none;width:100%;height:100%"
+		bind:this={overlayVid1}
+		class="overlay-media overlay-media-vid"
+		class:active={layers[1].type === "video"}
+		src={layers[1].type === "video" ? (layers[1].path ?? "") : ""}
+		autoplay loop muted
 	></video>
 	<iframe
-		bind:this={popupIframe}
+		class="overlay-media overlay-media-html"
+		class:active={layers[1].type === "html"}
+		srcdoc={layers[1].type === "html" ? (layers[1].html ?? "") : ""}
 		sandbox="allow-scripts allow-same-origin"
-		title="HTML popup"
-		style="display:none;width:100%;height:100%;border:none"
+		title="HTML overlay L2"
 	></iframe>
+</div>
+
+<!-- ── Layer 1 overlay (top) ──────────────────────────────── -->
+<div class="overlay-root" class:visible={layers[0].visible} style="z-index:30">
+	<img
+		bind:this={overlayImg0}
+		class="overlay-media overlay-media-img"
+		class:active={layers[0].type === "image"}
+		src={layers[0].type === "image" ? (layers[0].path ?? "") : ""}
+		alt="overlay L1"
+	/>
+	<video
+		bind:this={overlayVid0}
+		class="overlay-media overlay-media-vid"
+		class:active={layers[0].type === "video"}
+		src={layers[0].type === "video" ? (layers[0].path ?? "") : ""}
+		autoplay loop muted
+	></video>
+	<iframe
+		class="overlay-media overlay-media-html"
+		class:active={layers[0].type === "html"}
+		srcdoc={layers[0].type === "html" ? (layers[0].html ?? "") : ""}
+		sandbox="allow-scripts allow-same-origin"
+		title="HTML overlay L1"
+	></iframe>
+</div>
+
+<!-- ── Popup overlays: bottom to top ──────────────────────── -->
+
+<!-- svelte-ignore a11y_media_has_caption -->
+<div bind:this={popupContainer2} class="popup-overlay-root" style="display:none;z-index:11">
+	<img bind:this={popupImg2} alt="popup L3" style="display:none;width:100%;height:100%" />
+	<video bind:this={popupVideo2} autoplay loop muted style="display:none;width:100%;height:100%"></video>
+	<iframe bind:this={popupIframe2} sandbox="allow-scripts allow-same-origin" title="HTML popup L3" style="display:none;width:100%;height:100%;border:none"></iframe>
+</div>
+
+<!-- svelte-ignore a11y_media_has_caption -->
+<div bind:this={popupContainer1} class="popup-overlay-root" style="display:none;z-index:21">
+	<img bind:this={popupImg1} alt="popup L2" style="display:none;width:100%;height:100%" />
+	<video bind:this={popupVideo1} autoplay loop muted style="display:none;width:100%;height:100%"></video>
+	<iframe bind:this={popupIframe1} sandbox="allow-scripts allow-same-origin" title="HTML popup L2" style="display:none;width:100%;height:100%;border:none"></iframe>
+</div>
+
+<!-- svelte-ignore a11y_media_has_caption -->
+<div bind:this={popupContainer0} class="popup-overlay-root" style="display:none;z-index:31">
+	<img bind:this={popupImg0} alt="popup L1" style="display:none;width:100%;height:100%" />
+	<video bind:this={popupVideo0} autoplay loop muted style="display:none;width:100%;height:100%"></video>
+	<iframe bind:this={popupIframe0} sandbox="allow-scripts allow-same-origin" title="HTML popup L1" style="display:none;width:100%;height:100%;border:none"></iframe>
 </div>
 
 <style>
@@ -801,6 +784,5 @@
 	.popup-overlay-root {
 		position: fixed;
 		pointer-events: none;
-		z-index: 10;
 	}
 </style>

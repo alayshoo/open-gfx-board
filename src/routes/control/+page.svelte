@@ -29,11 +29,12 @@
 	);
 
 	let program = $state<Program | null>(null);
-	let activeScreenId = $state<number | null>(null);
-	let activePopUpId = $state<number | null>(null);
+	// Per-layer active state (key = layer number 1|2|3)
+	let activeScreenIds = $state<Record<number, number | null>>({ 1: null, 2: null, 3: null });
+	let activePopUpIds = $state<Record<number, number | null>>({ 1: null, 2: null, 3: null });
 	let studioCommands = $state<ObsCommand[]>([]);
-	let isPopUpPlaying = $state(false);
-	let popupEndTimer: ReturnType<typeof setTimeout> | null = null;
+	let isPopUpPlaying = $state<Record<number, boolean>>({ 1: false, 2: false, 3: false });
+	let popupEndTimers: Record<number, ReturnType<typeof setTimeout> | null> = { 1: null, 2: null, 3: null };
 
 	// Plugin state
 	let controlPlugins = $state<PluginInfo[]>([]);
@@ -66,12 +67,12 @@
 
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
-	const allowPopUpsMode = $derived(
-		activeScreenId !== null &&
-			(program?.graphics.find((g) => g.id === activeScreenId)
-				?.allow_popups ??
-				false),
-	);
+	// Per-layer: true when that layer's active screen allows popups
+	const allowPopUpsPerLayer = $derived<Record<number, boolean>>({
+		1: activeScreenIds[1] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[1])?.allow_popups ?? false),
+		2: activeScreenIds[2] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[2])?.allow_popups ?? false),
+		3: activeScreenIds[3] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[3])?.allow_popups ?? false),
+	});
 	const logoUrl = $derived(imgUrl(program?.logo_path));
 
 	onMount(() => {
@@ -90,73 +91,76 @@
 		// Named handlers prevent removing every global listener on cleanup
 		function onStudioState(data: StudioState) {
 			program = data.program;
-			activeScreenId = data.activeOverlay?.graphicId ?? null;
-			if (data.activePopUp) {
-				isPopUpPlaying = true;
-				activePopUpId = data.activePopUp.popupId;
-			} else {
-				isPopUpPlaying = false;
-				activePopUpId = null;
+			// Reset all layers
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
+			for (const overlay of data.activeOverlays ?? []) {
+				activeScreenIds = { ...activeScreenIds, [overlay.layer]: overlay.graphicId };
+			}
+			for (const popup of data.activePopUps ?? []) {
+				activePopUpIds = { ...activePopUpIds, [popup.layer]: popup.popupId };
+				isPopUpPlaying = { ...isPopUpPlaying, [popup.layer]: true };
 			}
 		}
 
 		function onProgramSelected(data: any) {
 			program = data.program;
-			activeScreenId = data.activeOverlay?.graphicId ?? null;
-			isPopUpPlaying = false;
-			activePopUpId = null;
-
-			// Auto-activate first screen if no overlay is active and program has screens
-			if (
-				!activeScreenId &&
-				program?.graphics &&
-				program.graphics.length > 0
-			) {
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
+			// Restore the first overlay from the payload if provided
+			if (data.activeOverlay) {
+				const l = data.activeOverlay.layer ?? 1;
+				activeScreenIds = { ...activeScreenIds, [l]: data.activeOverlay.graphicId };
+			}
+			// Auto-activate first screen if nothing is active on layer 1
+			if (!activeScreenIds[1] && program?.graphics && program.graphics.length > 0) {
 				triggerOverlay(program.graphics[0]);
 			}
 		}
 
 		function onProgramCleared(_data: any) {
 			program = null;
-			activeScreenId = null;
-			isPopUpPlaying = false;
-			activePopUpId = null;
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
 		}
 
 		function onOverlayActivated(data: any) {
-			activeScreenId = data.graphicId;
+			const layer = data.layer ?? 1;
+			activeScreenIds = { ...activeScreenIds, [layer]: data.graphicId };
 		}
 
-		function onOverlayDeactivated(_data: any) {
-			activeScreenId = null;
+		function onOverlayDeactivated(data: any) {
+			const layer = data.layer ?? 1;
+			activeScreenIds = { ...activeScreenIds, [layer]: null };
 		}
 
 		function onPopUpStarted(data: any) {
-			isPopUpPlaying = true;
-			activePopUpId = data.popupId;
-			// Schedule end-popup for all popup types (manual, automatic, and
-			// plugin/hidden). The popup-started payload always carries duration,
-			// so this is the single canonical place to start the countdown.
-			if (popupEndTimer) {
-				clearTimeout(popupEndTimer);
-				popupEndTimer = null;
+			const layer: number = data.layer ?? 1;
+			isPopUpPlaying = { ...isPopUpPlaying, [layer]: true };
+			activePopUpIds = { ...activePopUpIds, [layer]: data.popupId };
+			if (popupEndTimers[layer]) {
+				clearTimeout(popupEndTimers[layer]!);
+				popupEndTimers[layer] = null;
 			}
 			const dur: number = data.duration ?? 0;
 			if (dur > 0) {
-				popupEndTimer = setTimeout(() => {
-					socket.emit("end-popup", {});
-					popupEndTimer = null;
+				popupEndTimers[layer] = setTimeout(() => {
+					socket.emit("end-popup", { layer });
+					popupEndTimers[layer] = null;
 				}, dur * 1000);
 			}
 		}
 
-		function onPopUpEnded(_data: any) {
-			isPopUpPlaying = false;
-			activePopUpId = null;
-			// Cancel any pending auto-end timer (e.g. operator dismissed early).
-			if (popupEndTimer) {
-				clearTimeout(popupEndTimer);
-				popupEndTimer = null;
+		function onPopUpEnded(data: any) {
+			const layer: number = data.layer ?? 1;
+			isPopUpPlaying = { ...isPopUpPlaying, [layer]: false };
+			activePopUpIds = { ...activePopUpIds, [layer]: null };
+			if (popupEndTimers[layer]) {
+				clearTimeout(popupEndTimers[layer]!);
+				popupEndTimers[layer] = null;
 			}
 		}
 
@@ -228,43 +232,40 @@
 			socket.off("update-screens", onUpdateData);
 			socket.off("update-studios", onUpdateStudios);
 			socket.emit("leave-studio-room", {});
-			if (popupEndTimer) clearTimeout(popupEndTimer);
+			for (const t of Object.values(popupEndTimers)) { if (t) clearTimeout(t); }
 		};
 	});
 
 	function triggerOverlay(graphic: Graphic) {
-		if (activeScreenId === graphic.id) {
-			// Clicking the active overlay deactivates it
-			socket.emit("deactivate-overlay", {});
+		const layer = graphic.layer ?? 1;
+		if (activeScreenIds[layer] === graphic.id) {
+			socket.emit("deactivate-overlay", { layer });
 		} else {
 			socket.emit("trigger-overlay", {
 				programId: program!.id,
 				graphicId: graphic.id,
 				graphicPath: graphic.graphics_path,
 				allowPopUps: graphic.allow_popups,
+				layer,
 			});
 		}
 	}
 
 	function triggerPopUp(pa: ProgramPopUp) {
-		if (popupEndTimer) {
-			clearTimeout(popupEndTimer);
-			popupEndTimer = null;
+		const layer = pa.layer ?? 1;
+		if (popupEndTimers[layer]) {
+			clearTimeout(popupEndTimers[layer]!);
+			popupEndTimers[layer] = null;
 		}
-
-		if (activePopUpId === pa.popup_id) {
-			// Clicking the active pop-up stops it early
-			socket.emit("end-popup", {});
+		if (activePopUpIds[layer] === pa.popup_id) {
+			socket.emit("end-popup", { layer });
 		} else {
-			// Only send popupId + duration — the server fetches image_path,
-			// direction, and position fresh from the database so that recent
-			// edits are always reflected regardless of which controller fires.
 			socket.emit("trigger-popup", {
 				programId: program!.id,
 				popupId: pa.popup_id,
 				duration: pa.duration,
+				layer,
 			});
-			// Timer is started in onPopUpStarted when the server echoes popup-started back.
 		}
 	}
 
@@ -371,7 +372,7 @@
 		<section class="panel-section screens-section">
 			<ScreenSelector
 				{screens}
-				{activeScreenId}
+				{activeScreenIds}
 				onTrigger={triggerOverlay}
 			/>
 		</section>
@@ -380,8 +381,8 @@
 		<section class="panel-section popup-section">
 			<PopUpLauncher
 				{programPopUps}
-				{activePopUpId}
-				{allowPopUpsMode}
+				{activePopUpIds}
+				allowPopUpsPerLayer={allowPopUpsPerLayer}
 				onTrigger={triggerPopUp}
 			/>
 		</section>

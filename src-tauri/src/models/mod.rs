@@ -58,6 +58,11 @@ pub struct Screen {
     pub plugin_id: Option<String>,
     /// The template id within the plugin manifest that produced this screen.
     pub plugin_template_id: Option<String>,
+    /// Layer assignment within a program (1 = top, 2 = middle, 3 = bottom).
+    /// Only populated when this screen is loaded as part of a `Program`; omitted for
+    /// standalone screen objects returned by the /screens endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,6 +106,8 @@ pub struct ProgramPopup {
     pub trigger_type: String,
     pub duration: i64,
     pub frequency: i64,
+    /// Layer assignment within the program (1 = top, 2 = middle, 3 = bottom).
+    pub layer: i64,
     pub popup: Option<Popup>,
 }
 
@@ -117,6 +124,9 @@ pub struct Program {
     pub created_at: String,
 }
 
+/// The full per-studio state snapshot sent to clients on `studio-state`.
+/// Uses Vec fields for overlays and popups so multiple layers can be active
+/// simultaneously.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudioState {
     #[serde(rename = "studioId")]
@@ -124,14 +134,18 @@ pub struct StudioState {
     #[serde(rename = "programId")]
     pub program_id: Option<i64>,
     pub program: Option<Program>,
-    #[serde(rename = "activeOverlay")]
-    pub active_overlay: Option<ActiveOverlay>,
-    #[serde(rename = "activePopUp")]
-    pub active_popup: Option<ActivePopup>,
+    /// All currently active screen overlays, one per layer at most.
+    #[serde(rename = "activeOverlays")]
+    pub active_overlays: Vec<ActiveOverlay>,
+    /// All currently active pop-ups, one per layer at most.
+    #[serde(rename = "activePopUps")]
+    pub active_popups: Vec<ActivePopup>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveOverlay {
+    /// Layer number (1 = top, 2 = middle, 3 = bottom).
+    pub layer: i64,
     #[serde(rename = "graphicId")]
     pub graphic_id: i64,
     #[serde(rename = "graphicPath")]
@@ -148,6 +162,8 @@ pub struct ActiveOverlay {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivePopup {
+    /// Layer number (1 = top, 2 = middle, 3 = bottom).
+    pub layer: i64,
     #[serde(rename = "popupId")]
     pub popup_id: i64,
     #[serde(rename = "imagePath")]

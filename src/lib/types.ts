@@ -12,6 +12,12 @@ export interface Screen {
 	/** Set when this screen was installed by a plugin; null for user-created screens. */
 	plugin_id: string | null;
 	plugin_template_id: string | null;
+	/**
+	 * Layer assignment within a program (1 = top, 2 = middle, 3 = bottom).
+	 * Only present when the screen is part of a Program's `graphics` array;
+	 * omitted for standalone screens returned by /screens.
+	 */
+	layer?: number;
 }
 
 // Graphic is an alias for Screen for backward compat
@@ -24,6 +30,8 @@ export interface ProgramPopUp {
 	popup_launch_type: 'automatic' | 'manual' | 'both' | 'filler' | 'hidden';
 	duration: number;
 	frequency: number;
+	/** Layer assignment within the program (1 = top, 2 = middle, 3 = bottom). */
+	layer: number;
 	popup: PopUp;
 }
 
@@ -86,6 +94,8 @@ export interface Studio {
 }
 
 export interface ActiveOverlay {
+	/** Layer number (1 = top, 2 = middle, 3 = bottom). */
+	layer: number;
 	graphicId: number;
 	graphicPath: string | null;
 	allowPopUps: boolean;
@@ -95,6 +105,8 @@ export interface ActiveOverlay {
 }
 
 export interface ActivePopUp {
+	/** Layer number (1 = top, 2 = middle, 3 = bottom). */
+	layer: number;
 	popupId: number;
 	imagePath: string | null;
 	duration: number;
@@ -113,8 +125,10 @@ export interface StudioState {
 	studioId: number;
 	programId: number | null;
 	program: Program | null;
-	activeOverlay: ActiveOverlay | null;
-	activePopUp: ActivePopUp | null;
+	/** All currently active screen overlays, one per layer at most. */
+	activeOverlays: ActiveOverlay[];
+	/** All currently active pop-ups, one per layer at most. */
+	activePopUps: ActivePopUp[];
 }
 
 export interface Toast {
@@ -169,3 +183,22 @@ export interface PluginPopupDef {
 	height: number | null;
 	duration: number;
 }
+
+// ── Layer helpers ─────────────────────────────────────────────────────────────
+
+export type LayerNumber = 1 | 2 | 3;
+export const LAYERS: LayerNumber[] = [1, 2, 3];
+
+/** Per-layer colour palette for screens (light blue → darker blue → purple). */
+export const SCREEN_LAYER_COLORS: Record<LayerNumber, { solid: string; dim: string }> = {
+	1: { solid: '#38bdf8', dim: 'rgba(56,189,248,0.15)' },
+	2: { solid: '#3b82f6', dim: 'rgba(59,130,246,0.15)' },
+	3: { solid: '#a855f7', dim: 'rgba(168,85,247,0.15)' },
+};
+
+/** Per-layer colour palette for popups (amber → lime → teal). */
+export const POPUP_LAYER_COLORS: Record<LayerNumber, { solid: string; dim: string }> = {
+	1: { solid: '#f59e0b', dim: 'rgba(245,158,11,0.15)' },
+	2: { solid: '#84cc16', dim: 'rgba(132,204,22,0.15)' },
+	3: { solid: '#14b8a6', dim: 'rgba(20, 184, 102, 0.15)' },
+};

@@ -1,16 +1,25 @@
 <script lang="ts">
 	import type { ProgramPopUp } from "$lib/types";
-	import { onMount } from "svelte";
+
+	const LAYER_COLORS: Record<number, { solid: string; dim: string }> = {
+		1: { solid: '#f59e0b', dim: 'rgba(245,158,11,0.15)' },
+		2: { solid: '#84cc16', dim: 'rgba(132,204,22,0.15)' },
+		3: { solid: '#14b8a6', dim: 'rgba(20,184,166,0.15)' },
+	};
+
+	function layerColor(layer: number): { solid: string; dim: string } {
+		return LAYER_COLORS[layer] ?? LAYER_COLORS[1];
+	}
 
 	let {
 		programPopUps = [],
-		activePopUpId = null,
-		allowPopUpsMode = false,
+		activePopUpIds = { 1: null, 2: null, 3: null },
+		allowPopUpsPerLayer = { 1: false, 2: false, 3: false },
 		onTrigger,
 	}: {
 		programPopUps?: ProgramPopUp[];
-		activePopUpId?: number | null;
-		allowPopUpsMode?: boolean;
+		activePopUpIds?: Record<number, number | null>;
+		allowPopUpsPerLayer?: Record<number, boolean>;
 		onTrigger?: (popup: ProgramPopUp) => void;
 	} = $props();
 
@@ -18,41 +27,36 @@
 		programPopUps.filter((pa) => pa.popup_launch_type === "manual" || pa.popup_launch_type === "both"),
 	);
 
-	let container: HTMLDivElement;
-	let cols = $state(1);
+	// Reactive container width — updated by the ResizeObserver attachment below
+	let containerWidth = $state(0);
 
-	function computeGrid() {
-		if (!container) return;
+	const cols = $derived.by(() => {
 		const N = manualPopUps.length;
-		if (N === 0) return;
-		const W = container.clientWidth;
-		const targetH = window.innerWidth < 768 ? 90 : 140; // Target height for balanced buttons
+		if (N === 0 || containerWidth === 0) return 1;
+		const targetH = window.innerWidth < 768 ? 90 : 140;
+		const maxCols = window.innerWidth < 768 ? 1 : 3;
 		let bestCols = 1;
 		let bestScore = Infinity;
-		const maxCols = window.innerWidth < 768 ? 1 : 3;
 		for (let c = 1; c <= Math.min(N, maxCols); c++) {
-			const btnW = W / c;
+			const btnW = containerWidth / c;
 			const score = Math.abs(Math.log(btnW / targetH));
 			if (score < bestScore) {
 				bestScore = score;
 				bestCols = c;
 			}
 		}
-		cols = bestCols;
-	}
+		return bestCols;
+	});
 
-	onMount(() => {
-		const observer = new ResizeObserver(computeGrid);
-		observer.observe(container);
-		computeGrid();
+	function observeWidth(el: HTMLElement) {
+		const observer = new ResizeObserver(([entry]) => {
+			containerWidth = entry.contentRect.width;
+		});
+		observer.observe(el);
+		// Read initial width synchronously
+		containerWidth = el.clientWidth;
 		return () => observer.disconnect();
-	});
-
-	$effect(() => {
-		// recompute when manualPopUps change
-		manualPopUps;
-		computeGrid();
-	});
+	}
 </script>
 
 <div class="popup-launcher">
@@ -62,16 +66,23 @@
 	</div>
 	<div
 		class="grid"
-		bind:this={container}
 		style="grid-template-columns: repeat({cols}, 1fr)"
+		{@attach observeWidth}
 	>
 		{#each manualPopUps as pa (pa.id)}
+			{@const layer = pa.layer ?? 1}
+			{@const isActive = activePopUpIds[layer] === pa.popup_id}
+			{@const isDisabled = !allowPopUpsPerLayer[layer]}
+			{@const lc = layerColor(layer)}
 			<button
 				class="popup-btn"
-				class:active={activePopUpId === pa.popup_id}
-				disabled={!allowPopUpsMode}
+				class:active={isActive}
+				disabled={isDisabled}
 				onclick={() => onTrigger?.(pa)}
 				title={pa.popup?.name}
+				style={isActive
+					? `background:${lc.dim};border-color:${lc.solid};box-shadow:inset 0 0 0 1px ${lc.solid};`
+					: ''}
 			>
 				<div class="popup-sec-info">
 					<span class="popup-dur">{pa.duration}s</span>
@@ -81,10 +92,22 @@
 				</div>
 				<div style="height: 10px;"></div>
 				<div class="popup-info">
-					<span class="popup-name">{pa.popup?.name}</span>
+					<span
+						class="popup-name"
+						style={isActive ? `color:${lc.solid};` : ''}
+					>{pa.popup?.name}</span>
 				</div>
-				{#if activePopUpId === pa.popup_id}
-					<span class="live-pip"></span>
+				<!-- Layer badge — always visible in top-right -->
+				<span
+					class="layer-badge"
+					style="color:{lc.solid};background:{lc.dim};border-color:{lc.solid};"
+				>{layer}</span>
+				<!-- Live-pip — overlaid on top of layer badge when active -->
+				{#if isActive}
+					<span
+						class="live-pip"
+						style="background:{lc.solid};box-shadow:0 0 8px {lc.solid};"
+					></span>
 				{/if}
 			</button>
 		{:else}
@@ -161,12 +184,6 @@
 		border-color: var(--border-2);
 	}
 
-	.popup-btn.active {
-		background: var(--warn-dim);
-		border-color: var(--warn);
-		box-shadow: inset 0 0 0 1px var(--warn);
-	}
-
 	.popup-btn:disabled {
 		opacity: 0.5;
 		filter: grayscale(1);
@@ -186,10 +203,6 @@
 		color: var(--text-1);
 		line-height: 1.2;
 		word-break: break-word;
-	}
-
-	.active .popup-name {
-		color: var(--warn);
 	}
 
 	.popup-sec-info {
@@ -221,16 +234,37 @@
 		letter-spacing: 0.05em;
 	}
 
+	/* Layer badge — top-right corner, always visible */
+	.layer-badge {
+		position: absolute;
+		top: 7px;
+		right: 7px;
+		width: 18px;
+		height: 18px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		border: 1px solid;
+		font-size: 10px;
+		font-weight: 700;
+		line-height: 1;
+		letter-spacing: 0;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	/* Live-pip — sits on top of the layer badge when active */
 	.live-pip {
 		position: absolute;
-		top: 8px;
-		right: 8px;
-		width: 7px;
-		height: 7px;
+		top: 7px;
+		right: 7px;
+		width: 18px;
+		height: 18px;
 		border-radius: 50%;
-		background: var(--warn);
-		box-shadow: 0 0 8px var(--warn);
 		animation: pulse 2s ease-in-out infinite;
+		pointer-events: none;
+		z-index: 2;
 	}
 
 	@keyframes pulse {

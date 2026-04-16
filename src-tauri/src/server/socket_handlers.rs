@@ -85,32 +85,49 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         None
                     };
 
-                    let active_overlay = runtime.active_screen_id.map(|gid| ActiveOverlay {
-                        graphic_id: gid,
-                        graphic_path: runtime.active_screen_path.clone(),
-                        allow_popups: runtime.active_screen_allow_popups,
-                        media_type: runtime.active_screen_media_type.clone().unwrap_or_else(|| "image".to_string()),
-                        html_content: runtime.active_screen_html_content.clone(),
-                    });
+                    // Collect all active overlays and popups across all three layers.
+                    let mut active_overlays: Vec<ActiveOverlay> = Vec::new();
+                    let mut active_popups: Vec<ActivePopup> = Vec::new();
 
-                    let active_popup = runtime.active_popup_id.map(|pid| ActivePopup {
-                        popup_id: pid,
-                        image_path: runtime.active_popup_path.clone(),
-                        duration: runtime.active_popup_duration,
-                        direction: runtime.active_popup_direction.clone().unwrap_or_else(|| "bottom".to_string()),
-                        position: runtime.active_popup_position.unwrap_or(50.0),
-                        media_type: runtime.active_popup_media_type.clone().unwrap_or_else(|| "image".to_string()),
-                        html_content: runtime.active_popup_html_content.clone(),
-                        width: runtime.active_popup_width,
-                        height: runtime.active_popup_height,
-                    });
+                    for (idx, layer) in runtime.layers.iter().enumerate() {
+                        let layer_num = (idx + 1) as i64;
+
+                        if let Some(gid) = layer.screen_id {
+                            active_overlays.push(ActiveOverlay {
+                                layer: layer_num,
+                                graphic_id: gid,
+                                graphic_path: layer.screen_path.clone(),
+                                allow_popups: layer.screen_allow_popups,
+                                media_type: layer.screen_media_type.clone()
+                                    .unwrap_or_else(|| "image".to_string()),
+                                html_content: layer.screen_html_content.clone(),
+                            });
+                        }
+
+                        if let Some(pid) = layer.popup_id {
+                            active_popups.push(ActivePopup {
+                                layer: layer_num,
+                                popup_id: pid,
+                                image_path: layer.popup_path.clone(),
+                                duration: layer.popup_duration,
+                                direction: layer.popup_direction.clone()
+                                    .unwrap_or_else(|| "bottom".to_string()),
+                                position: layer.popup_position.unwrap_or(50.0),
+                                media_type: layer.popup_media_type.clone()
+                                    .unwrap_or_else(|| "image".to_string()),
+                                html_content: layer.popup_html_content.clone(),
+                                width: layer.popup_width,
+                                height: layer.popup_height,
+                            });
+                        }
+                    }
 
                     let studio_state = StudioState {
                         studio_id: STUDIO_ID,
                         program_id: runtime.program_id,
                         program,
-                        active_overlay,
-                        active_popup,
+                        active_overlays,
+                        active_popups,
                     };
 
                     let _ = socket.emit("studio-state", &studio_state);
@@ -130,29 +147,18 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 async move {
                     let program_id = data.get("programId").and_then(|v| v.as_i64());
 
-                    // Update runtime state; changing program always resets overlay / popup
+                    // Update runtime state; changing program always resets all layers.
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(STUDIO_ID).or_default();
                         s.program_id = program_id;
-                        s.active_screen_id = None;
-                        s.active_screen_path = None;
-                        s.active_screen_allow_popups = false;
-                        s.active_screen_media_type = None;
-                        s.active_screen_html_content = None;
-                        s.active_popup_id = None;
-                        s.active_popup_path = None;
-                        s.active_popup_duration = 0;
-                        s.active_popup_direction = None;
-                        s.active_popup_position = None;
-                        s.active_popup_media_type = None;
-                        s.active_popup_html_content = None;
-                        s.active_popup_width = None;
-                        s.active_popup_height = None;
+                        s.reset();
+                        s.program_id = program_id;
                     }
 
                     if let Some(pid) = program_id {
-                        // Fetch program and build overlay inside a scoped db lock
+                        // Fetch program and build overlay inside a scoped db lock.
+                        // Auto-activates the first screen (on its assigned layer).
                         let (program, first_overlay) = {
                             let db = state_c.db.lock().await;
                             let prog = tokio::task::block_in_place(|| {
@@ -203,7 +209,10 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                     } else {
                                         None
                                     };
+
+                                    let layer = s.layer.unwrap_or(1);
                                     ActiveOverlay {
+                                        layer,
                                         graphic_id: s.id,
                                         graphic_path: s.media_path.clone(),
                                         allow_popups: s.allow_popups,
@@ -218,11 +227,12 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         if let Some(ref overlay) = first_overlay {
                             let mut states = state_c.studio_states.lock().await;
                             let s = states.entry(STUDIO_ID).or_default();
-                            s.active_screen_id = Some(overlay.graphic_id);
-                            s.active_screen_path = overlay.graphic_path.clone();
-                            s.active_screen_allow_popups = overlay.allow_popups;
-                            s.active_screen_media_type = Some(overlay.media_type.clone());
-                            s.active_screen_html_content = overlay.html_content.clone();
+                            let layer_state = s.layer_mut(overlay.layer);
+                            layer_state.screen_id = Some(overlay.graphic_id);
+                            layer_state.screen_path = overlay.graphic_path.clone();
+                            layer_state.screen_allow_popups = overlay.allow_popups;
+                            layer_state.screen_media_type = Some(overlay.media_type.clone());
+                            layer_state.screen_html_content = overlay.html_content.clone();
                         }
 
                         let payload = serde_json::json!({
@@ -234,10 +244,11 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         });
                         let _ = io_cc.within(ROOM).emit("program-selected", &payload).await;
 
-                        // Also emit overlay-activated so the OBS overlay page reacts immediately
+                        // Also emit overlay-activated so the OBS overlay page reacts immediately.
                         if let Some(ref overlay) = first_overlay {
                             let overlay_payload = serde_json::json!({
                                 "studioId": STUDIO_ID,
+                                "layer": overlay.layer,
                                 "graphicId": overlay.graphic_id,
                                 "graphicPath": overlay.graphic_path,
                                 "allowPopUps": overlay.allow_popups,
@@ -259,8 +270,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         // Uses io (not socket) so the triggering client also receives the event,
         // keeping its own UI in sync with every other client in the room.
         //
-        // Always fetches fresh screen data from the database (like trigger-popup)
-        // so that HTML content and other fields are up-to-date.
+        // Always fetches fresh screen data from the database so HTML content and
+        // other fields are up-to-date.  Now carries a `layer` field (1–3).
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
@@ -270,6 +281,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 async move {
                     let graphic_id = data.get("graphicId").and_then(|v| v.as_i64());
                     let allow_popups = data.get("allowPopUps").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let layer = data.get("layer").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 3);
 
                     // Fetch fresh screen data from DB inside a scoped lock, then release before
                     // acquiring studio_states to avoid potential deadlocks.
@@ -282,15 +294,11 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                             Some(s) => {
                                 let html = if s.media_type == "html" {
                                     s.html_content.as_ref().map(|raw| {
-                                        // Use try_lock for studio_states to get program_id without
-                                        // risking a deadlock (we already hold db).
                                         let program_id = state_c.studio_states.try_lock()
                                             .ok()
                                             .and_then(|states| states.get(&STUDIO_ID).and_then(|r| r.program_id));
                                         let mut ctx = build_template_context(program_id, &db);
 
-                                        // If this is a plugin screen, populate plugin state in the
-                                        // template context so {{plugin:…}} expressions resolve.
                                         let plugin_id: Option<String> = db.query_row(
                                             "SELECT plugin_id FROM screens WHERE id = ?1",
                                             [gid],
@@ -315,7 +323,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                                         let mut processed = html_template::process_template(raw, &ctx, Some(&db));
 
-                                        // Inject the live plugin SDK for plugin screens
                                         if let Some(ref pid) = plugin_id {
                                             processed = crate::plugins::sdk_injection::inject_sdk(&processed, pid, true);
                                         }
@@ -328,7 +335,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 (s.media_path, s.media_type, html)
                             }
                             None => {
-                                // Fallback: use data from the client
                                 let gp = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
                                 (gp, "image".to_string(), None)
                             }
@@ -342,15 +348,17 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(STUDIO_ID).or_default();
-                        s.active_screen_id = graphic_id;
-                        s.active_screen_path = graphic_path.clone();
-                        s.active_screen_allow_popups = allow_popups;
-                        s.active_screen_media_type = Some(media_type.clone());
-                        s.active_screen_html_content = processed_html.clone();
+                        let ls = s.layer_mut(layer);
+                        ls.screen_id = graphic_id;
+                        ls.screen_path = graphic_path.clone();
+                        ls.screen_allow_popups = allow_popups;
+                        ls.screen_media_type = Some(media_type.clone());
+                        ls.screen_html_content = processed_html.clone();
                     }
 
                     let payload = serde_json::json!({
                         "studioId": STUDIO_ID,
+                        "layer": layer,
                         "graphicId": graphic_id,
                         "graphicPath": graphic_path,
                         "allowPopUps": allow_popups,
@@ -366,21 +374,24 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("deactivate-overlay", move |_socket: SocketRef, _: Data<Value>| {
+            socket.on("deactivate-overlay", move |_socket: SocketRef, Data(data): Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
+                    let layer = data.get("layer").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 3);
+
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(STUDIO_ID).or_default();
-                        s.active_screen_id = None;
-                        s.active_screen_path = None;
-                        s.active_screen_allow_popups = false;
-                        s.active_screen_media_type = None;
-                        s.active_screen_html_content = None;
+                        let ls = s.layer_mut(layer);
+                        ls.screen_id = None;
+                        ls.screen_path = None;
+                        ls.screen_allow_popups = false;
+                        ls.screen_media_type = None;
+                        ls.screen_html_content = None;
                     }
 
-                    let payload = serde_json::json!({ "studioId": STUDIO_ID });
+                    let payload = serde_json::json!({ "studioId": STUDIO_ID, "layer": layer });
                     let _ = io_cc.within(ROOM).emit("overlay-deactivated", &payload).await;
                 }
             });
@@ -388,9 +399,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
         // ── trigger-popup ─────────────────────────────────────────────────
         // Uses io (not socket) so the triggering client also gets the event.
-        // Only popupId + duration come from the client; image_path / direction /
-        // position are always fetched fresh from the database so that stale
-        // values held by any controller never reach the OBS overlay.
+        // Now carries a `layer` field (1–3).
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
@@ -400,6 +409,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                 async move {
                     let Some(popup_id) = data.get("popupId").and_then(|v| v.as_i64()) else { return; };
                     let duration = data.get("duration").and_then(|v| v.as_i64()).unwrap_or(10);
+                    let layer = data.get("layer").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 3);
 
                     // Fetch fresh popup data and process any HTML template inside a
                     // scoped db lock, then release before acquiring studio_states.
@@ -418,7 +428,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                             .and_then(|states| states.get(&STUDIO_ID).and_then(|r| r.program_id));
                                         let mut ctx = build_template_context(program_id, &db);
 
-                                        // Check if this is a plugin popup
                                         let plugin_id: Option<String> = db.query_row(
                                             "SELECT plugin_id FROM popups WHERE id = ?1",
                                             [popup_id],
@@ -443,7 +452,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                                         let mut processed = html_template::process_template(raw, &ctx, Some(&db));
 
-                                        // Inject SDK for plugin popups
                                         if let Some(ref pid) = plugin_id {
                                             processed = crate::plugins::sdk_injection::inject_sdk(&processed, pid, false);
                                         }
@@ -464,19 +472,21 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(STUDIO_ID).or_default();
-                        s.active_popup_id = Some(popup_id);
-                        s.active_popup_path = image_path.clone();
-                        s.active_popup_duration = duration;
-                        s.active_popup_direction = Some(direction.clone());
-                        s.active_popup_position = Some(position);
-                        s.active_popup_media_type = Some(media_type.clone());
-                        s.active_popup_html_content = processed_html.clone();
-                        s.active_popup_width = width;
-                        s.active_popup_height = height;
+                        let ls = s.layer_mut(layer);
+                        ls.popup_id = Some(popup_id);
+                        ls.popup_path = image_path.clone();
+                        ls.popup_duration = duration;
+                        ls.popup_direction = Some(direction.clone());
+                        ls.popup_position = Some(position);
+                        ls.popup_media_type = Some(media_type.clone());
+                        ls.popup_html_content = processed_html.clone();
+                        ls.popup_width = width;
+                        ls.popup_height = height;
                     }
 
                     let payload = serde_json::json!({
                         "studioId": STUDIO_ID,
+                        "layer": layer,
                         "popupId": popup_id,
                         "imagePath": image_path,
                         "duration": duration,
@@ -496,25 +506,28 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
         {
             let state_c = state.clone();
             let io_cc = io_c.clone();
-            socket.on("end-popup", move |_socket: SocketRef, _: Data<Value>| {
+            socket.on("end-popup", move |_socket: SocketRef, Data(data): Data<Value>| {
                 let state_c = state_c.clone();
                 let io_cc = io_cc.clone();
                 async move {
+                    let layer = data.get("layer").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 3);
+
                     {
                         let mut states = state_c.studio_states.lock().await;
                         let s = states.entry(STUDIO_ID).or_default();
-                        s.active_popup_id = None;
-                        s.active_popup_path = None;
-                        s.active_popup_duration = 0;
-                        s.active_popup_direction = None;
-                        s.active_popup_position = None;
-                        s.active_popup_media_type = None;
-                        s.active_popup_html_content = None;
-                        s.active_popup_width = None;
-                        s.active_popup_height = None;
+                        let ls = s.layer_mut(layer);
+                        ls.popup_id = None;
+                        ls.popup_path = None;
+                        ls.popup_duration = 0;
+                        ls.popup_direction = None;
+                        ls.popup_position = None;
+                        ls.popup_media_type = None;
+                        ls.popup_html_content = None;
+                        ls.popup_width = None;
+                        ls.popup_height = None;
                     }
 
-                    let payload = serde_json::json!({ "studioId": STUDIO_ID });
+                    let payload = serde_json::json!({ "studioId": STUDIO_ID, "layer": layer });
                     let _ = io_cc.within(ROOM).emit("popup-ended", &payload).await;
                 }
             });
@@ -665,6 +678,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         })
                         .unwrap_or_default();
                     let duration_override = data.get("duration").and_then(|v| v.as_i64());
+                    let layer = data.get("layer").and_then(|v| v.as_i64()).unwrap_or(1).clamp(1, 3);
 
                     // Find popup definition in manifest
                     let popup_def = {
@@ -712,8 +726,6 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                     let db = state_c.db.lock().await;
                     let processed_html = {
                         let processed = crate::html_template::process_template(&template_html, &ctx, Some(&db));
-                        // Inject SDK (non-live: popups are short-lived but may
-                        // still need fetch-based helpers like getData)
                         crate::plugins::sdk_injection::inject_sdk(&processed, &plugin_id, false)
                     };
 
@@ -729,23 +741,25 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                     let popup_id = popup_db_id.unwrap_or(0);
 
-                    // Update runtime state
+                    // Update runtime state on the specified layer
                     {
                         let mut studio_states = state_c.studio_states.lock().await;
                         let ss = studio_states.entry(STUDIO_ID).or_default();
-                        ss.active_popup_id = Some(popup_id);
-                        ss.active_popup_path = None;
-                        ss.active_popup_duration = duration;
-                        ss.active_popup_direction = Some(popup_def.direction.clone());
-                        ss.active_popup_position = Some(popup_def.position);
-                        ss.active_popup_media_type = Some("html".to_string());
-                        ss.active_popup_html_content = Some(processed_html.clone());
-                        ss.active_popup_width = popup_def.width;
-                        ss.active_popup_height = popup_def.height;
+                        let ls = ss.layer_mut(layer);
+                        ls.popup_id = Some(popup_id);
+                        ls.popup_path = None;
+                        ls.popup_duration = duration;
+                        ls.popup_direction = Some(popup_def.direction.clone());
+                        ls.popup_position = Some(popup_def.position);
+                        ls.popup_media_type = Some("html".to_string());
+                        ls.popup_html_content = Some(processed_html.clone());
+                        ls.popup_width = popup_def.width;
+                        ls.popup_height = popup_def.height;
                     }
 
                     let payload = serde_json::json!({
                         "studioId": STUDIO_ID,
+                        "layer": layer,
                         "popupId": popup_id,
                         "imagePath": null,
                         "duration": duration,

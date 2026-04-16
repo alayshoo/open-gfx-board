@@ -233,5 +233,17 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 13 — layers support.
+    // Each screen and popup in a program can be assigned to one of three layers
+    // (1 = top, 2 = middle, 3 = bottom).  Multiple items can be active
+    // simultaneously as long as they are on different layers.
+    if version < 13 {
+        conn.execute_batch(
+            "ALTER TABLE program_screens ADD COLUMN layer INTEGER NOT NULL DEFAULT 1;
+             ALTER TABLE program_popups  ADD COLUMN layer INTEGER NOT NULL DEFAULT 1;
+             INSERT INTO schema_version VALUES (13);",
+        )?;
+    }
+
     Ok(())
 }

@@ -27,6 +27,7 @@ pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
             created_at: row.get(7)?,
             plugin_id: row.get(8)?,
             plugin_template_id: row.get(9)?,
+            layer: None,
         });
     }
     Ok(screens)
@@ -64,6 +65,7 @@ pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
                 created_at,
                 plugin_id,
                 plugin_template_id,
+                layer: None,
             }))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),

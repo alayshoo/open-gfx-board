@@ -121,7 +121,11 @@ jobs:
 
             New Features:
             
-             - HTML Type Screens and Popups.
-             - HTML Engine to inject variables into HTML Types before passing them to /obs.
+             - Screens and Popups now have a layer parameter. Three layers allow to stack screens and popups on top of each other.
+             - Added a Plugin System that allows for a custom database, editor and control panel.
+             - Added Football Plugin that adds a Screen with a scoreboard and multiple Popups for different events.
+              - Goal, Substitution and Card events which fetch player names from numbers.
+              - Lineup card populated with a custom formation.
+              - Interactive Timer.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

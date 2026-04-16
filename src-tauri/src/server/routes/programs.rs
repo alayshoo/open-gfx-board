@@ -8,7 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
-use crate::db::programs::ProgramPopupInput;
+use crate::db::programs::{ProgramScreenInput, ProgramPopupInput};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -33,7 +33,6 @@ async fn list_programs(State(state): State<AppState>) -> impl IntoResponse {
 #[derive(Deserialize)]
 struct CreateProgramBody {
     name: String,
-    screen_ids: Option<Vec<i64>>,
 }
 
 async fn create_program(
@@ -57,12 +56,19 @@ async fn create_program(
 }
 
 #[derive(Deserialize)]
+struct ProgramScreenBody {
+    screen_id: i64,
+    layer: Option<i64>,
+}
+
+#[derive(Deserialize)]
 struct ProgramPopupBody {
     popup_id: i64,
     #[serde(rename = "popup_launch_type")]
     trigger_type: Option<String>,
     duration: Option<i64>,
     frequency: Option<i64>,
+    layer: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -71,7 +77,8 @@ struct UpdateProgramBody {
     logo_path: Option<String>,
     #[serde(rename = "background_graphics_path")]
     bg_path: Option<String>,
-    screen_ids: Option<Vec<i64>>,
+    /// New screens array with per-screen layer assignments.
+    screens: Option<Vec<ProgramScreenBody>>,
     popups: Option<Vec<ProgramPopupBody>>,
 }
 
@@ -81,12 +88,16 @@ async fn update_program(
     Json(body): Json<UpdateProgramBody>,
 ) -> impl IntoResponse {
     let db = state.db.lock().await;
-    let screen_ids = body.screen_ids.unwrap_or_default();
+    let screens: Vec<ProgramScreenInput> = body.screens.unwrap_or_default().into_iter().map(|s| ProgramScreenInput {
+        screen_id: s.screen_id,
+        layer: s.layer.unwrap_or(1),
+    }).collect();
     let popups: Vec<ProgramPopupInput> = body.popups.unwrap_or_default().into_iter().map(|p| ProgramPopupInput {
         popup_id: p.popup_id,
         trigger_type: p.trigger_type.unwrap_or_else(|| "manual".to_string()),
         duration: p.duration.unwrap_or(10),
         frequency: p.frequency.unwrap_or(1),
+        layer: p.layer.unwrap_or(1),
     }).collect();
 
     match tokio::task::block_in_place(|| {
@@ -96,11 +107,113 @@ async fn update_program(
             &body.name,
             body.logo_path.as_deref(),
             body.bg_path.as_deref(),
-            &screen_ids,
+            &screens,
             &popups,
         )
     }) {
         Ok(Some(program)) => {
+            // ── Reconcile active runtime state with new layer assignments ──────────
+            // When a running program is edited, any screen or popup that was moved
+            // to a different layer must also move in the server's runtime state so
+            // that every client that requests get-studio-state sees the correct
+            // layer. Screens / popups that were removed from the program are cleared.
+            {
+                let mut states = state.studio_states.lock().await;
+                let runtime = states.entry(1).or_default();
+
+                // Only reconcile when this is the program currently loaded.
+                if runtime.program_id == Some(id) {
+                    // ── Screens ──────────────────────────────────────────────────
+                    for layer_idx in 0..3usize {
+                        let layer_num = (layer_idx + 1) as i64;
+                        if let Some(screen_id) = runtime.layers[layer_idx].screen_id {
+                            let new_layer: Option<i64> = db.query_row(
+                                "SELECT layer FROM program_screens WHERE program_id = ?1 AND screen_id = ?2",
+                                rusqlite::params![id, screen_id],
+                                |r| r.get(0),
+                            ).ok();
+
+                            match new_layer {
+                                Some(nl) if nl != layer_num => {
+                                    // Screen was moved to a different layer — migrate the
+                                    // screen fields, leaving popup fields in place.
+                                    let new_idx = (nl - 1) as usize;
+                                    let scr_id    = runtime.layers[layer_idx].screen_id.take();
+                                    let scr_path  = runtime.layers[layer_idx].screen_path.take();
+                                    let scr_allow = runtime.layers[layer_idx].screen_allow_popups;
+                                    let scr_mt    = runtime.layers[layer_idx].screen_media_type.take();
+                                    let scr_html  = runtime.layers[layer_idx].screen_html_content.take();
+                                    runtime.layers[layer_idx].screen_allow_popups = false;
+                                    runtime.layers[new_idx].screen_id            = scr_id;
+                                    runtime.layers[new_idx].screen_path          = scr_path;
+                                    runtime.layers[new_idx].screen_allow_popups  = scr_allow;
+                                    runtime.layers[new_idx].screen_media_type    = scr_mt;
+                                    runtime.layers[new_idx].screen_html_content  = scr_html;
+                                }
+                                None => {
+                                    // Screen was removed from the program entirely.
+                                    runtime.layers[layer_idx].screen_id            = None;
+                                    runtime.layers[layer_idx].screen_path          = None;
+                                    runtime.layers[layer_idx].screen_allow_popups  = false;
+                                    runtime.layers[layer_idx].screen_media_type    = None;
+                                    runtime.layers[layer_idx].screen_html_content  = None;
+                                }
+                                _ => {} // Layer unchanged — nothing to do.
+                            }
+                        }
+                    }
+
+                    // ── Popups ───────────────────────────────────────────────────
+                    for layer_idx in 0..3usize {
+                        let layer_num = (layer_idx + 1) as i64;
+                        if let Some(popup_id) = runtime.layers[layer_idx].popup_id {
+                            let new_layer: Option<i64> = db.query_row(
+                                "SELECT layer FROM program_popups WHERE program_id = ?1 AND popup_id = ?2",
+                                rusqlite::params![id, popup_id],
+                                |r| r.get(0),
+                            ).ok();
+
+                            match new_layer {
+                                Some(nl) if nl != layer_num => {
+                                    let new_idx = (nl - 1) as usize;
+                                    let pp_id   = runtime.layers[layer_idx].popup_id.take();
+                                    let pp_path = runtime.layers[layer_idx].popup_path.take();
+                                    let pp_dur  = runtime.layers[layer_idx].popup_duration;
+                                    let pp_dir  = runtime.layers[layer_idx].popup_direction.take();
+                                    let pp_pos  = runtime.layers[layer_idx].popup_position.take();
+                                    let pp_mt   = runtime.layers[layer_idx].popup_media_type.take();
+                                    let pp_html = runtime.layers[layer_idx].popup_html_content.take();
+                                    let pp_w    = runtime.layers[layer_idx].popup_width.take();
+                                    let pp_h    = runtime.layers[layer_idx].popup_height.take();
+                                    runtime.layers[layer_idx].popup_duration = 0;
+                                    runtime.layers[new_idx].popup_id           = pp_id;
+                                    runtime.layers[new_idx].popup_path         = pp_path;
+                                    runtime.layers[new_idx].popup_duration     = pp_dur;
+                                    runtime.layers[new_idx].popup_direction    = pp_dir;
+                                    runtime.layers[new_idx].popup_position     = pp_pos;
+                                    runtime.layers[new_idx].popup_media_type   = pp_mt;
+                                    runtime.layers[new_idx].popup_html_content = pp_html;
+                                    runtime.layers[new_idx].popup_width        = pp_w;
+                                    runtime.layers[new_idx].popup_height       = pp_h;
+                                }
+                                None => {
+                                    runtime.layers[layer_idx].popup_id           = None;
+                                    runtime.layers[layer_idx].popup_path         = None;
+                                    runtime.layers[layer_idx].popup_duration     = 0;
+                                    runtime.layers[layer_idx].popup_direction    = None;
+                                    runtime.layers[layer_idx].popup_position     = None;
+                                    runtime.layers[layer_idx].popup_media_type   = None;
+                                    runtime.layers[layer_idx].popup_html_content = None;
+                                    runtime.layers[layer_idx].popup_width        = None;
+                                    runtime.layers[layer_idx].popup_height       = None;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            } // studio_states lock released here
+
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
                 if let Some(io) = io_clone {

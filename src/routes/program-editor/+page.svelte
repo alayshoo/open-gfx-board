@@ -8,6 +8,7 @@
 	import { fetchPlugins, fetchPluginManifest } from '$lib/api/plugins';
 	import { addToast } from '$lib/toasts';
 	import type { Program, PopUp, Screen, ProgramPopUp, PluginInfo, PluginManifest } from '$lib/types';
+	import { SCREEN_LAYER_COLORS, POPUP_LAYER_COLORS } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
@@ -39,7 +40,9 @@
 	let editName = $state('');
 	let editLogoPath = $state<string | null>(null);
 	let editBgPath = $state<string | null>(null);
-	let editScreenIds = $state<number[]>([]);
+	// Each screen in the program now carries its layer assignment.
+	interface ProgramScreenEntry { screen_id: number; layer: number; }
+	let editProgramScreens = $state<ProgramScreenEntry[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
 	let editPluginIds = $state<string[]>([]);
 	// pluginId → templateId → { popup_id (null = use plugin default), duration in seconds }
@@ -67,8 +70,8 @@
 			editName,
 			editLogoPath,
 			editBgPath,
-			editScreenIds,
-			editProgramPopUps.map((pa) => [pa.popup_id, pa.popup_launch_type, pa.duration, pa.frequency]),
+			editProgramScreens.map((ps) => [ps.screen_id, ps.layer]),
+			editProgramPopUps.map((pa) => [pa.popup_id, pa.popup_launch_type, pa.duration, pa.frequency, pa.layer]),
 			[...editPluginIds].sort(),
 			sortedOverrides,
 		]);
@@ -82,8 +85,13 @@
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
 	const isDirty = $derived(hasSelection && makeSnapshot() !== savedSnapshot);
 
-	const editScreens = $derived<Screen[]>(
-		editScreenIds.map((id) => allScreens.find((s) => s.id === id)).filter((s): s is Screen => !!s)
+	const editScreens = $derived<(Screen & { layer: number })[]>(
+		editProgramScreens
+			.map((ps) => {
+				const s = allScreens.find((s) => s.id === ps.screen_id);
+				return s ? { ...s, layer: ps.layer } : null;
+			})
+			.filter((s): s is Screen & { layer: number } => !!s)
 	);
 
 	/* ─── Navigation guard ──────────────────────────────────── */
@@ -116,7 +124,7 @@
 					editId = data.program.id;
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
-					editScreenIds = [];
+					editProgramScreens = [];
 					editProgramPopUps = [];
 				}
 			}
@@ -168,7 +176,7 @@
 		editName = '';
 		editLogoPath = null;
 		editBgPath = null;
-		editScreenIds = [];
+		editProgramScreens = [];
 		editProgramPopUps = [];
 		editPluginIds = [];
 		editPluginPopupOverrides = {};
@@ -191,7 +199,7 @@
 		editName = p.name;
 		editLogoPath = p.logo_path;
 		editBgPath = p.background_graphics_path;
-		editScreenIds = p.graphics.map((g) => g.id);
+		editProgramScreens = p.graphics.map((g) => ({ screen_id: g.id, layer: g.layer ?? 1 }));
 		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
 		// Load saved plugin preferences from the server; default to none if unset
 		editPluginIds = await fetchProgramPluginIds(p.id);
@@ -267,7 +275,7 @@
 					editId = data.program.id;
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
-					editScreenIds = [];
+					editProgramScreens = [];
 					editProgramPopUps = [];
 					// Persist plugin preferences and popup overrides for the newly-created program.
 					await setProgramPluginIds(data.program.id, editPluginIds);
@@ -284,12 +292,16 @@
 						name: editName.trim(),
 						logo_path: editLogoPath,
 						background_graphics_path: editBgPath,
-						screen_ids: editScreenIds,
+						screens: editProgramScreens.map((ps) => ({
+							screen_id: ps.screen_id,
+							layer: ps.layer,
+						})),
 						popups: editProgramPopUps.map((pa) => ({
 							popup_id: pa.popup_id,
 							popup_launch_type: pa.popup_launch_type,
 							duration: pa.duration,
 							frequency: pa.frequency,
+							layer: pa.layer,
 						})),
 					}),
 				});
@@ -311,16 +323,16 @@
 
 	/* ─── Screen helpers ─────────────────────────────────────── */
 	function addScreenToProgram(screen: Screen) {
-		if (editScreenIds.includes(screen.id)) return;
-		editScreenIds = [...editScreenIds, screen.id];
+		if (editProgramScreens.some((ps) => ps.screen_id === screen.id)) return;
+		editProgramScreens = [...editProgramScreens, { screen_id: screen.id, layer: 1 }];
 	}
 
 	function removeScreenFromProgram(screenId: number) {
-		editScreenIds = editScreenIds.filter((id) => id !== screenId);
+		editProgramScreens = editProgramScreens.filter((ps) => ps.screen_id !== screenId);
 	}
 
 	const availableScreens = $derived(
-		allScreens.filter((s) => !editScreenIds.includes(s.id))
+		allScreens.filter((s) => !editProgramScreens.some((ps) => ps.screen_id === s.id))
 	);
 
 	/* ─── Logo / Background upload ────────────────────────────── */
@@ -368,6 +380,7 @@
 				popup_launch_type: 'manual',
 				duration: 10,
 				frequency: 1,
+				layer: 1,
 				popup,
 			},
 		];
@@ -447,16 +460,38 @@
 	/* ─── Reorder: Screens ───────────────────────────────────────── */
 	function moveScreenUp(i: number) {
 		if (i === 0) return;
-		const ids = [...editScreenIds];
-		[ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
-		editScreenIds = ids;
+		const arr = [...editProgramScreens];
+		[arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+		editProgramScreens = arr;
 	}
 
 	function moveScreenDown(i: number) {
-		if (i === editScreenIds.length - 1) return;
-		const ids = [...editScreenIds];
-		[ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
-		editScreenIds = ids;
+		if (i === editProgramScreens.length - 1) return;
+		const arr = [...editProgramScreens];
+		[arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+		editProgramScreens = arr;
+	}
+
+	function updateScreenLayer(screenId: number, layer: number) {
+		editProgramScreens = editProgramScreens.map((ps) =>
+			ps.screen_id === screenId ? { ...ps, layer } : ps
+		);
+	}
+
+	function updatePopUpLayer(popupId: number, layer: number) {
+		editProgramPopUps = editProgramPopUps.map((pa) =>
+			pa.popup_id === popupId ? { ...pa, layer } : pa
+		);
+	}
+
+	function screenLayerStyle(layer: number): string {
+		const c = SCREEN_LAYER_COLORS[layer as 1|2|3] ?? SCREEN_LAYER_COLORS[1];
+		return `background:${c.dim};color:${c.solid};border-color:${c.solid}66`;
+	}
+
+	function popupLayerStyle(layer: number): string {
+		const c = POPUP_LAYER_COLORS[layer as 1|2|3] ?? POPUP_LAYER_COLORS[1];
+		return `background:${c.dim};color:${c.solid};border-color:${c.solid}66`;
 	}
 
 	/* ─── Reorder: PopUps ────────────────────────────────────────── */
@@ -582,7 +617,7 @@
 								onclick={() => (activeTab = 'screens')}
 							>
 								Screens
-								<span class="tab-pill">{editScreenIds.length}</span>
+								<span class="tab-pill">{editProgramScreens.length}</span>
 							</button>
 							<button
 								class="tab-btn"
@@ -657,7 +692,7 @@
 								<div class="field-group-header">
 									<span class="field-label">
 										Screens
-										<span class="badge-sm">{editScreenIds.length}</span>
+										<span class="badge-sm">{editProgramScreens.length}</span>
 									</span>
 									<div class="header-actions">
 										<button class="btn btn-secondary btn-sm" onclick={() => { addScreenModalOpen = true; }}>
@@ -676,6 +711,7 @@
 													<th style="width:110px">Preview</th>
 													<th style="width:90px">Type</th>
 													<th style="width:80px">Allow PopUps</th>
+													<th style="width:90px">Layer</th>
 													<th style="width:44px"></th>
 												</tr>
 											</thead>
@@ -700,6 +736,19 @@
 														</td>
 														<td><span class="badge-sm">{s.media_type}</span></td>
 														<td><span class="badge-sm">{s.allow_popups ? 'Yes' : 'No'}</span></td>
+														<td>
+															<select
+																class="form-select layer-select"
+																style={screenLayerStyle(s.layer)}
+																value={s.layer}
+																onchange={(e) => updateScreenLayer(s.id, Number((e.target as HTMLSelectElement).value))}
+																aria-label="Layer"
+															>
+																<option value={1}>1</option>
+																<option value={2}>2</option>
+																<option value={3}>3</option>
+															</select>
+														</td>
 														<td>
 															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove screen" onclick={() => removeScreenFromProgram(s.id)}>
 																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -742,6 +791,7 @@
 													<th style="width:140px">Launch Type</th>
 													<th style="width:90px">Duration (s)</th>
 													<th style="width:105px">Frequency (/hr)</th>
+													<th style="width:90px">Layer</th>
 													<th style="width:44px"></th>
 												</tr>
 											</thead>
@@ -806,6 +856,19 @@
 															/>
 														</td>
 														<td>
+															<select
+																class="form-select layer-select"
+																style={popupLayerStyle(pa.layer)}
+																value={pa.layer}
+																onchange={(e) => updatePopUpLayer(pa.popup_id, Number((e.target as HTMLSelectElement).value))}
+																aria-label="Layer"
+															>
+																<option value={1}>1</option>
+																<option value={2}>2</option>
+																<option value={3}>3</option>
+															</select>
+														</td>
+														<td>
 															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove pop-up" onclick={() => removePopUpFromProgram(pa.popup_id)}>
 																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
 															</button>
@@ -839,6 +902,7 @@
 													type="button"
 													role="switch"
 													aria-checked={enabled}
+													aria-label={`${enabled ? 'Disable' : 'Enable'} plugin ${plugin.name}`}
 													class="plugin-toggle"
 													class:plugin-toggle-on={enabled}
 													onclick={() => togglePlugin(plugin.id, !enabled)}
@@ -1680,5 +1744,19 @@
 		color: var(--text-3);
 		margin: 0;
 		padding-top: 6px;
+	}
+
+	/* ── Layer select ── */
+	.layer-select {
+		padding: 4px 6px;
+		font-size: 12px;
+		font-weight: 700;
+		text-align: center;
+		border-width: 1px;
+		border-style: solid;
+		border-radius: var(--r-sm);
+		cursor: pointer;
+		width: 100%;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
 	}
 </style>
