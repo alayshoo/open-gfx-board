@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .sub-popup {
+    width: fit-content;
+    height: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 11px;
+    padding: 18px 31px;
+    animation: cardSlide 0.4s ease-out;
+    white-space: nowrap;
+  }
+
+  @keyframes cardSlide {
+    0% { transform: translateY(-22px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  .sub-icon {
+    width: 40px;
+    height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* team name + player rows stacked */
+  .sub-main {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .team-name {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: {{plugin:football:context:team_color}};
+  }
+
+  /* grid: arrow | name | number — numbers always in the same column */
+  .sub-players {
+    display: grid;
+    grid-template-columns: auto auto;
+    row-gap: 4px;
+    column-gap: 7px;
+    align-items: center;
+  }
+
+  .sub-arrow {
+    font-size: 11px;
+  }
+
+  .arrow-in  { color: #22c55e; }
+  .arrow-out { color: #ef4444; }
+
+  @keyframes arrowUp {
+    0%   { transform: translateY(0); }
+    40%  { transform: translateY(-7px); }
+    70%  { transform: translateY(2px); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes arrowDown {
+    0%   { transform: translateY(0); }
+    40%  { transform: translateY(7px); }
+    70%  { transform: translateY(-2px); }
+    100% { transform: translateY(0); }
+  }
+
+  #arrow-in  { animation: arrowUp   0.55s ease-out 0.8s  both; }
+  #arrow-out { animation: arrowDown 0.55s ease-out 0.85s both; }
+
+  .sub-player-name {
+    font-size: 24px;
+    font-weight: 700;
+    color: #ffffff;
+    padding-right: 8px;
+  }
+
+  .sub-num {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    padding-left: 18px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    text-align: right;
+  }
+
+  .num-in  { color: #22c55e; }
+  .num-out { color: #ef4444; }
+</style>
+</head>
+<body>
+  <div class="sub-popup">
+    <div class="sub-icon">
+      <svg width="40" height="55" viewBox="0 0 40 55" xmlns="http://www.w3.org/2000/svg">
+        <polygon id="arrow-in"  points="15,20 35,20 25,4"  fill="#22c55e"/>
+        <polygon id="arrow-out" points="5,35 25,35 15,51"  fill="#ef4444"/>
+      </svg>
+    </div>
+    <div class="sub-main">
+      <span class="team-name">{{plugin:football:context:team_name}}</span>
+      <div class="sub-players">
+        <span class="sub-player-name">{{plugin:football:context:player_in_name}}</span>
+        <span class="sub-num num-in">{{plugin:football:context:player_in_number}}</span>
+        <span class="sub-player-name">{{plugin:football:context:player_out_name}}</span>
+        <span class="sub-num num-out">{{plugin:football:context:player_out_number}}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

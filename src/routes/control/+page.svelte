@@ -5,8 +5,11 @@
 	import ScreenSelector from "$lib/components/ScreensSelector.svelte";
 	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
 	import StatusDot from "$lib/components/StatusDot.svelte";
+	import PluginHost from "$lib/components/PluginHost.svelte";
 	import { socket, connected, BACKEND_URL } from "$lib/api/socket";
 	import { imgUrl } from "$lib/api/api";
+	import { fetchPlugins, fetchPluginManifest } from "$lib/api/plugins";
+	import { fetchProgramPluginIds } from "$lib/programPlugins";
 	import { addToast } from "$lib/toasts";
 	import type {
 		Program,
@@ -15,6 +18,8 @@
 		Graphic,
 		ProgramPopUp,
 		ActivePopUp,
+		PluginInfo,
+		PluginManifest,
 	} from "$lib/types";
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
     import { IS_TAURI } from "$lib/bridge";
@@ -24,78 +29,139 @@
 	);
 
 	let program = $state<Program | null>(null);
-	let activeScreenId = $state<number | null>(null);
-	let activePopUpId = $state<number | null>(null);
+	// Per-layer active state (key = layer number 1|2|3)
+	let activeScreenIds = $state<Record<number, number | null>>({ 1: null, 2: null, 3: null });
+	let activePopUpIds = $state<Record<number, number | null>>({ 1: null, 2: null, 3: null });
 	let studioCommands = $state<ObsCommand[]>([]);
-	let isPopUpPlaying = $state(false);
-	let popupEndTimer: ReturnType<typeof setTimeout> | null = null;
+	let isPopUpPlaying = $state<Record<number, boolean>>({ 1: false, 2: false, 3: false });
+	let popupEndTimers: Record<number, ReturnType<typeof setTimeout> | null> = { 1: null, 2: null, 3: null };
+
+	// Plugin state
+	let controlPlugins = $state<PluginInfo[]>([]);
+	let pluginManifests = $state<Record<string, PluginManifest>>({});
+
+	// Per-program plugin filter: fetched from the server so it is shared across
+	// all clients. null = no program loaded; [] = program loaded, no plugins enabled.
+	let programPluginFilter = $state<string[] | null>(null);
+
+	$effect(() => {
+		const currentProgram = program;
+		if (!currentProgram) {
+			programPluginFilter = null;
+			return;
+		}
+		const pid = currentProgram.id;
+		fetchProgramPluginIds(pid).then((ids) => {
+			// Guard against a stale response if program changed while fetching
+			if (program?.id === pid) {
+				programPluginFilter = ids;
+			}
+		});
+	});
+
+	const visibleControlPlugins = $derived(
+		programPluginFilter === null
+			? []
+			: controlPlugins.filter((p) => programPluginFilter!.includes(p.id))
+	);
 
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
-	const allowPopUpsMode = $derived(
-		activeScreenId !== null &&
-			(program?.graphics.find((g) => g.id === activeScreenId)
-				?.allow_popups ??
-				false),
-	);
+	// Per-layer: true when that layer's active screen allows popups
+	const allowPopUpsPerLayer = $derived<Record<number, boolean>>({
+		1: activeScreenIds[1] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[1])?.allow_popups ?? false),
+		2: activeScreenIds[2] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[2])?.allow_popups ?? false),
+		3: activeScreenIds[3] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[3])?.allow_popups ?? false),
+	});
 	const logoUrl = $derived(imgUrl(program?.logo_path));
 
 	onMount(() => {
 		socket.emit("join-studio-room", {});
 		socket.emit("get-studio-state", {});
 
+		// Re-join the studio room after a socket reconnect so we keep receiving
+		// broadcasts (plugin-state-updated, overlay-activated, etc.).  Without
+		// this, a server restart or network drop silently breaks all live updates.
+		function onReconnect() {
+			socket.emit("join-studio-room", {});
+			socket.emit("get-studio-state", {});
+		}
+		socket.on("connect", onReconnect);
+
 		// Named handlers prevent removing every global listener on cleanup
 		function onStudioState(data: StudioState) {
 			program = data.program;
-			activeScreenId = data.activeOverlay?.graphicId ?? null;
-			if (data.activePopUp) {
-				isPopUpPlaying = true;
-				activePopUpId = data.activePopUp.popupId;
-			} else {
-				isPopUpPlaying = false;
-				activePopUpId = null;
+			// Reset all layers
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
+			for (const overlay of data.activeOverlays ?? []) {
+				activeScreenIds = { ...activeScreenIds, [overlay.layer]: overlay.graphicId };
+			}
+			for (const popup of data.activePopUps ?? []) {
+				activePopUpIds = { ...activePopUpIds, [popup.layer]: popup.popupId };
+				isPopUpPlaying = { ...isPopUpPlaying, [popup.layer]: true };
 			}
 		}
 
 		function onProgramSelected(data: any) {
 			program = data.program;
-			activeScreenId = data.activeOverlay?.graphicId ?? null;
-			isPopUpPlaying = false;
-			activePopUpId = null;
-
-			// Auto-activate first screen if no overlay is active and program has screens
-			if (
-				!activeScreenId &&
-				program?.graphics &&
-				program.graphics.length > 0
-			) {
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
+			// Restore the first overlay from the payload if provided
+			if (data.activeOverlay) {
+				const l = data.activeOverlay.layer ?? 1;
+				activeScreenIds = { ...activeScreenIds, [l]: data.activeOverlay.graphicId };
+			}
+			// Auto-activate first screen if nothing is active on layer 1
+			if (!activeScreenIds[1] && program?.graphics && program.graphics.length > 0) {
 				triggerOverlay(program.graphics[0]);
 			}
 		}
 
 		function onProgramCleared(_data: any) {
 			program = null;
-			activeScreenId = null;
-			isPopUpPlaying = false;
-			activePopUpId = null;
+			activeScreenIds = { 1: null, 2: null, 3: null };
+			activePopUpIds = { 1: null, 2: null, 3: null };
+			isPopUpPlaying = { 1: false, 2: false, 3: false };
 		}
 
 		function onOverlayActivated(data: any) {
-			activeScreenId = data.graphicId;
+			const layer = data.layer ?? 1;
+			activeScreenIds = { ...activeScreenIds, [layer]: data.graphicId };
 		}
 
-		function onOverlayDeactivated(_data: any) {
-			activeScreenId = null;
+		function onOverlayDeactivated(data: any) {
+			const layer = data.layer ?? 1;
+			activeScreenIds = { ...activeScreenIds, [layer]: null };
 		}
 
 		function onPopUpStarted(data: any) {
-			isPopUpPlaying = true;
-			activePopUpId = data.popupId;
+			const layer: number = data.layer ?? 1;
+			isPopUpPlaying = { ...isPopUpPlaying, [layer]: true };
+			activePopUpIds = { ...activePopUpIds, [layer]: data.popupId };
+			if (popupEndTimers[layer]) {
+				clearTimeout(popupEndTimers[layer]!);
+				popupEndTimers[layer] = null;
+			}
+			const dur: number = data.duration ?? 0;
+			if (dur > 0) {
+				popupEndTimers[layer] = setTimeout(() => {
+					socket.emit("end-popup", { layer });
+					popupEndTimers[layer] = null;
+				}, dur * 1000);
+			}
 		}
 
-		function onPopUpEnded(_data: any) {
-			isPopUpPlaying = false;
-			activePopUpId = null;
+		function onPopUpEnded(data: any) {
+			const layer: number = data.layer ?? 1;
+			isPopUpPlaying = { ...isPopUpPlaying, [layer]: false };
+			activePopUpIds = { ...activePopUpIds, [layer]: null };
+			if (popupEndTimers[layer]) {
+				clearTimeout(popupEndTimers[layer]!);
+				popupEndTimers[layer] = null;
+			}
 		}
 
 		// ── Data-change listeners ─────────────────
@@ -141,7 +207,19 @@
 		// Fetch studio commands for selected preset
 		fetchStudioCommands();
 
+		// Load enabled plugins with control components
+		fetchPlugins().then(async (allPlugins) => {
+			const withControl = allPlugins.filter((p) => p.enabled && p.has_control);
+			for (const p of withControl) {
+				try {
+					pluginManifests[p.id] = await fetchPluginManifest(p.id);
+				} catch { /* skip */ }
+			}
+			controlPlugins = withControl.filter((p) => pluginManifests[p.id]);
+		}).catch(() => {});
+
 		return () => {
+			socket.off("connect", onReconnect);
 			socket.off("studio-state", onStudioState);
 			socket.off("program-selected", onProgramSelected);
 			socket.off("program-cleared", onProgramCleared);
@@ -154,47 +232,40 @@
 			socket.off("update-screens", onUpdateData);
 			socket.off("update-studios", onUpdateStudios);
 			socket.emit("leave-studio-room", {});
-			if (popupEndTimer) clearTimeout(popupEndTimer);
+			for (const t of Object.values(popupEndTimers)) { if (t) clearTimeout(t); }
 		};
 	});
 
 	function triggerOverlay(graphic: Graphic) {
-		if (activeScreenId === graphic.id) {
-			// Clicking the active overlay deactivates it
-			socket.emit("deactivate-overlay", {});
+		const layer = graphic.layer ?? 1;
+		if (activeScreenIds[layer] === graphic.id) {
+			socket.emit("deactivate-overlay", { layer });
 		} else {
 			socket.emit("trigger-overlay", {
 				programId: program!.id,
 				graphicId: graphic.id,
 				graphicPath: graphic.graphics_path,
 				allowPopUps: graphic.allow_popups,
+				layer,
 			});
 		}
 	}
 
 	function triggerPopUp(pa: ProgramPopUp) {
-		if (popupEndTimer) {
-			clearTimeout(popupEndTimer);
-			popupEndTimer = null;
+		const layer = pa.layer ?? 1;
+		if (popupEndTimers[layer]) {
+			clearTimeout(popupEndTimers[layer]!);
+			popupEndTimers[layer] = null;
 		}
-
-		if (activePopUpId === pa.popup_id) {
-			// Clicking the active pop-up stops it early
-			socket.emit("end-popup", {});
+		if (activePopUpIds[layer] === pa.popup_id) {
+			socket.emit("end-popup", { layer });
 		} else {
-			// Only send popupId + duration — the server fetches image_path,
-			// direction, and position fresh from the database so that recent
-			// edits are always reflected regardless of which controller fires.
 			socket.emit("trigger-popup", {
 				programId: program!.id,
 				popupId: pa.popup_id,
 				duration: pa.duration,
+				layer,
 			});
-			// Auto-end after the pop-up's duration has elapsed
-			popupEndTimer = setTimeout(() => {
-				socket.emit("end-popup", {});
-				popupEndTimer = null;
-			}, pa.duration * 1000);
 		}
 	}
 
@@ -301,7 +372,7 @@
 		<section class="panel-section screens-section">
 			<ScreenSelector
 				{screens}
-				{activeScreenId}
+				{activeScreenIds}
 				onTrigger={triggerOverlay}
 			/>
 		</section>
@@ -310,11 +381,27 @@
 		<section class="panel-section popup-section">
 			<PopUpLauncher
 				{programPopUps}
-				{activePopUpId}
-				{allowPopUpsMode}
+				{activePopUpIds}
+				allowPopUpsPerLayer={allowPopUpsPerLayer}
 				onTrigger={triggerPopUp}
 			/>
 		</section>
+
+		<!-- Plugin control sections -->
+		{#each visibleControlPlugins as plugin (plugin.id)}
+			{#if pluginManifests[plugin.id]}
+				<section class="panel-section plugin-section">
+					<div class="plugin-section-header">
+						<span class="plugin-section-title">{plugin.name}</span>
+					</div>
+					<PluginHost
+						pluginId={plugin.id}
+						componentType="control"
+						manifest={pluginManifests[plugin.id]}
+					/>
+				</section>
+			{/if}
+		{/each}
 	</div>
 
 	<!-- Dragable divider -->
@@ -357,6 +444,12 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		container-type: inline-size;
+		/* Move scrollbar to the left so it doesn't crowd the resize divider */
+		direction: rtl;
+	}
+
+	.main-panel > * {
+		direction: ltr;
 	}
 
 	/* Header */
@@ -516,5 +609,18 @@
 		height: 100%;
 		box-sizing: border-box;
 		padding: 10px;
+	}
+
+	/* Plugin sections */
+	.plugin-section-header {
+		margin-bottom: 8px;
+	}
+
+	.plugin-section-title {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-3);
 	}
 </style>

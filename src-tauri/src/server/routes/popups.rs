@@ -17,6 +17,7 @@ pub fn router() -> Router<AppState> {
         .route("/upload-image", post(upload_popup_image))
         .route("/{id}", put(update_popup))
         .route("/{id}", delete(delete_popup))
+        .route("/{id}/duplicate", post(duplicate_popup))
 }
 
 async fn list_popups(State(state): State<AppState>) -> impl IntoResponse {
@@ -33,7 +34,7 @@ struct CreatePopupBody {
     sponsor_name: Option<String>,
     comments: Option<String>,
     direction: Option<String>,
-    position: Option<i64>,
+    position: Option<f64>,
     media_type: Option<String>,
     html_content: Option<String>,
     width: Option<i64>,
@@ -48,7 +49,7 @@ async fn create_popup(
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
-    let position = body.position.unwrap_or(50);
+    let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
     match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {
@@ -72,7 +73,7 @@ struct UpdatePopupBody {
     sponsor_name: Option<String>,
     comments: Option<String>,
     direction: Option<String>,
-    position: Option<i64>,
+    position: Option<f64>,
     media_type: Option<String>,
     html_content: Option<String>,
     width: Option<i64>,
@@ -88,7 +89,7 @@ async fn update_popup(
     let sponsor = body.sponsor_name.as_deref().unwrap_or("");
     let comments = body.comments.as_deref().unwrap_or("");
     let direction = body.direction.as_deref().unwrap_or("bottom");
-    let position = body.position.unwrap_or(50);
+    let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
     match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {
@@ -124,6 +125,27 @@ async fn delete_popup(
             Json(json!({ "success": true, "id": id })).into_response()
         }
         Ok(false) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Popup not found" }))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+async fn duplicate_popup(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let db = state.db.lock().await;
+    match tokio::task::block_in_place(|| crate::db::popups::duplicate_popup(&db, id)) {
+        Ok(Some(popup)) => {
+            {
+                let io_clone = state.io.lock().ok().and_then(|g| g.clone());
+                if let Some(io) = io_clone {
+                    let _ = io.emit("popup-created", &json!({ "success": true, "popup": &popup })).await;
+                    let _ = io.emit("update-popups", &json!({})).await;
+                }
+            }
+            Json(json!({ "success": true, "popup": popup })).into_response()
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Pop-up not found" }))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
     }
 }

@@ -1,50 +1,113 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import TopNav from '$lib/components/TitleBarWeb.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { socket } from '$lib/api/socket';
 	import { fetchPrograms, fetchPopUps, fetchScreens, uploadProgramImage, imgUrl } from '$lib/api/api';
+	import { fetchPlugins, fetchPluginManifest } from '$lib/api/plugins';
 	import { addToast } from '$lib/toasts';
-	import type { Program, PopUp, Screen, ProgramPopUp } from '$lib/types';
+	import type { Program, PopUp, Screen, ProgramPopUp, PluginInfo, PluginManifest } from '$lib/types';
+	import { SCREEN_LAYER_COLORS, POPUP_LAYER_COLORS } from '$lib/types';
 	import MediaPreview from '$lib/components/MediaPreview.svelte';
 	import { getBackendUrl } from '$lib/bridge';
 	import { IS_TAURI } from '$lib/bridge';
 	import { showConfirm } from '$lib/confirm';
+	import {
+		fetchProgramPluginIds,
+		setProgramPluginIds,
+		fetchPluginPopupOverrides,
+		setPluginPopupOverrides,
+		type PluginPopupOverride,
+	} from '$lib/programPlugins';
 
 	/* ─── State ─────────────────────────────────────────────── */
 	let programs = $state<Program[]>([]);
 	let allPopUps = $state<PopUp[]>([]);
 	let allScreens = $state<Screen[]>([]);
+	let allControlPlugins = $state<PluginInfo[]>([]);
+	let pluginManifests = $state<Record<string, PluginManifest>>({});
 	let addPopUpModalOpen = $state(false);
 	let addScreenModalOpen = $state(false);
 
 	// Selection state
 	let selectedId = $state<number | null>(null);
 	let isCreatingNew = $state(false);
+	let activeTab = $state<'details' | 'screens' | 'popups' | 'plugins'>('details');
 
 	// Edit state
 	let editId = $state<number | null>(null);
 	let editName = $state('');
 	let editLogoPath = $state<string | null>(null);
 	let editBgPath = $state<string | null>(null);
-	let editScreenIds = $state<number[]>([]);
+	// Each screen in the program now carries its layer assignment.
+	interface ProgramScreenEntry { screen_id: number; layer: number; }
+	let editProgramScreens = $state<ProgramScreenEntry[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
+	let editPluginIds = $state<string[]>([]);
+	// pluginId → templateId → { popup_id (null = use plugin default), duration in seconds }
+	let editPluginPopupOverrides = $state<Record<string, Record<string, { popup_id: number | null; duration: number }>>>({});
+
+	// Plugin popup override picker modal
+	let pluginPopupPickerModalOpen = $state(false);
+	let pluginPopupPickerPluginId = $state('');
+	let pluginPopupPickerTemplateId = $state('');
 
 	let saving = $state(false);
 
+	/* ─── Dirty tracking ─────────────────────────────────── */
+	let savedSnapshot = $state('');
+
+	function makeSnapshot(): string {
+		// Produce a stable sorted representation of the popup overrides map.
+		const sortedOverrides = Object.entries(editPluginPopupOverrides)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([pluginId, templates]) => [
+				pluginId,
+				Object.entries(templates).sort(([a], [b]) => a.localeCompare(b)),
+			]);
+		return JSON.stringify([
+			editName,
+			editLogoPath,
+			editBgPath,
+			editProgramScreens.map((ps) => [ps.screen_id, ps.layer]),
+			editProgramPopUps.map((pa) => [pa.popup_id, pa.popup_launch_type, pa.duration, pa.frequency, pa.layer]),
+			[...editPluginIds].sort(),
+			sortedOverrides,
+		]);
+	}
+
+	function takeSnapshot() {
+		savedSnapshot = makeSnapshot();
+	}
+
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
+	const isDirty = $derived(hasSelection && makeSnapshot() !== savedSnapshot);
 
-	const editScreens = $derived<Screen[]>(
-		editScreenIds.map((id) => allScreens.find((s) => s.id === id)).filter((s): s is Screen => !!s)
+	const editScreens = $derived<(Screen & { layer: number })[]>(
+		editProgramScreens
+			.map((ps) => {
+				const s = allScreens.find((s) => s.id === ps.screen_id);
+				return s ? { ...s, layer: ps.layer } : null;
+			})
+			.filter((s): s is Screen & { layer: number } => !!s)
 	);
+
+	/* ─── Navigation guard ──────────────────────────────────── */
+	beforeNavigate(({ cancel }) => {
+		if (isDirty && !window.confirm('You have unsaved changes. Leave this page?')) {
+			cancel();
+		}
+	});
 
 	/* ─── Lifecycle ──────────────────────────────────────────── */
 	onMount(() => {
-		Promise.all([fetchPrograms(), fetchPopUps(), fetchScreens()]).then(([p, a, s]) => {
+		Promise.all([fetchPrograms(), fetchPopUps(), fetchScreens(), fetchPlugins()]).then(([p, a, s, pl]) => {
 			programs = p;
 			allPopUps = a;
 			allScreens = s;
+			allControlPlugins = pl.filter((plug) => plug.enabled && plug.has_control);
 		});
 
 		socket.on('program-created', (data: any) => {
@@ -61,7 +124,7 @@
 					editId = data.program.id;
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
-					editScreenIds = [];
+					editProgramScreens = [];
 					editProgramPopUps = [];
 				}
 			}
@@ -98,26 +161,73 @@
 	});
 
 	/* ─── Selection ──────────────────────────────────────────── */
-	function openNew() {
+	async function openNew() {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: 'Discard unsaved changes and create a new program?',
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
 		isCreatingNew = true;
 		selectedId = null;
 		editId = null;
 		editName = '';
 		editLogoPath = null;
 		editBgPath = null;
-		editScreenIds = [];
+		editProgramScreens = [];
 		editProgramPopUps = [];
+		editPluginIds = [];
+		editPluginPopupOverrides = {};
+		activeTab = 'details';
+		takeSnapshot();
 	}
 
-	function selectProgram(p: Program) {
+	async function selectProgram(p: Program) {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: `Discard unsaved changes and switch to "${p.name}"?`,
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
 		isCreatingNew = false;
 		selectedId = p.id;
 		editId = p.id;
 		editName = p.name;
 		editLogoPath = p.logo_path;
 		editBgPath = p.background_graphics_path;
-		editScreenIds = p.graphics.map((g) => g.id);
+		editProgramScreens = p.graphics.map((g) => ({ screen_id: g.id, layer: g.layer ?? 1 }));
 		editProgramPopUps = p.program_popups.map((pa) => ({ ...pa }));
+		// Load saved plugin preferences from the server; default to none if unset
+		editPluginIds = await fetchProgramPluginIds(p.id);
+		// Load popup overrides
+		const rawOverrides = await fetchPluginPopupOverrides(p.id);
+		const overridesObj: Record<string, Record<string, { popup_id: number | null; duration: number }>> = {};
+		for (const ov of rawOverrides) {
+			if (!overridesObj[ov.plugin_id]) overridesObj[ov.plugin_id] = {};
+			overridesObj[ov.plugin_id][ov.template_id] = { popup_id: ov.popup_id, duration: ov.duration ?? 10 };
+		}
+		editPluginPopupOverrides = overridesObj;
+		// Pre-load manifests for enabled plugins so popup slots render immediately
+		await Promise.all(editPluginIds.map(loadPluginManifest));
+		activeTab = 'details';
+		takeSnapshot();
+	}
+
+	async function cancelEdit() {
+		if (isDirty) {
+			const ok = await showConfirm({
+				title: 'Unsaved Changes',
+				message: 'Discard unsaved changes?',
+				confirmLabel: 'Discard',
+			});
+			if (!ok) return;
+		}
+		selectedId = null;
+		isCreatingNew = false;
 	}
 
 	/* ─── Program CRUD ───────────────────────────────────────── */
@@ -128,6 +238,17 @@
 		const res = await fetch(`${getBackendUrl()}/programs/${program.id}`, { method: 'DELETE' });
 		const data = await res.json();
 		if (!data.success) addToast('error', data.error ?? 'Delete failed.');
+	}
+
+	/** Flatten the nested override map into the array format the API expects. */
+	function buildOverridesArray(): PluginPopupOverride[] {
+		const result: PluginPopupOverride[] = [];
+		for (const [pluginId, templates] of Object.entries(editPluginPopupOverrides)) {
+			for (const [templateId, override] of Object.entries(templates)) {
+				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: override.popup_id, duration: override.duration });
+			}
+		}
+		return result;
 	}
 
 	async function save() {
@@ -154,8 +275,12 @@
 					editId = data.program.id;
 					editLogoPath = data.program.logo_path;
 					editBgPath = data.program.background_graphics_path;
-					editScreenIds = [];
+					editProgramScreens = [];
 					editProgramPopUps = [];
+					// Persist plugin preferences and popup overrides for the newly-created program.
+					await setProgramPluginIds(data.program.id, editPluginIds);
+					await setPluginPopupOverrides(data.program.id, buildOverridesArray());
+					takeSnapshot();
 				} else {
 					addToast('error', data.error ?? 'Create failed.');
 				}
@@ -167,16 +292,26 @@
 						name: editName.trim(),
 						logo_path: editLogoPath,
 						background_graphics_path: editBgPath,
-						screen_ids: editScreenIds,
+						screens: editProgramScreens.map((ps) => ({
+							screen_id: ps.screen_id,
+							layer: ps.layer,
+						})),
 						popups: editProgramPopUps.map((pa) => ({
 							popup_id: pa.popup_id,
 							popup_launch_type: pa.popup_launch_type,
 							duration: pa.duration,
 							frequency: pa.frequency,
+							layer: pa.layer,
 						})),
 					}),
 				});
 				const data = await res.json();
+				if (data.success && editId !== null) {
+					// Persist plugin preferences and popup overrides server-side.
+					await setProgramPluginIds(editId, editPluginIds);
+					await setPluginPopupOverrides(editId, buildOverridesArray());
+					takeSnapshot();
+				}
 				if (!data.success) addToast('error', data.error ?? 'Save failed.');
 			}
 		} catch {
@@ -188,16 +323,16 @@
 
 	/* ─── Screen helpers ─────────────────────────────────────── */
 	function addScreenToProgram(screen: Screen) {
-		if (editScreenIds.includes(screen.id)) return;
-		editScreenIds = [...editScreenIds, screen.id];
+		if (editProgramScreens.some((ps) => ps.screen_id === screen.id)) return;
+		editProgramScreens = [...editProgramScreens, { screen_id: screen.id, layer: 1 }];
 	}
 
 	function removeScreenFromProgram(screenId: number) {
-		editScreenIds = editScreenIds.filter((id) => id !== screenId);
+		editProgramScreens = editProgramScreens.filter((ps) => ps.screen_id !== screenId);
 	}
 
 	const availableScreens = $derived(
-		allScreens.filter((s) => !editScreenIds.includes(s.id))
+		allScreens.filter((s) => !editProgramScreens.some((ps) => ps.screen_id === s.id))
 	);
 
 	/* ─── Logo / Background upload ────────────────────────────── */
@@ -245,6 +380,7 @@
 				popup_launch_type: 'manual',
 				duration: 10,
 				frequency: 1,
+				layer: 1,
 				popup,
 			},
 		];
@@ -267,6 +403,56 @@
 		allPopUps.filter((a) => !editProgramPopUps.some((pa) => pa.popup_id === a.id))
 	);
 
+	/* ─── Plugin helpers ────────────────────────────────────────── */
+
+	/** Fetch and cache a plugin's manifest (no-op if already loaded). */
+	async function loadPluginManifest(pluginId: string) {
+		if (pluginManifests[pluginId]) return;
+		try {
+			const manifest = await fetchPluginManifest(pluginId);
+			pluginManifests = { ...pluginManifests, [pluginId]: manifest };
+		} catch {
+			// ignore — manifest simply won't be available for popup slots
+		}
+	}
+
+	async function togglePlugin(pluginId: string, enabled: boolean) {
+		if (enabled) {
+			if (!editPluginIds.includes(pluginId)) {
+				editPluginIds = [...editPluginIds, pluginId];
+			}
+			// Load manifest so popup-slot dropdowns can render immediately.
+			await loadPluginManifest(pluginId);
+		} else {
+			editPluginIds = editPluginIds.filter((id) => id !== pluginId);
+		}
+	}
+
+	/** Update a single plugin popup override, triggering Svelte reactivity. Preserves existing duration. */
+	function setPopupOverride(pluginId: string, templateId: string, popupId: number | null) {
+		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
+		editPluginPopupOverrides = {
+			...editPluginPopupOverrides,
+			[pluginId]: {
+				...(editPluginPopupOverrides[pluginId] ?? {}),
+				[templateId]: { popup_id: popupId, duration: existing?.duration ?? 10 },
+			},
+		};
+	}
+
+	/** Update the duration for a single plugin popup override slot. */
+	function setPopupOverrideDuration(pluginId: string, templateId: string, duration: number) {
+		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
+		if (!existing) return;
+		editPluginPopupOverrides = {
+			...editPluginPopupOverrides,
+			[pluginId]: {
+				...(editPluginPopupOverrides[pluginId] ?? {}),
+				[templateId]: { ...existing, duration },
+			},
+		};
+	}
+
 	/* ─── Image file input refs ─────────────────────────────────── */
 	let logoInput = $state() as unknown as HTMLInputElement;
 	let bgInput = $state() as unknown as HTMLInputElement;
@@ -274,16 +460,38 @@
 	/* ─── Reorder: Screens ───────────────────────────────────────── */
 	function moveScreenUp(i: number) {
 		if (i === 0) return;
-		const ids = [...editScreenIds];
-		[ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
-		editScreenIds = ids;
+		const arr = [...editProgramScreens];
+		[arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+		editProgramScreens = arr;
 	}
 
 	function moveScreenDown(i: number) {
-		if (i === editScreenIds.length - 1) return;
-		const ids = [...editScreenIds];
-		[ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
-		editScreenIds = ids;
+		if (i === editProgramScreens.length - 1) return;
+		const arr = [...editProgramScreens];
+		[arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+		editProgramScreens = arr;
+	}
+
+	function updateScreenLayer(screenId: number, layer: number) {
+		editProgramScreens = editProgramScreens.map((ps) =>
+			ps.screen_id === screenId ? { ...ps, layer } : ps
+		);
+	}
+
+	function updatePopUpLayer(popupId: number, layer: number) {
+		editProgramPopUps = editProgramPopUps.map((pa) =>
+			pa.popup_id === popupId ? { ...pa, layer } : pa
+		);
+	}
+
+	function screenLayerStyle(layer: number): string {
+		const c = SCREEN_LAYER_COLORS[layer as 1|2|3] ?? SCREEN_LAYER_COLORS[1];
+		return `background:${c.dim};color:${c.solid};border-color:${c.solid}66`;
+	}
+
+	function popupLayerStyle(layer: number): string {
+		const c = POPUP_LAYER_COLORS[layer as 1|2|3] ?? POPUP_LAYER_COLORS[1];
+		return `background:${c.dim};color:${c.solid};border-color:${c.solid}66`;
 	}
 
 	/* ─── Reorder: PopUps ────────────────────────────────────────── */
@@ -366,6 +574,9 @@
 					<div class="panel-header">
 						<div class="panel-title-area">
 							<h1 class="panel-title">{isNew ? 'New Program' : (editName || 'Untitled')}</h1>
+							{#if isDirty}
+								<span class="unsaved-badge">Unsaved</span>
+							{/if}
 							{#if !isNew}
 								<span class="panel-id">ID #{editId}</span>
 							{/if}
@@ -374,7 +585,7 @@
 							{#if !isNew}
 								<button class="btn btn-danger btn-sm" onclick={deleteCurrentProgram}>Delete</button>
 							{/if}
-							<button class="btn btn-ghost btn-sm" onclick={() => { selectedId = null; isCreatingNew = false; }}>
+							<button class="btn btn-ghost btn-sm" onclick={cancelEdit}>
 								Cancel
 							</button>
 							<button class="btn btn-primary" onclick={save} disabled={saving}>
@@ -384,13 +595,56 @@
 					</div>
 
 					<div class="form-body">
+						{#if isNew}
 						<!-- Program Name -->
 						<div class="field-group">
 							<label class="field-label" for="program-name">Program Name</label>
 							<input id="program-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Morning News" />
 						</div>
+						{/if}
 
 						{#if !isNew}
+						<!-- Tab nav -->
+						<div class="tab-nav">
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'details'}
+								onclick={() => (activeTab = 'details')}
+							>Details</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'screens'}
+								onclick={() => (activeTab = 'screens')}
+							>
+								Screens
+								<span class="tab-pill">{editProgramScreens.length}</span>
+							</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'popups'}
+								onclick={() => (activeTab = 'popups')}
+							>
+								PopUps
+								<span class="tab-pill">{editProgramPopUps.length}</span>
+							</button>
+							<button
+								class="tab-btn"
+								class:active={activeTab === 'plugins'}
+								onclick={() => (activeTab = 'plugins')}
+							>
+								Plugins
+								<span class="tab-pill">{editPluginIds.length}</span>
+							</button>
+						</div>
+						{/if}
+
+						{#if !isNew && activeTab === 'details'}
+							<!-- Program Name -->
+							<div class="field-group">
+								<label class="field-label" for="program-name">Program Name</label>
+								<input id="program-name" class="form-input" type="text" bind:value={editName} placeholder="e.g. Morning News" />
+							</div>
+
 							<!-- Logo + Background side by side -->
 							<div class="image-pair">
 								<div class="field-group">
@@ -432,12 +686,13 @@
 								</div>
 							</div>
 
+						{:else if !isNew && activeTab === 'screens'}
 							<!-- Screens -->
 							<div class="field-group">
 								<div class="field-group-header">
 									<span class="field-label">
 										Screens
-										<span class="badge-sm">{editScreenIds.length}</span>
+										<span class="badge-sm">{editProgramScreens.length}</span>
 									</span>
 									<div class="header-actions">
 										<button class="btn btn-secondary btn-sm" onclick={() => { addScreenModalOpen = true; }}>
@@ -456,6 +711,7 @@
 													<th style="width:110px">Preview</th>
 													<th style="width:90px">Type</th>
 													<th style="width:80px">Allow PopUps</th>
+													<th style="width:90px">Layer</th>
 													<th style="width:44px"></th>
 												</tr>
 											</thead>
@@ -481,6 +737,19 @@
 														<td><span class="badge-sm">{s.media_type}</span></td>
 														<td><span class="badge-sm">{s.allow_popups ? 'Yes' : 'No'}</span></td>
 														<td>
+															<select
+																class="form-select layer-select"
+																style={screenLayerStyle(s.layer)}
+																value={s.layer}
+																onchange={(e) => updateScreenLayer(s.id, Number((e.target as HTMLSelectElement).value))}
+																aria-label="Layer"
+															>
+																<option value={1}>1</option>
+																<option value={2}>2</option>
+																<option value={3}>3</option>
+															</select>
+														</td>
+														<td>
 															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove screen" onclick={() => removeScreenFromProgram(s.id)}>
 																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
 															</button>
@@ -495,6 +764,7 @@
 								</div>
 							</div>
 
+						{:else if !isNew && activeTab === 'popups'}
 							<!-- PopUps -->
 							<div class="field-group">
 								<div class="field-group-header">
@@ -521,6 +791,7 @@
 													<th style="width:140px">Launch Type</th>
 													<th style="width:90px">Duration (s)</th>
 													<th style="width:105px">Frequency (/hr)</th>
+													<th style="width:90px">Layer</th>
 													<th style="width:44px"></th>
 												</tr>
 											</thead>
@@ -561,6 +832,7 @@
 																<option value="automatic">Automatic</option>
 																<option value="both">Both</option>
 																<option value="filler">Filler</option>
+																<option value="hidden">Hidden</option>
 															</select>
 														</td>
 														<td>
@@ -579,9 +851,22 @@
 																type="number"
 																min="0"
 																value={pa.frequency}
-																disabled={pa.popup_launch_type === 'manual' || pa.popup_launch_type === 'filler'}
+																disabled={pa.popup_launch_type === 'manual' || pa.popup_launch_type === 'filler' || pa.popup_launch_type === 'hidden'}
 																oninput={(e) => updateProgramPopUp(pa.popup_id, { frequency: Math.max(0, Number((e.target as HTMLInputElement).value)) })}
 															/>
+														</td>
+														<td>
+															<select
+																class="form-select layer-select"
+																style={popupLayerStyle(pa.layer)}
+																value={pa.layer}
+																onchange={(e) => updatePopUpLayer(pa.popup_id, Number((e.target as HTMLSelectElement).value))}
+																aria-label="Layer"
+															>
+																<option value={1}>1</option>
+																<option value={2}>2</option>
+																<option value={3}>3</option>
+															</select>
 														</td>
 														<td>
 															<button class="btn btn-danger btn-icon btn-sm" aria-label="Remove pop-up" onclick={() => removePopUpFromProgram(pa.popup_id)}>
@@ -597,6 +882,87 @@
 									{/if}
 								</div>
 							</div>
+
+						{:else if !isNew && activeTab === 'plugins'}
+
+							<!-- ── Plugins tab ── -->
+							{#if allControlPlugins.length > 0}
+								<div class="plugin-list sub-card">
+									{#each allControlPlugins as plugin (plugin.id)}
+										{@const enabled = editPluginIds.includes(plugin.id)}
+										{@const manifest = pluginManifests[plugin.id]}
+										<div class="plugin-entry" class:plugin-entry-disabled={!enabled}>
+											<!-- Plugin header row -->
+											<div class="plugin-row">
+												<div class="plugin-row-info">
+													<span class="plugin-row-name">{plugin.name}</span>
+													<span class="plugin-row-meta">{plugin.description}</span>
+												</div>
+												<button
+													type="button"
+													role="switch"
+													aria-checked={enabled}
+													aria-label={`${enabled ? 'Disable' : 'Enable'} plugin ${plugin.name}`}
+													class="plugin-toggle"
+													class:plugin-toggle-on={enabled}
+													onclick={() => togglePlugin(plugin.id, !enabled)}
+												>
+													<span class="plugin-toggle-thumb"></span>
+												</button>
+											</div>
+
+											<!-- Popup override slots (visible only when plugin is enabled and has popup templates) -->
+											{#if enabled && manifest?.popups?.length}
+												<div class="plugin-popup-slots">
+													<div class="plugin-popup-slots-header"></div>
+													{#each manifest.popups as popupDef (popupDef.template_id)}
+														{@const override = editPluginPopupOverrides[plugin.id]?.[popupDef.template_id]}
+														{@const selectedPopup = override?.popup_id != null ? allPopUps.find((p) => p.id === override.popup_id) : null}
+														<div class="plugin-popup-slot">
+															<span class="plugin-popup-slot-name">{popupDef.name}</span>
+															<button
+																type="button"
+																class="plugin-popup-btn"
+																onclick={() => {
+																	pluginPopupPickerPluginId = plugin.id;
+																	pluginPopupPickerTemplateId = popupDef.template_id;
+																	pluginPopupPickerModalOpen = true;
+																}}
+															>
+																{#if selectedPopup}
+																	<span class="plugin-popup-btn-value">{selectedPopup.name}</span>
+																{:else}
+																	<span class="plugin-popup-btn-placeholder">Default (plugin popup)</span>
+																{/if}
+																<svg class="plugin-popup-btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+															</button>
+															<input
+																class="form-input number-input plugin-popup-duration-input"
+																type="number"
+																min="0"
+																value={override?.duration ?? 10}
+																disabled={override?.popup_id == null}
+																title="Duration (s)"
+																oninput={(e) => setPopupOverrideDuration(plugin.id, popupDef.template_id, Math.max(0, Number((e.target as HTMLInputElement).value)))}
+															/>
+															<span class="plugin-popup-duration-unit">s</span>
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+								<p class="plugins-hint">Disabled plugins won't show their control section on the control page for this program.</p>
+							{:else}
+								<div class="sub-card">
+									<p class="sub-empty">
+										No system-wide enabled plugins with controls.
+										<a href="/plugin-editor" class="helper-link">Manage plugins →</a>
+									</p>
+								</div>
+							{/if}
+
 						{/if}
 					</div>
 				</div>
@@ -667,6 +1033,61 @@
 			</button>
 		{:else}
 			<p class="picker-empty-msg">No more pop-ups available to add.</p>
+		{/each}
+	</div>
+</Modal>
+
+<!-- Plugin Popup Override Picker Modal -->
+<Modal bind:open={pluginPopupPickerModalOpen} title="Select Popup Override" width="700px">
+	{#snippet footer()}
+		<button class="btn btn-ghost" onclick={() => { pluginPopupPickerModalOpen = false; }}>Done</button>
+	{/snippet}
+	{@const activeOverrideId = editPluginPopupOverrides[pluginPopupPickerPluginId]?.[pluginPopupPickerTemplateId]?.popup_id}
+	<div class="picker-grid">
+		<!-- Default option -->
+		<button
+			class="picker-card"
+			class:picker-card-active={activeOverrideId == null}
+			onclick={() => {
+				setPopupOverride(pluginPopupPickerPluginId, pluginPopupPickerTemplateId, null);
+				pluginPopupPickerModalOpen = false;
+			}}
+			aria-label="Use default plugin popup"
+		>
+			<div class="picker-img-wrap">
+				<span class="picker-empty">—</span>
+			</div>
+			<div class="picker-info">
+				<div class="picker-name">Default</div>
+				<div class="picker-sub">Use plugin's own popup</div>
+			</div>
+			<div class="picker-add-btn">{activeOverrideId == null ? 'Selected' : 'Select'}</div>
+		</button>
+		{#each allPopUps as popup (popup.id)}
+			<button
+				class="picker-card"
+				class:picker-card-active={activeOverrideId === popup.id}
+				onclick={() => {
+					setPopupOverride(pluginPopupPickerPluginId, pluginPopupPickerTemplateId, popup.id);
+					pluginPopupPickerModalOpen = false;
+				}}
+				aria-label="Select {popup.name}"
+			>
+				<div class="picker-img-wrap">
+					{#if popup.image_path}
+						<MediaPreview class="picker-img" src={imgUrl(popup.image_path)} alt={popup.name} />
+					{:else}
+						<span class="picker-empty">—</span>
+					{/if}
+				</div>
+				<div class="picker-info">
+					<div class="picker-name">{popup.name}</div>
+					<div class="picker-sub">{popup.sponsor_name || 'No sponsor'}</div>
+				</div>
+				<div class="picker-add-btn">{activeOverrideId === popup.id ? 'Selected' : 'Select'}</div>
+			</button>
+		{:else}
+			<p class="picker-empty-msg">No pop-ups available.</p>
 		{/each}
 	</div>
 </Modal>
@@ -1073,5 +1494,269 @@
 		height: calc(100vh - 48px - 64px);
 		color: var(--text-3);
 		text-align: center;
+	}
+
+	/* ── Unsaved badge ── */
+	.unsaved-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 8px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		border-radius: 20px;
+	}
+
+	/* ── Tab nav ── */
+	.tab-nav {
+		display: flex;
+		gap: 4px;
+		border-bottom: 1px solid var(--border-1);
+		padding-bottom: 0;
+		margin-bottom: 4px;
+	}
+
+	.tab-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px;
+		font-size: 13px;
+		font-weight: 500;
+		font-family: inherit;
+		color: var(--text-3);
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		transition: color 0.15s, border-color 0.15s;
+		margin-bottom: -1px;
+	}
+
+	.tab-btn:hover {
+		color: var(--text-1);
+	}
+
+	.tab-btn.active {
+		color: var(--text-1);
+		border-bottom-color: var(--accent);
+	}
+
+	.tab-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1px 6px;
+		font-size: 10px;
+		font-weight: 700;
+		background: var(--accent-dim);
+		color: var(--accent);
+		border-radius: 20px;
+	}
+
+	/* ── Plugin list ── */
+	.plugin-list {
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* Each plugin entry (header row + optional popup slots) */
+	.plugin-entry {
+		border-bottom: 1px solid var(--border-1);
+	}
+
+	.plugin-entry:last-child {
+		border-bottom: none;
+	}
+
+	.plugin-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 12px 16px;
+		transition: background 0.1s;
+	}
+
+	.plugin-entry:hover > .plugin-row {
+		background: var(--surface-2);
+	}
+
+	.plugin-entry-disabled .plugin-row-name {
+		color: var(--text-3);
+	}
+
+	.plugin-row-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.plugin-row-name {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-1);
+		transition: color 0.15s;
+	}
+
+	.plugin-row-meta {
+		font-size: 11px;
+		color: var(--text-3);
+	}
+
+	/* Toggle switch */
+	.plugin-toggle {
+		flex-shrink: 0;
+		position: relative;
+		width: 36px;
+		height: 20px;
+		border-radius: 10px;
+		border: none;
+		background: var(--surface-3);
+		cursor: pointer;
+		padding: 0;
+		transition: background 0.2s;
+	}
+
+	.plugin-toggle-on {
+		background: var(--accent);
+	}
+
+	.plugin-toggle-thumb {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: #fff;
+		transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+		pointer-events: none;
+	}
+
+	.plugin-toggle-on .plugin-toggle-thumb {
+		transform: translateX(16px);
+	}
+
+	/* ── Popup override slots ── */
+	.plugin-popup-slots {
+		padding: 0 16px 14px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.plugin-popup-slots-header {
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-3);
+		margin-bottom: 2px;
+	}
+
+	.plugin-popup-slot {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.plugin-popup-slot-name {
+		flex-shrink: 0;
+		width: 120px;
+		font-size: 12px;
+		color: var(--text-2);
+	}
+
+	/* Plugin popup override picker button (replaces dropdown) */
+	.plugin-popup-btn {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 6px 10px;
+		background: var(--surface-2);
+		border: 1px solid var(--border-1);
+		border-radius: var(--r-sm);
+		cursor: pointer;
+		text-align: left;
+		font-size: 13px;
+		color: var(--text-1);
+		min-width: 0;
+		transition: border-color 0.12s, background 0.12s;
+	}
+
+	.plugin-popup-btn:hover {
+		border-color: var(--accent);
+		background: var(--surface-3);
+	}
+
+	.plugin-popup-btn-value {
+		flex: 1;
+		color: var(--text-1);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.plugin-popup-btn-placeholder {
+		flex: 1;
+		color: var(--text-3);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.plugin-popup-btn-icon {
+		flex-shrink: 0;
+		color: var(--text-3);
+	}
+
+	.plugin-popup-duration-input {
+		width: 64px;
+		flex-shrink: 0;
+	}
+
+	.plugin-popup-duration-unit {
+		font-size: 12px;
+		color: var(--text-3);
+		flex-shrink: 0;
+	}
+
+	/* Active/selected state for picker cards (used in override picker) */
+	.picker-card-active {
+		border-color: var(--accent) !important;
+		background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+	}
+
+	.picker-card-active .picker-add-btn {
+		opacity: 1;
+	}
+
+	.plugins-hint {
+		font-size: 11px;
+		color: var(--text-3);
+		margin: 0;
+		padding-top: 6px;
+	}
+
+	/* ── Layer select ── */
+	.layer-select {
+		padding: 4px 6px;
+		font-size: 12px;
+		font-weight: 700;
+		text-align: center;
+		border-width: 1px;
+		border-style: solid;
+		border-radius: var(--r-sm);
+		cursor: pointer;
+		width: 100%;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
 	}
 </style>

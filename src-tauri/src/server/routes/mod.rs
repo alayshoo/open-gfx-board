@@ -3,3 +3,4 @@ pub mod programs;
 pub mod popups;
 pub mod screens;
 pub mod system;
+pub mod plugins;

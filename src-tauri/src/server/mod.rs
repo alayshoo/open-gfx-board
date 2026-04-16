@@ -15,7 +15,7 @@ use tower_http::{
 };
 use socketioxide::SocketIo;
 use crate::state::AppState;
-use routes::{studios, programs, popups, screens, system};
+use routes::{studios, programs, popups, screens, system, plugins};
 
 pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
     let (socket_layer, io) = SocketIo::builder()
@@ -40,6 +40,7 @@ pub fn build_router(app_state: AppState, build_dir: Option<PathBuf>) -> Router {
         .nest("/programs", programs::router())
         .nest("/popups", popups::router())
         .nest("/screens", screens::router())
+        .nest("/plugins", plugins::router())
         .route("/has-data", get(system::has_data_handler))
         .route("/health", get(system::health_handler))
         .route("/local-ip", get(system::local_ip_handler))

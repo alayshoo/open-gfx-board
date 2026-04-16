@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+  .card-popup {
+    width: fit-content;
+    height: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 11px;
+    padding: 18px 31px;
+    animation: cardSlide 0.4s ease-out;
+    white-space: nowrap;
+  }
+
+  @keyframes cardSlide {
+    0% { transform: translateY(-22px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes cardReveal {
+    0%   { transform: scale(0.55) translateY(10px); filter: saturate(0.15) brightness(0.7); }
+    65%  { transform: scale(1.06) translateY(-2px); filter: saturate(1.15) brightness(1.07); }
+    100% { transform: scale(1)   translateY(0);     filter: saturate(1)   brightness(1); }
+  }
+
+  .card-icon {
+    width: 40px;
+    height: 55px;
+    border-radius: 4px;
+    background: {{plugin:football:context:card_color}};
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    animation: cardReveal 0.55s cubic-bezier(0.34, 1.2, 0.64, 1) 0.8s both;
+  }
+
+  .card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .card-type {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: {{plugin:football:context:card_color}};
+  }
+
+  .player-name {
+    font-size: 24px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .player-number {
+    font-size: 31px;
+    font-weight: 700;
+    color: #a1a1aa;
+    line-height: 1;
+    padding-left: 18px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+  }
+</style>
+</head>
+<body>
+  <div class="card-popup">
+    <div class="card-icon"></div>
+    <div class="card-info">
+      <span class="card-type">{{plugin:football:context:team_name}}</span>
+      <span class="player-name">{{plugin:football:context:player_name}}</span>
+    </div>
+    <span class="player-number">{{plugin:football:context:player_number}}</span>
+  </div>
+</body>
+</html>

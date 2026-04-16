@@ -1,0 +1,127 @@
+{
+  "id": "football",
+  "name": "Football",
+  "version": "1.0.0",
+  "description": "Live scoreboard, timer, goals, cards, and lineup overlays for football matches.",
+  "author": "Alayshoo",
+
+  "database": {
+    "teams": {
+      "columns": {
+        "name": "TEXT NOT NULL",
+        "short_name": "TEXT NOT NULL DEFAULT ''",
+        "manager": "TEXT NOT NULL DEFAULT ''",
+        "primary_color": "TEXT NOT NULL DEFAULT '#ffffff'",
+        "secondary_color": "TEXT NOT NULL DEFAULT '#000000'",
+        "logo_path": "TEXT"
+      }
+    },
+    "players": {
+      "columns": {
+        "team_id": "INTEGER NOT NULL REFERENCES plugin_football_teams(id) ON DELETE CASCADE",
+        "number": "INTEGER NOT NULL",
+        "name": "TEXT NOT NULL",
+        "position": "TEXT NOT NULL DEFAULT ''"
+      }
+    },
+    "formation": {
+      "columns": {
+        "team_id": "INTEGER NOT NULL REFERENCES plugin_football_teams(id) ON DELETE CASCADE",
+        "row_index": "INTEGER NOT NULL",
+        "slot_index": "INTEGER NOT NULL",
+        "player_number": "INTEGER NOT NULL"
+      }
+    }
+  },
+
+  "state": {
+    "home_team_id":      { "type": "integer", "default": null },
+    "away_team_id":      { "type": "integer", "default": null },
+    "home_team_name":       { "type": "string",  "default": "HOME" },
+    "away_team_name":       { "type": "string",  "default": "AWAY" },
+    "home_short_name":      { "type": "string",  "default": "HOME" },
+    "away_short_name":      { "type": "string",  "default": "AWAY" },
+    "home_manager":         { "type": "string",  "default": "" },
+    "away_manager":         { "type": "string",  "default": "" },
+    "home_primary_color":   { "type": "string",  "default": "#ffffff" },
+    "away_primary_color":   { "type": "string",  "default": "#ffffff" },
+    "home_secondary_color": { "type": "string",  "default": "#000000" },
+    "away_secondary_color": { "type": "string",  "default": "#000000" },
+    "logo_data_url":        { "type": "string",  "default": null },
+    "home_score":        { "type": "integer", "default": 0 },
+    "away_score":        { "type": "integer", "default": 0 },
+    "timer_accumulated": { "type": "integer", "default": 0 },
+    "timer_start_epoch": { "type": "integer", "default": null },
+    "timer_running":     { "type": "boolean", "default": false },
+    "stoppage_time":     { "type": "integer", "default": 0 }
+  },
+
+  "events": [
+    "goal",
+    "yellow-card",
+    "red-card",
+    "substitution",
+    "full-time",
+    "reset-match"
+  ],
+
+  "control": {
+    "component": "assets/control.js"
+  },
+
+  "editor": {
+    "component": "assets/editor.js"
+  },
+
+  "screens": [
+    {
+      "template_id": "scoreboard",
+      "name": "Scoreboard",
+      "template": "templates/scoreboard.html",
+      "allow_popups": true
+    }
+  ],
+
+  "popups": [
+    {
+      "template_id": "goal-popup",
+      "name": "Goal",
+      "template": "templates/goal-popup.html",
+      "direction": "left",
+      "position": 26.4,
+      "width": 700,
+      "height": 180,
+      "duration": 10
+    },
+    {
+      "template_id": "card-popup",
+      "name": "Card",
+      "template": "templates/card-popup.html",
+      "direction": "left",
+      "position": 25,
+      "width": 550,
+      "height": 154,
+      "duration": 10
+    },
+    {
+      "template_id": "sub-popup",
+      "name": "Substitution",
+      "template": "templates/sub-popup.html",
+      "direction": "left",
+      "position": 25.4,
+      "width": 700,
+      "height": 160,
+      "duration": 10
+    },
+    {
+      "template_id": "lineup",
+      "name": "Starting Lineup",
+      "template": "templates/lineup.html",
+      "direction": "bottom",
+      "position": 50,
+      "width": 1920,
+      "height": 1080,
+      "duration": 15
+    }
+  ]
+}
