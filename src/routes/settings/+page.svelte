@@ -219,16 +219,18 @@
 
 		importing = true;
 		try {
-			const formData = new FormData();
-			formData.append('file', file);
+			// Send the raw ZIP bytes — the backend reads axum::body::Bytes directly,
+			// so wrapping in FormData would corrupt the archive with multipart framing.
 			const res = await fetch(`${BACKEND_URL}/import`, {
 				method: 'POST',
-				body: formData,
+				body: file,
+				headers: { 'Content-Type': 'application/zip' },
 			});
 			const data = await res.json();
 			if (data.success) {
-				addToast('success', 'Database imported. Reload to see changes.');
+				addToast('success', 'Database imported successfully. Reloading…');
 				canExport = true;
+				setTimeout(() => location.reload(), 1500);
 			} else {
 				addToast('error', data.error ?? 'Import failed.');
 			}
