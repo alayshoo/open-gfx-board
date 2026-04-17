@@ -45,8 +45,8 @@
 	let editProgramScreens = $state<ProgramScreenEntry[]>([]);
 	let editProgramPopUps = $state<ProgramPopUp[]>([]);
 	let editPluginIds = $state<string[]>([]);
-	// pluginId → templateId → { popup_id (null = use plugin default), duration in seconds }
-	let editPluginPopupOverrides = $state<Record<string, Record<string, { popup_id: number | null; duration: number }>>>({});
+	// pluginId → templateId → { popup_id (null = use plugin default), duration in seconds, layer }
+	let editPluginPopupOverrides = $state<Record<string, Record<string, { popup_id: number | null; duration: number; layer: number }>>>({});
 
 	// Plugin popup override picker modal
 	let pluginPopupPickerModalOpen = $state(false);
@@ -208,7 +208,7 @@
 		const overridesObj: Record<string, Record<string, { popup_id: number | null; duration: number }>> = {};
 		for (const ov of rawOverrides) {
 			if (!overridesObj[ov.plugin_id]) overridesObj[ov.plugin_id] = {};
-			overridesObj[ov.plugin_id][ov.template_id] = { popup_id: ov.popup_id, duration: ov.duration ?? 10 };
+			overridesObj[ov.plugin_id][ov.template_id] = { popup_id: ov.popup_id, duration: ov.duration ?? 10, layer: ov.layer ?? 1 };
 		}
 		editPluginPopupOverrides = overridesObj;
 		// Pre-load manifests for enabled plugins so popup slots render immediately
@@ -245,7 +245,7 @@
 		const result: PluginPopupOverride[] = [];
 		for (const [pluginId, templates] of Object.entries(editPluginPopupOverrides)) {
 			for (const [templateId, override] of Object.entries(templates)) {
-				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: override.popup_id, duration: override.duration });
+				result.push({ plugin_id: pluginId, template_id: templateId, popup_id: override.popup_id, duration: override.duration, layer: override.layer ?? 1 });
 			}
 		}
 		return result;
@@ -428,14 +428,14 @@
 		}
 	}
 
-	/** Update a single plugin popup override, triggering Svelte reactivity. Preserves existing duration. */
+	/** Update a single plugin popup override, triggering Svelte reactivity. Preserves existing duration and layer. */
 	function setPopupOverride(pluginId: string, templateId: string, popupId: number | null) {
 		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
 		editPluginPopupOverrides = {
 			...editPluginPopupOverrides,
 			[pluginId]: {
 				...(editPluginPopupOverrides[pluginId] ?? {}),
-				[templateId]: { popup_id: popupId, duration: existing?.duration ?? 10 },
+				[templateId]: { popup_id: popupId, duration: existing?.duration ?? 10, layer: existing?.layer ?? 1 },
 			},
 		};
 	}
@@ -449,6 +449,18 @@
 			[pluginId]: {
 				...(editPluginPopupOverrides[pluginId] ?? {}),
 				[templateId]: { ...existing, duration },
+			},
+		};
+	}
+
+	/** Update the layer for a single plugin popup override slot. */
+	function setPopupOverrideLayer(pluginId: string, templateId: string, layer: number) {
+		const existing = editPluginPopupOverrides[pluginId]?.[templateId];
+		editPluginPopupOverrides = {
+			...editPluginPopupOverrides,
+			[pluginId]: {
+				...(editPluginPopupOverrides[pluginId] ?? {}),
+				[templateId]: { popup_id: existing?.popup_id ?? null, duration: existing?.duration ?? 10, layer },
 			},
 		};
 	}
@@ -946,6 +958,17 @@
 																oninput={(e) => setPopupOverrideDuration(plugin.id, popupDef.template_id, Math.max(0, Number((e.target as HTMLInputElement).value)))}
 															/>
 															<span class="plugin-popup-duration-unit">s</span>
+															<select
+																class="form-select layer-select"
+																style={popupLayerStyle(override?.layer ?? 1)}
+																value={override?.layer ?? 1}
+																onchange={(e) => setPopupOverrideLayer(plugin.id, popupDef.template_id, Number((e.target as HTMLSelectElement).value))}
+																aria-label="Layer"
+															>
+																<option value={1}>1</option>
+																<option value={2}>2</option>
+																<option value={3}>3</option>
+															</select>
 														</div>
 													{/each}
 												</div>
@@ -1756,7 +1779,8 @@
 		border-style: solid;
 		border-radius: var(--r-sm);
 		cursor: pointer;
-		width: 100%;
+		width: 52px;
+		flex-shrink: 0;
 		transition: background 0.15s, color 0.15s, border-color 0.15s;
 	}
 </style>

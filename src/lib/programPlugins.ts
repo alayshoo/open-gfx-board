@@ -42,6 +42,8 @@ export interface PluginPopupOverride {
 	popup_id: number | null;
 	/** Duration in seconds for the overriding popup (ignored when popup_id is null). */
 	duration: number;
+	/** Display layer (1–3) for this plugin popup slot. */
+	layer: number;
 }
 
 /**
