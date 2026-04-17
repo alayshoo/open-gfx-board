@@ -121,6 +121,6 @@ jobs:
 
             Fixes:
             
-             - Database Import Fix
+             - Database Export Presets Fix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

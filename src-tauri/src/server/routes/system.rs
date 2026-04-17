@@ -77,6 +77,7 @@ fn content_type_for_ext(ext: &str) -> &'static str {
 
 pub async fn export_handler(State(state): State<AppState>) -> impl IntoResponse {
     let app_data_dir = state.app_data_dir.clone();
+    let db_arc = state.db.clone();
     let result = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<u8>> {
         let mut buf = Vec::new();
         let cursor = std::io::Cursor::new(&mut buf);
@@ -84,11 +85,21 @@ pub async fn export_handler(State(state): State<AppState>) -> impl IntoResponse 
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
 
-        // Add database file
+        // Add database file.
+        // We must hold the DB lock while checkpointing and reading the file so
+        // that (a) all WAL frames are flushed into app.db before we copy it and
+        // (b) no concurrent write can add new WAL frames in the window between
+        // the checkpoint and the file read.  Without this, recently-written data
+        // (e.g. presets) that lives only in the WAL sidecar would be silently
+        // omitted from the export.
         let db_path = app_data_dir.join("app.db");
         if db_path.exists() {
-            zip.start_file("app.db", options)?;
+            let db = db_arc.blocking_lock();
+            db.execute_batch("PRAGMA wal_checkpoint(FULL);")?;
             let db_bytes = std::fs::read(&db_path)?;
+            drop(db);
+
+            zip.start_file("app.db", options)?;
             zip.write_all(&db_bytes)?;
         }
 
