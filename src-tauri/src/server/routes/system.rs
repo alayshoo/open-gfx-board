@@ -23,8 +23,25 @@ pub async fn has_data_handler(State(state): State<AppState>) -> impl IntoRespons
     Json(json!({ "has_data": has_data }))
 }
 
-pub async fn health_handler() -> impl IntoResponse {
-    Json(json!({ "ok": true }))
+pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
+    // Also return the currently active program so that reconnecting clients can
+    // refresh their local state via the HTTP channel without relying solely on
+    // the socket studio-state event (which can be missed or arrive stale).
+    const STUDIO_ID: i64 = 1;
+    let program = {
+        let states = state.studio_states.lock().await;
+        let program_id = states.get(&STUDIO_ID).and_then(|r| r.program_id);
+        drop(states);
+        if let Some(pid) = program_id {
+            let db = state.db.lock().await;
+            tokio::task::block_in_place(|| {
+                crate::db::programs::get_program(&db, pid).ok().flatten()
+            })
+        } else {
+            None
+        }
+    };
+    Json(json!({ "ok": true, "program": program }))
 }
 
 pub async fn local_ip_handler() -> impl IntoResponse {

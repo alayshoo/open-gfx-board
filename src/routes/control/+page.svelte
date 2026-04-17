@@ -97,9 +97,26 @@
 		// Re-join the studio room after a socket reconnect so we keep receiving
 		// broadcasts (plugin-state-updated, overlay-activated, etc.).  Without
 		// this, a server restart or network drop silently breaks all live updates.
+		// We also probe the active program over HTTP so a reconnecting client
+		// always reflects the latest program even if the socket studio-state
+		// response is delayed or the server's in-memory state was reset.
 		function onReconnect() {
 			socket.emit("join-studio-room", {});
 			socket.emit("get-studio-state", {});
+
+			// Independent HTTP probe: /health now returns the current program so
+			// clients that reconnect after a program change see the fresh value
+			// without having to wait for (or risk missing) the socket event.
+			fetch(`${BACKEND_URL}/health`)
+				.then((r) => r.json())
+				.then((data: { ok: boolean; program: Program | null }) => {
+					if ("program" in data) {
+						program = data.program ?? null;
+					}
+				})
+				.catch(() => {
+					/* socket path will handle it */
+				});
 		}
 		socket.on("connect", onReconnect);
 
