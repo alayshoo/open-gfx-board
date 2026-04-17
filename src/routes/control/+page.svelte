@@ -67,11 +67,19 @@
 
 	const screens = $derived<Graphic[]>(program?.graphics ?? []);
 	const programPopUps = $derived<ProgramPopUp[]>(program?.program_popups ?? []);
-	// Per-layer: true when that layer's active screen allows popups
+	// Popups are blocked globally when any active screen on any layer explicitly forbids them.
+	// If no screen is active on a layer, that layer contributes no restriction.
+	const popupsBlocked = $derived(
+		[1, 2, 3].some((layer) => {
+			const id = activeScreenIds[layer];
+			if (id === null) return false;
+			return !(program?.graphics.find((g) => g.id === id)?.allow_popups ?? true);
+		})
+	);
 	const allowPopUpsPerLayer = $derived<Record<number, boolean>>({
-		1: activeScreenIds[1] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[1])?.allow_popups ?? false),
-		2: activeScreenIds[2] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[2])?.allow_popups ?? false),
-		3: activeScreenIds[3] !== null && (program?.graphics.find((g) => g.id === activeScreenIds[3])?.allow_popups ?? false),
+		1: !popupsBlocked,
+		2: !popupsBlocked,
+		3: !popupsBlocked,
 	});
 	const logoUrl = $derived(imgUrl(program?.logo_path));
 

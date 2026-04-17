@@ -358,7 +358,7 @@
 		const handle = setTimeout(async () => {
 			autoPopUpTimers.delete(pa.id);
 			if (!currentProgram) return;
-			if (overlayActive[li]) { scheduleAutoPopUp(pa); return; }
+			if (overlayActive.some(v => v)) { scheduleAutoPopUp(pa); return; }
 			if (popupIsVisible[li] && !fillerIsActive[li]) {
 				const h2 = setTimeout(() => {
 					autoPopUpTimers.delete(pa.id);
@@ -405,7 +405,7 @@
 	}
 
 	function startFillersIfNeeded(li: number): void {
-		if (fillerSuppressed[li] || overlayActive[li] || popupIsVisible[li] || fillerIsActive[li]) return;
+		if (fillerSuppressed[li] || overlayActive.some(v => v) || popupIsVisible[li] || fillerIsActive[li]) return;
 		const popups = (currentProgram?.program_popups ?? []).filter((pa) => {
 			const sameLayer = (pa.layer ?? 1) - 1 === li;
 			const hasContent = pa.popup?.media_type === "html" ? !!pa.popup?.html_content : !!pa.popup?.image_path;
@@ -417,7 +417,7 @@
 		fillerIsActive[li] = true;
 		if (popups.length > 1) {
 			fillerRotationTimers[li] = setInterval(() => {
-				if (fillerSuppressed[li] || overlayActive[li]) {
+				if (fillerSuppressed[li] || overlayActive.some(v => v)) {
 					stopFillers(li);
 					triggerPopUp(li, null);
 					return;
@@ -474,7 +474,6 @@
 				const li = (overlay.layer ?? 1) - 1;
 				const allowPopUps = overlay.allowPopUps ?? false;
 				overlayActive[li] = !allowPopUps;
-				fillerSuppressed[li] = !allowPopUps;
 				const mediaType = (overlay.mediaType ?? "image") as MediaType;
 				if (mediaType === "html") {
 					show(li, null, "html", overlay.htmlContent ?? null);
@@ -485,6 +484,11 @@
 					if (url) preload(url, type);
 					show(li, url, type);
 				}
+			}
+			// Popups are suppressed globally if any active screen forbids them
+			const stateBlocked = overlayActive.some(v => v);
+			for (let li = 0; li < NUM_LAYERS; li++) {
+				fillerSuppressed[li] = stateBlocked;
 			}
 
 			// Restore active popups on each layer
@@ -547,13 +551,17 @@
 			}
 
 			overlayActive[li] = !allowPopUps;
-			if (!allowPopUps) {
-				fillerSuppressed[li] = true;
-				stopFillers(li);
-				triggerPopUp(li, null);
-			} else {
-				fillerSuppressed[li] = false;
-				startFillersIfNeeded(li);
+			// Re-evaluate globally: any active screen forbidding popups blocks all layers
+			const activationBlocked = overlayActive.some(v => v);
+			for (let l = 0; l < NUM_LAYERS; l++) {
+				if (activationBlocked) {
+					fillerSuppressed[l] = true;
+					stopFillers(l);
+					triggerPopUp(l, null);
+				} else {
+					fillerSuppressed[l] = false;
+					startFillersIfNeeded(l);
+				}
 			}
 		}
 
@@ -561,8 +569,14 @@
 			const li = ((data.layer ?? 1) - 1);
 			show(li, null, "image");
 			overlayActive[li] = false;
-			fillerSuppressed[li] = false;
-			startFillersIfNeeded(li);
+			// Re-evaluate globally: only unblock popups if no other layer is still forbidding them
+			const deactivationBlocked = overlayActive.some(v => v);
+			for (let l = 0; l < NUM_LAYERS; l++) {
+				if (!deactivationBlocked) {
+					fillerSuppressed[l] = false;
+					startFillersIfNeeded(l);
+				}
+			}
 		}
 
 		function onPopUpStarted(data: any) {
@@ -592,7 +606,7 @@
 			const li = ((data.layer ?? 1) - 1);
 			triggerPopUp(li, null);
 			fillerSuppressed[li] = false;
-			if (!overlayActive[li]) setTimeout(() => startFillersIfNeeded(li), POPUP_SLIDE_MS + 100);
+			if (!overlayActive.some(v => v)) setTimeout(() => startFillersIfNeeded(li), POPUP_SLIDE_MS + 100);
 		}
 
 		function onUpdateData() {
