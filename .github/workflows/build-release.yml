@@ -121,6 +121,11 @@ jobs:
 
             Fixes:
             
-             - Database Export Presets Fix
+             - Screen Selector page is now scrollable.
+             - Selecting a Program now correctly purges all active layers before loading the new program's screens.
+             - Popup Blocking logic was reworked so popups are only blocked if there is one Screen that doesn't allow them in any layer.
+             - Added layer option in the Plugin Popups configuration in the Program Editor page.
+             - Football plugin: Timer static width, fixes the resizing on certain timer values (e.g. 11:11 vs. 00:00).
+             - Clients' health probe now checks for selected program to avoid showing a stale state on reconnects.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
