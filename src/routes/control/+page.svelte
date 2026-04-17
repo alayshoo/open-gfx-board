@@ -109,10 +109,9 @@
 			activeScreenIds = { 1: null, 2: null, 3: null };
 			activePopUpIds = { 1: null, 2: null, 3: null };
 			isPopUpPlaying = { 1: false, 2: false, 3: false };
-			// Restore the first overlay from the payload if provided
-			if (data.activeOverlay) {
-				const l = data.activeOverlay.layer ?? 1;
-				activeScreenIds = { ...activeScreenIds, [l]: data.activeOverlay.graphicId };
+			// Restore active overlays from the payload if provided
+			for (const overlay of data.activeOverlays ?? []) {
+				activeScreenIds = { ...activeScreenIds, [overlay.layer]: overlay.graphicId };
 			}
 			// Auto-activate first screen if nothing is active on layer 1
 			if (!activeScreenIds[1] && program?.graphics && program.graphics.length > 0) {

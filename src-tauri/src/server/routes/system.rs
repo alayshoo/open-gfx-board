@@ -148,14 +148,25 @@ pub async fn import_handler(
         let cursor = std::io::Cursor::new(body.to_vec());
         let mut archive = zip::ZipArchive::new(cursor)?;
 
-        // Extract all files
+        // Write app.db to a temp file so we can restore it into the live connection
+        // without closing/reopening the process-wide connection handle.
+        let temp_db_path = app_data_dir.join("app_import_temp.db");
+        let mut db_found = false;
+
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let outpath = app_data_dir.join(file.name());
+            let name = file.name().to_string();
 
-            if file.name().ends_with('/') {
+            if name == "app.db" {
+                // Land in a side-car temp file; we'll restore via the backup API below.
+                let mut outfile = std::fs::File::create(&temp_db_path)?;
+                std::io::copy(&mut file, &mut outfile)?;
+                db_found = true;
+            } else if name.ends_with('/') {
+                let outpath = app_data_dir.join(&name);
                 std::fs::create_dir_all(&outpath)?;
             } else {
+                let outpath = app_data_dir.join(&name);
                 if let Some(parent) = outpath.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
@@ -164,11 +175,33 @@ pub async fn import_handler(
             }
         }
 
-        // Re-open the DB connection with the new file
-        // We can't easily replace the Arc<Mutex<Connection>>, but we can re-run migrations
-        // The DB file is already replaced on disk; we need to checkpoint
-        if let Ok(db) = db_arc.try_lock() {
-            let _ = crate::db::schema::run_migrations(&db);
+        // Swap the live SQLite connection so the running process sees the new
+        // data immediately without restarting.
+        if db_found {
+            let db_path = app_data_dir.join("app.db");
+
+            // Hold the lock for the entire swap so no concurrent handler can
+            // sneak in while the connection is momentarily a placeholder.
+            let mut db = db_arc.blocking_lock();
+
+            // Replace the live connection with an in-memory placeholder.
+            // This drops (and closes) the real connection, releasing the file
+            // lock on app.db — required on Windows before we can rename over it.
+            let placeholder = rusqlite::Connection::open_in_memory()?;
+            let old_conn = std::mem::replace(&mut *db, placeholder);
+            drop(old_conn);
+
+            // Remove any stale WAL/SHM sidecars so they don't corrupt the
+            // freshly placed database file.
+            let _ = std::fs::remove_file(app_data_dir.join("app.db-wal"));
+            let _ = std::fs::remove_file(app_data_dir.join("app.db-shm"));
+
+            // Atomically place the imported DB at the canonical path.
+            std::fs::rename(&temp_db_path, &db_path)?;
+
+            // Reopen on the new file and put the real connection back.
+            let new_conn = rusqlite::Connection::open(&db_path)?;
+            *db = new_conn;
         }
 
         Ok(())
