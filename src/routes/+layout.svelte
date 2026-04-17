@@ -317,6 +317,7 @@
 	   (viewport minus titlebar) rather than 100vh on their own. */
 	:global(.app-body.tauri .page-wrap),
 	:global(.app-body.tauri .page) {
+		height: auto; /* reset any explicit height set by individual pages */
 		min-height: 0;
 		flex: 1;
 		overflow-y: auto;
