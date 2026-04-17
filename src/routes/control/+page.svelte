@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { page } from "$app/stores";
+	import { goto } from "$app/navigation";
 	import CmdPanel from "$lib/components/Cmd-Panel.svelte";
 	import ScreenSelector from "$lib/components/ScreensSelector.svelte";
 	import PopUpLauncher from "$lib/components/PopUpLauncher.svelte";
@@ -24,9 +24,7 @@
 	import MediaPreview from "$lib/components/MediaPreview.svelte";
     import { IS_TAURI } from "$lib/bridge";
 
-	const presetId = $derived(
-		Number($page.url.searchParams.get("preset")) || null,
-	);
+	let presetId = $state<number | null>(null);
 
 	let program = $state<Program | null>(null);
 	// Per-layer active state (key = layer number 1|2|3)
@@ -84,6 +82,15 @@
 	const logoUrl = $derived(imgUrl(program?.logo_path));
 
 	onMount(() => {
+		// Each client stores its chosen preset in localStorage.
+		// If none is set, send them back to the preset-selection page.
+		const storedPresetId = Number(localStorage.getItem('selectedPresetId')) || null;
+		if (!storedPresetId) {
+			goto('/');
+			return;
+		}
+		presetId = storedPresetId;
+
 		socket.emit("join-studio-room", {});
 		socket.emit("get-studio-state", {});
 

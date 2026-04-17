@@ -49,7 +49,8 @@
 
 	function selectPreset(preset: Preset) {
 		if (!studio) return;
-		goto(`/control?preset=${preset.id}`);
+		localStorage.setItem('selectedPresetId', String(preset.id));
+		goto('/control');
 	}
 </script>
 
