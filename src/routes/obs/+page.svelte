@@ -518,6 +518,7 @@
 		function onProgramSelected(data: any) {
 			preloadProgram(data.program as Program);
 			stopAllScheduling();
+			for (let li = 0; li < NUM_LAYERS; li++) show(li, null, "image");
 			currentProgram = data.program as Program;
 			if (currentProgram) {
 				startAutoPopUps(currentProgram);
