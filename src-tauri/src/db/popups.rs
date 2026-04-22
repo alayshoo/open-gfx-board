@@ -4,7 +4,7 @@ use crate::models::{PopupProgram, Popup};
 
 pub fn get_all_popups(conn: &Connection) -> Result<Vec<Popup>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id \
+        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id, direction_vertical, position_vertical \
          FROM popups \
          WHERE plugin_id IS NULL OR plugin_id IN (SELECT id FROM plugins WHERE enabled = 1) \
          ORDER BY id"
@@ -31,6 +31,8 @@ pub fn get_all_popups(conn: &Connection) -> Result<Vec<Popup>> {
             created_at: row.get(11)?,
             plugin_id: row.get(12)?,
             plugin_template_id: row.get(13)?,
+            direction_vertical: row.get(14)?,
+            position_vertical: row.get(15)?,
         });
     }
     Ok(popups)
@@ -38,7 +40,7 @@ pub fn get_all_popups(conn: &Connection) -> Result<Vec<Popup>> {
 
 pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
     let result = conn.query_row(
-        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id FROM popups WHERE id = ?1",
+        "SELECT id, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id, direction_vertical, position_vertical FROM popups WHERE id = ?1",
         [id],
         |row| Ok((
             row.get::<_, i64>(0)?,
@@ -55,10 +57,12 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
             row.get::<_, String>(11)?,
             row.get::<_, Option<String>>(12)?,
             row.get::<_, Option<String>>(13)?,
+            row.get::<_, Option<String>>(14)?,
+            row.get::<_, Option<f64>>(15)?,
         )),
     );
     match result {
-        Ok((pid, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id)) => {
+        Ok((pid, name, sponsor_name, comments, media_path, media_type, html_content, direction, position, width, height, created_at, plugin_id, plugin_template_id, direction_vertical, position_vertical)) => {
             let programs = load_programs_for_popup(conn, pid)?;
             Ok(Some(Popup {
                 id: pid,
@@ -76,6 +80,8 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
                 created_at,
                 plugin_id,
                 plugin_template_id,
+                direction_vertical,
+                position_vertical,
             }))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -83,19 +89,19 @@ pub fn get_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
     }
 }
 
-pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Popup> {
+pub fn create_popup(conn: &Connection, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>, direction_vertical: Option<&str>, position_vertical: Option<f64>) -> Result<Popup> {
     conn.execute(
-        "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type, html_content, width, height) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height],
+        "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type, html_content, width, height, direction_vertical, position_vertical) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height, direction_vertical, position_vertical],
     )?;
     let id = conn.last_insert_rowid();
     Ok(get_popup(conn, id)?.expect("popup just inserted must exist"))
 }
 
-pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>) -> Result<Option<Popup>> {
+pub fn update_popup(conn: &Connection, id: i64, name: &str, sponsor_name: &str, comments: &str, direction: &str, position: f64, media_type: &str, html_content: Option<&str>, width: Option<i64>, height: Option<i64>, direction_vertical: Option<&str>, position_vertical: Option<f64>) -> Result<Option<Popup>> {
     let rows = conn.execute(
-        "UPDATE popups SET name = ?1, sponsor_name = ?2, comments = ?3, direction = ?4, position = ?5, media_type = ?6, html_content = ?7, width = ?8, height = ?9 WHERE id = ?10",
-        rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height, id],
+        "UPDATE popups SET name = ?1, sponsor_name = ?2, comments = ?3, direction = ?4, position = ?5, media_type = ?6, html_content = ?7, width = ?8, height = ?9, direction_vertical = ?10, position_vertical = ?11 WHERE id = ?12",
+        rusqlite::params![name, sponsor_name, comments, direction, position, media_type, html_content, width, height, direction_vertical, position_vertical, id],
     )?;
     if rows == 0 {
         return Ok(None);
@@ -113,8 +119,8 @@ pub fn duplicate_popup(conn: &Connection, id: i64) -> Result<Option<Popup>> {
     };
     let new_name = format!("{} (Copy)", original.name);
     conn.execute(
-        "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type, html_content, width, height) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        rusqlite::params![new_name, original.sponsor_name, original.comments, original.direction, original.position, original.media_type, original.html_content, original.width, original.height],
+        "INSERT INTO popups (name, sponsor_name, comments, direction, position, media_type, html_content, width, height, direction_vertical, position_vertical) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        rusqlite::params![new_name, original.sponsor_name, original.comments, original.direction, original.position, original.media_type, original.html_content, original.width, original.height, original.direction_vertical, original.position_vertical],
     )?;
     let new_id = conn.last_insert_rowid();
     Ok(get_popup(conn, new_id)?)

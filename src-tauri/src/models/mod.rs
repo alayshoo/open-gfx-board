@@ -63,6 +63,10 @@ pub struct Screen {
     /// standalone screen objects returned by the /screens endpoint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer: Option<i64>,
+    /// Optional vertical-alt media path (portrait/9:16 sources).
+    /// When present the /obs-vertical page uses this instead of `media_path`.
+    #[serde(rename = "graphics_path_vertical")]
+    pub media_path_vertical: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +93,12 @@ pub struct Popup {
     pub plugin_id: Option<String>,
     /// The template id within the plugin manifest that produced this pop-up.
     pub plugin_template_id: Option<String>,
+    /// Vertical-alt slide-in direction override (portrait/9:16 sources).
+    /// When `None`, the regular `direction` is used.
+    pub direction_vertical: Option<String>,
+    /// Vertical-alt position override (0–100 %).
+    /// When `None`, the regular `position` is used.
+    pub position_vertical: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,6 +168,9 @@ pub struct ActiveOverlay {
     /// Only present when `media_type` is `"html"`.
     #[serde(rename = "htmlContent")]
     pub html_content: Option<String>,
+    /// Vertical-alt media path (portrait/9:16 sources).  `None` = no vertical alt.
+    #[serde(rename = "graphicPathVertical")]
+    pub graphic_path_vertical: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,4 +194,10 @@ pub struct ActivePopup {
     pub width: Option<i64>,
     /// Explicit popup height in pixels.
     pub height: Option<i64>,
+    /// Vertical-alt direction override.  `None` = use regular `direction`.
+    #[serde(rename = "directionVertical")]
+    pub direction_vertical: Option<String>,
+    /// Vertical-alt position override (0–100 %).  `None` = use regular `position`.
+    #[serde(rename = "positionVertical")]
+    pub position_vertical: Option<f64>,
 }

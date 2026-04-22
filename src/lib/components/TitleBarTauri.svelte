@@ -72,6 +72,8 @@
 	let obsLocalCopied = $state(false);
 	let bgLocalCopied = $state(false);
 	let bgCopied = $state(false);
+	let verticalLocalCopied = $state(false);
+	let verticalCopied = $state(false);
 
 	let qrCopied = $state(false);
 
@@ -95,6 +97,16 @@
 		return `http://localhost:${port}/obs-background`;
 	});
 
+	const verticalUrl = $derived.by(() => {
+		if (!networkUrl) return null;
+		return `${networkUrl}/obs-vertical`;
+	});
+
+	const verticalLocalUrl = $derived.by(() => {
+		const port = new URL(getBackendUrl()).port || "80";
+		return `http://localhost:${port}/obs-vertical`;
+	});
+
 	async function copyBgLocalUrl() {
 		await navigator.clipboard.writeText(bgLocalUrl);
 		bgLocalCopied = true;
@@ -106,6 +118,19 @@
 		await navigator.clipboard.writeText(bgUrl);
 		bgCopied = true;
 		setTimeout(() => (bgCopied = false), 2000);
+	}
+
+	async function copyVerticalLocalUrl() {
+		await navigator.clipboard.writeText(verticalLocalUrl);
+		verticalLocalCopied = true;
+		setTimeout(() => (verticalLocalCopied = false), 2000);
+	}
+
+	async function copyVerticalUrl() {
+		if (!verticalUrl) return;
+		await navigator.clipboard.writeText(verticalUrl);
+		verticalCopied = true;
+		setTimeout(() => (verticalCopied = false), 2000);
 	}
 
 	async function copyObsUrl() {
@@ -339,6 +364,22 @@
 				</div>
 				{#if bgUrl}
 					<p class="obs-note">If OBS is running on a <strong>different device</strong> on the same network, use <code class="obs-localhost">{bgUrl}</code> instead.</p>
+				{/if}
+				<div class="qr-url-box">
+					<span class="qr-url-label">Vertical Overlay URL <span class="url-label-hint">(portrait / 9:16)</span></span>
+					<div class="obs-url-row">
+						<code class="qr-url">{verticalLocalUrl}</code>
+						<button class="copy-btn" onclick={copyVerticalLocalUrl} aria-label="Copy vertical URL">
+							{#if verticalLocalCopied}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="currentColor"><path d="M360-240q-33 0-56.5-23.5T280-320v-480q0-33 23.5-56.5T360-880h360q33 0 56.5 23.5T800-800v480q0 33-23.5 56.5T720-240H360Zm0-80h360v-480H360v480ZM200-80q-33 0-56.5-23.5T120-160v-560h80v560h440v80H200Zm160-240v-480 480Z"/></svg>
+							{/if}
+						</button>
+					</div>
+				</div>
+				{#if verticalUrl}
+					<p class="obs-note">If OBS is running on a <strong>different device</strong> on the same network, use <code class="obs-localhost">{verticalUrl}</code> instead.</p>
 				{/if}
 			</div>
 		</div>
@@ -608,6 +649,14 @@
 		color: var(--text-3);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	.url-label-hint {
+		font-weight: 400;
+		font-size: 0.6875rem;
+		color: var(--text-3);
+		text-transform: none;
+		letter-spacing: normal;
 	}
 
 	.qr-url {

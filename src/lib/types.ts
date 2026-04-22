@@ -2,6 +2,8 @@ export interface Screen {
 	id: number;
 	graphics_name: string;
 	graphics_path: string | null;
+	/** Vertical-alt media path (portrait/9:16 sources). Null = no vertical alt. */
+	graphics_path_vertical: string | null;
 	media_type: string;
 	allow_popups: boolean;
 	/** Raw HTML template (only when media_type is "html"). */
@@ -60,6 +62,10 @@ export interface PopUp {
 	width: number | null;
 	/** Explicit popup height in pixels. Null = use natural media size / client default. */
 	height: number | null;
+	/** Vertical-alt slide-in direction override. Null = use default direction. */
+	direction_vertical: 'top' | 'bottom' | 'left' | 'right' | null;
+	/** Vertical-alt position override (0–100 %). Null = use default position. */
+	position_vertical: number | null;
 	programs: { id: number; name: string }[];
 	created_at: string;
 	/** Set when this pop-up was installed by a plugin; null for user-created pop-ups. */
@@ -98,6 +104,8 @@ export interface ActiveOverlay {
 	layer: number;
 	graphicId: number;
 	graphicPath: string | null;
+	/** Vertical-alt media path (portrait/9:16 sources). Null = no vertical alt. */
+	graphicPathVertical: string | null;
 	allowPopUps: boolean;
 	mediaType: string;
 	/** Processed HTML (template variables already resolved). Only present when mediaType is "html". */
@@ -112,6 +120,10 @@ export interface ActivePopUp {
 	duration: number;
 	direction: string;
 	position: number;
+	/** Vertical-alt direction override. Null = use default direction. */
+	directionVertical: string | null;
+	/** Vertical-alt position override (0–100 %). Null = use default position. */
+	positionVertical: number | null;
 	mediaType: string;
 	/** Processed HTML (template variables already resolved). Only present when mediaType is "html". */
 	htmlContent: string | null;

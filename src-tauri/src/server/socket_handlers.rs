@@ -101,6 +101,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 media_type: layer.screen_media_type.clone()
                                     .unwrap_or_else(|| "image".to_string()),
                                 html_content: layer.screen_html_content.clone(),
+                                graphic_path_vertical: layer.screen_path_vertical.clone(),
                             });
                         }
 
@@ -118,6 +119,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 html_content: layer.popup_html_content.clone(),
                                 width: layer.popup_width,
                                 height: layer.popup_height,
+                                direction_vertical: layer.popup_direction_vertical.clone(),
+                                position_vertical: layer.popup_position_vertical,
                             });
                         }
                     }
@@ -218,6 +221,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                         allow_popups: s.allow_popups,
                                         media_type: s.media_type.clone(),
                                         html_content: processed_html,
+                                        graphic_path_vertical: s.media_path_vertical.clone(),
                                     }
                                 });
 
@@ -230,6 +234,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                             let layer_state = s.layer_mut(overlay.layer);
                             layer_state.screen_id = Some(overlay.graphic_id);
                             layer_state.screen_path = overlay.graphic_path.clone();
+                            layer_state.screen_path_vertical = overlay.graphic_path_vertical.clone();
                             layer_state.screen_allow_popups = overlay.allow_popups;
                             layer_state.screen_media_type = Some(overlay.media_type.clone());
                             layer_state.screen_html_content = overlay.html_content.clone();
@@ -254,6 +259,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 "allowPopUps": overlay.allow_popups,
                                 "mediaType": overlay.media_type,
                                 "htmlContent": overlay.html_content,
+                                "graphicPathVertical": overlay.graphic_path_vertical,
                             });
                             let _ = io_cc.within(ROOM).emit("overlay-activated", &overlay_payload).await;
                         }
@@ -285,7 +291,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
 
                     // Fetch fresh screen data from DB inside a scoped lock, then release before
                     // acquiring studio_states to avoid potential deadlocks.
-                    let (graphic_path, media_type, processed_html) = if let Some(gid) = graphic_id {
+                    let (graphic_path, media_type, processed_html, graphic_path_vertical) = if let Some(gid) = graphic_id {
                         let db = state_c.db.lock().await;
                         let screen = tokio::task::block_in_place(|| {
                             crate::db::screens::get_screen(&db, gid).ok().flatten()
@@ -332,16 +338,16 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 } else {
                                     None
                                 };
-                                (s.media_path, s.media_type, html)
+                                (s.media_path, s.media_type, html, s.media_path_vertical)
                             }
                             None => {
                                 let gp = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
-                                (gp, "image".to_string(), None)
+                                (gp, "image".to_string(), None, None)
                             }
                         }
                     } else {
                         let gp = data.get("graphicPath").and_then(|v| v.as_str()).map(String::from);
-                        (gp, "image".to_string(), None)
+                        (gp, "image".to_string(), None, None)
                     };
                     // db lock is now released
 
@@ -351,6 +357,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         let ls = s.layer_mut(layer);
                         ls.screen_id = graphic_id;
                         ls.screen_path = graphic_path.clone();
+                        ls.screen_path_vertical = graphic_path_vertical.clone();
                         ls.screen_allow_popups = allow_popups;
                         ls.screen_media_type = Some(media_type.clone());
                         ls.screen_html_content = processed_html.clone();
@@ -364,6 +371,7 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         "allowPopUps": allow_popups,
                         "mediaType": media_type,
                         "htmlContent": processed_html,
+                        "graphicPathVertical": graphic_path_vertical,
                     });
                     let _ = io_cc.within(ROOM).emit("overlay-activated", &payload).await;
                 }
@@ -461,13 +469,13 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                                 } else {
                                     None
                                 };
-                                Some((p.media_path.clone(), p.direction.clone(), p.position, mt, html, p.width, p.height))
+                                Some((p.media_path.clone(), p.direction.clone(), p.position, mt, html, p.width, p.height, p.direction_vertical.clone(), p.position_vertical))
                             }
                             None => None,
                         }
                     }; // db lock released here
 
-                    let Some((image_path, direction, position, media_type, processed_html, width, height)) = result else { return; };
+                    let Some((image_path, direction, position, media_type, processed_html, width, height, direction_vertical, position_vertical)) = result else { return; };
 
                     {
                         let mut states = state_c.studio_states.lock().await;
@@ -478,6 +486,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         ls.popup_duration = duration;
                         ls.popup_direction = Some(direction.clone());
                         ls.popup_position = Some(position);
+                        ls.popup_direction_vertical = direction_vertical.clone();
+                        ls.popup_position_vertical = position_vertical;
                         ls.popup_media_type = Some(media_type.clone());
                         ls.popup_html_content = processed_html.clone();
                         ls.popup_width = width;
@@ -496,6 +506,8 @@ pub fn register_handlers(io: &SocketIo, state: AppState) {
                         "htmlContent": processed_html,
                         "width": width,
                         "height": height,
+                        "directionVertical": direction_vertical,
+                        "positionVertical": position_vertical,
                     });
                     let _ = io_cc.within(ROOM).emit("popup-started", &payload).await;
                 }

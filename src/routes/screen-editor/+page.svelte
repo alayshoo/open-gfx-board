@@ -24,11 +24,14 @@
 	let editAllowPopUps = $state(true);
 	let editMediaType = $state('image');
 	let editMediaPath = $state<string | null>(null);
+	let editMediaPathVertical = $state<string | null>(null);
 	let editHtmlContent = $state('');
 
 	let saving = $state(false);
 	let uploading = $state(false);
+	let uploadingVertical = $state(false);
 	let fileInput = $state() as unknown as HTMLInputElement;
+	let fileInputVertical = $state() as unknown as HTMLInputElement;
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
@@ -77,6 +80,7 @@
 					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
+					editMediaPathVertical = data.screen.graphics_path_vertical ?? null;
 					editHtmlContent = data.screen.html_content ?? '';
 				}
 			}
@@ -92,6 +96,7 @@
 					editAllowPopUps = data.screen.allow_popups;
 					editMediaType = data.screen.media_type;
 					editMediaPath = data.screen.graphics_path;
+					editMediaPathVertical = data.screen.graphics_path_vertical ?? null;
 					editHtmlContent = data.screen.html_content ?? '';
 				}
 			}
@@ -128,6 +133,7 @@
 		editAllowPopUps = true;
 		editMediaType = 'image';
 		editMediaPath = null;
+		editMediaPathVertical = null;
 		editHtmlContent = '';
 		takeSnapshot();
 	}
@@ -145,6 +151,7 @@
 		editAllowPopUps = s.allow_popups;
 		editMediaType = s.media_type;
 		editMediaPath = s.graphics_path;
+		editMediaPathVertical = s.graphics_path_vertical ?? null;
 		editHtmlContent = s.html_content ?? '';
 		takeSnapshot();
 	}
@@ -185,6 +192,7 @@
 				editAllowPopUps = data.screen.allow_popups;
 				editMediaType = data.screen.media_type;
 				editMediaPath = data.screen.graphics_path;
+				editMediaPathVertical = data.screen.graphics_path_vertical ?? null;
 				editHtmlContent = data.screen.html_content ?? '';
 				takeSnapshot();
 				addToast('success', 'Screen duplicated — you can now edit your copy.');
@@ -273,6 +281,26 @@
 			addToast('error', 'Upload failed.');
 		} finally {
 			uploading = false;
+		}
+	}
+
+	async function uploadScreenImageVertical(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file || editId == null) return;
+		uploadingVertical = true;
+		try {
+			const result = await uploadImage('/screens/upload-image-vertical', file, editId);
+			if (result.success) {
+				editMediaPathVertical = result.imagePath;
+				fetchScreens().then((data) => { screens = data; });
+				addToast('success', 'Vertical alt uploaded.');
+			} else {
+				addToast('error', 'Upload failed.');
+			}
+		} catch {
+			addToast('error', 'Upload failed.');
+		} finally {
+			uploadingVertical = false;
 		}
 	}
 </script>
@@ -553,6 +581,25 @@
 										</button>
 										{#if editMediaPath}
 											<button class="btn btn-danger btn-sm" type="button" onclick={() => { editMediaPath = null; }}>Remove</button>
+										{/if}
+									</div>
+								</div>
+
+								<div class="field-group">
+									<span class="field-label">Vertical Alt <span class="field-hint">(portrait / 9:16)</span></span>
+									<p class="field-hint-block">Optional alternate media used by the <code>/obs-vertical</code> browser source. Leave empty to reuse the main media above.</p>
+									{#if editMediaPathVertical}
+										<div class="preview-box preview-box--vertical">
+											<MediaPreview src={imgUrl(editMediaPathVertical)} alt="{editName} vertical" />
+										</div>
+									{/if}
+									<div class="img-actions">
+										<input bind:this={fileInputVertical} type="file" accept="image/*,video/webm,video/mp4" style="display:none" onchange={uploadScreenImageVertical} />
+										<button class="btn btn-secondary btn-sm" style="flex:1" onclick={() => fileInputVertical.click()} disabled={uploadingVertical}>
+											{uploadingVertical ? 'Uploading…' : editMediaPathVertical ? 'Replace Vertical' : 'Upload Vertical Alt'}
+										</button>
+										{#if editMediaPathVertical}
+											<button class="btn btn-danger btn-sm" type="button" onclick={() => { editMediaPathVertical = null; }}>Remove</button>
 										{/if}
 									</div>
 								</div>
@@ -952,6 +999,19 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+	}
+
+	.preview-box--vertical {
+		aspect-ratio: 9/16;
+		max-width: 160px;
+	}
+
+	.field-hint {
+		font-weight: 400;
+		font-size: 0.6875rem;
+		color: var(--text-3);
+		text-transform: none;
+		letter-spacing: normal;
 	}
 
 	:global(.preview-box img), :global(.preview-box video) {

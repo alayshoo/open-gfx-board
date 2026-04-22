@@ -31,6 +31,8 @@
 	let editHtmlContent = $state('');
 	let editWidth = $state<number | null>(null);
 	let editHeight = $state<number | null>(null);
+	let editDirectionVertical = $state<'top' | 'bottom' | 'left' | 'right' | ''>('');
+	let editPositionVertical = $state<number>(50);
 
 	const isNew = $derived(isCreatingNew);
 	const hasSelection = $derived(isCreatingNew || selectedId !== null);
@@ -46,6 +48,7 @@
 			editDirection, editPosition,
 			editMediaType, editHtmlContent,
 			editWidth, editHeight,
+			editDirectionVertical, editPositionVertical,
 		]);
 	}
 
@@ -143,6 +146,8 @@
 		editHtmlContent = '';
 		editWidth = null;
 		editHeight = null;
+		editDirectionVertical = '';
+		editPositionVertical = 50;
 		takeSnapshot();
 	}
 
@@ -164,6 +169,8 @@
 		editHtmlContent = popup.html_content ?? '';
 		editWidth = popup.width ?? null;
 		editHeight = popup.height ?? null;
+		editDirectionVertical = (popup.direction_vertical ?? '') as 'top' | 'bottom' | 'left' | 'right' | '';
+		editPositionVertical = popup.position_vertical ?? popup.position ?? 50;
 		takeSnapshot();
 	}
 
@@ -208,6 +215,8 @@
 				editHtmlContent = data.popup.html_content ?? '';
 				editWidth = data.popup.width ?? null;
 				editHeight = data.popup.height ?? null;
+				editDirectionVertical = (data.popup.direction_vertical ?? '') as 'top' | 'bottom' | 'left' | 'right' | '';
+				editPositionVertical = data.popup.position_vertical ?? data.popup.position ?? 50;
 				takeSnapshot();
 				addToast('success', 'Pop-up duplicated — you can now edit your copy.');
 			} else {
@@ -239,6 +248,8 @@
 						html_content: editMediaType === 'html' ? editHtmlContent : null,
 						width: editWidth,
 						height: editHeight,
+						direction_vertical: editDirectionVertical || null,
+						position_vertical: editDirectionVertical ? editPositionVertical : null,
 					}),
 				});
 				const data = await res.json();
@@ -271,6 +282,8 @@
 						html_content: editMediaType === 'html' ? editHtmlContent : null,
 						width: editWidth,
 						height: editHeight,
+						direction_vertical: editDirectionVertical || null,
+						position_vertical: editDirectionVertical ? editPositionVertical : null,
 					}),
 				});
 				const data = await res.json();
@@ -564,6 +577,44 @@
 										/>
 									</div>
 								</div>
+
+								<div class="field-group">
+									<label class="field-label" for="popup-direction-vertical">
+										Vertical Direction <span class="field-hint">(portrait / 9:16)</span>
+									</label>
+									<select id="popup-direction-vertical" class="form-input form-select" bind:value={editDirectionVertical}>
+										<option value="">Same as default</option>
+										<option value="bottom">Bottom → Up</option>
+										<option value="top">Top → Down</option>
+										<option value="left">Left → Right</option>
+										<option value="right">Right → Left</option>
+									</select>
+								</div>
+
+								{#if editDirectionVertical}
+									<div class="field-group">
+										<label class="field-label" for="popup-position-vertical">
+											Vertical Position <span class="field-hint">({editPositionVertical}%)</span>
+										</label>
+										<div class="position-row">
+											<input
+												id="popup-position-vertical"
+												class="form-input position-number"
+												type="number"
+												min="0"
+												max="100"
+												bind:value={editPositionVertical}
+											/>
+											<input
+												class="position-slider"
+												type="range"
+												min="0"
+												max="100"
+												bind:value={editPositionVertical}
+											/>
+										</div>
+									</div>
+								{/if}
 
 								<div class="field-group">
 									<label class="field-label" for="popup-media-type">Media Type</label>

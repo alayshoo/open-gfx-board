@@ -39,6 +39,8 @@ struct CreatePopupBody {
     html_content: Option<String>,
     width: Option<i64>,
     height: Option<i64>,
+    direction_vertical: Option<String>,
+    position_vertical: Option<f64>,
 }
 
 async fn create_popup(
@@ -52,7 +54,9 @@ async fn create_popup(
     let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
-    match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {
+    let direction_vertical = body.direction_vertical.as_deref();
+    let position_vertical = body.position_vertical;
+    match tokio::task::block_in_place(|| crate::db::popups::create_popup(&db, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height, direction_vertical, position_vertical)) {
         Ok(popup) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());
@@ -78,6 +82,8 @@ struct UpdatePopupBody {
     html_content: Option<String>,
     width: Option<i64>,
     height: Option<i64>,
+    direction_vertical: Option<String>,
+    position_vertical: Option<f64>,
 }
 
 async fn update_popup(
@@ -92,7 +98,9 @@ async fn update_popup(
     let position = body.position.unwrap_or(50.0);
     let media_type = body.media_type.as_deref().unwrap_or("image");
     let html_content = body.html_content.as_deref();
-    match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height)) {
+    let direction_vertical = body.direction_vertical.as_deref();
+    let position_vertical = body.position_vertical;
+    match tokio::task::block_in_place(|| crate::db::popups::update_popup(&db, id, &body.name, sponsor, comments, direction, position, media_type, html_content, body.width, body.height, direction_vertical, position_vertical)) {
         Ok(Some(popup)) => {
             {
                 let io_clone = state.io.lock().ok().and_then(|g| g.clone());

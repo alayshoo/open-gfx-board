@@ -135,7 +135,7 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
     let mut stmt = conn.prepare(
         "SELECT s.id, s.name, s.comments, s.media_path, s.media_type, s.allow_popups,
                 s.html_content, s.created_at, s.plugin_id, s.plugin_template_id,
-                ps.layer
+                ps.layer, s.media_path_vertical
          FROM screens s
          JOIN program_screens ps ON ps.screen_id = s.id
          WHERE ps.program_id = ?1
@@ -156,6 +156,7 @@ fn load_screens_for_program(conn: &Connection, program_id: i64) -> Result<Vec<Sc
             plugin_id: row.get(8)?,
             plugin_template_id: row.get(9)?,
             layer: row.get(10)?,
+            media_path_vertical: row.get(11)?,
         })
     })?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(screens)

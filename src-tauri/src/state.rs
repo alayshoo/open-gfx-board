@@ -10,6 +10,8 @@ pub struct LayerState {
     // Active screen overlay on this layer
     pub screen_id: Option<i64>,
     pub screen_path: Option<String>,
+    /// Vertical-alt path for the active screen (portrait sources).
+    pub screen_path_vertical: Option<String>,
     pub screen_allow_popups: bool,
     pub screen_media_type: Option<String>,
     /// Processed HTML (template already resolved) for the active screen overlay.
@@ -20,6 +22,10 @@ pub struct LayerState {
     pub popup_duration: i64,
     pub popup_direction: Option<String>,
     pub popup_position: Option<f64>,
+    /// Vertical-alt direction override for the active popup.
+    pub popup_direction_vertical: Option<String>,
+    /// Vertical-alt position override for the active popup.
+    pub popup_position_vertical: Option<f64>,
     pub popup_media_type: Option<String>,
     /// Processed HTML (template already resolved) for the active popup.
     pub popup_html_content: Option<String>,

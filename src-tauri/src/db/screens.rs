@@ -4,7 +4,7 @@ use crate::models::{Screen, ScreenProgram};
 
 pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id \
+        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id, media_path_vertical \
          FROM screens \
          WHERE plugin_id IS NULL OR plugin_id IN (SELECT id FROM plugins WHERE enabled = 1) \
          ORDER BY id"
@@ -28,6 +28,7 @@ pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
             plugin_id: row.get(8)?,
             plugin_template_id: row.get(9)?,
             layer: None,
+            media_path_vertical: row.get(10)?,
         });
     }
     Ok(screens)
@@ -35,7 +36,7 @@ pub fn get_all_screens(conn: &Connection) -> Result<Vec<Screen>> {
 
 pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
     let result = conn.query_row(
-        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id FROM screens WHERE id = ?1",
+        "SELECT id, name, comments, media_path, media_type, allow_popups, html_content, created_at, plugin_id, plugin_template_id, media_path_vertical FROM screens WHERE id = ?1",
         [id],
         |row| Ok((
             row.get::<_, i64>(0)?,
@@ -48,10 +49,11 @@ pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
             row.get::<_, String>(7)?,
             row.get::<_, Option<String>>(8)?,
             row.get::<_, Option<String>>(9)?,
+            row.get::<_, Option<String>>(10)?,
         )),
     );
     match result {
-        Ok((sid, name, comments, media_path, media_type, allow_popups_int, html_content, created_at, plugin_id, plugin_template_id)) => {
+        Ok((sid, name, comments, media_path, media_type, allow_popups_int, html_content, created_at, plugin_id, plugin_template_id, media_path_vertical)) => {
             let programs = load_programs_for_screen(conn, sid)?;
             Ok(Some(Screen {
                 id: sid,
@@ -66,6 +68,7 @@ pub fn get_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
                 plugin_id,
                 plugin_template_id,
                 layer: None,
+                media_path_vertical,
             }))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -117,12 +120,21 @@ pub fn duplicate_screen(conn: &Connection, id: i64) -> Result<Option<Screen>> {
         None => return Ok(None),
     };
     let new_name = format!("{} (Copy)", original.name);
+    // media_path and media_path_vertical are intentionally not copied (no file copy).
     conn.execute(
         "INSERT INTO screens (name, comments, allow_popups, media_type, html_content) VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![new_name, original.comments, original.allow_popups as i64, original.media_type, original.html_content],
     )?;
     let new_id = conn.last_insert_rowid();
     Ok(get_screen(conn, new_id)?)
+}
+
+pub fn set_media_path_vertical(conn: &Connection, id: i64, path: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE screens SET media_path_vertical = ?1 WHERE id = ?2",
+        rusqlite::params![path, id],
+    )?;
+    Ok(())
 }
 
 pub fn delete_screen(conn: &Connection, id: i64) -> Result<bool> {

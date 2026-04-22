@@ -245,5 +245,17 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // Migration 14 — vertical streaming support.
+    // Screens can have an optional vertical-alt media file (for portrait/9:16 sources).
+    // Popups can have optional vertical overrides for direction and position.
+    if version < 14 {
+        conn.execute_batch(
+            "ALTER TABLE screens ADD COLUMN media_path_vertical TEXT;
+             ALTER TABLE popups  ADD COLUMN direction_vertical TEXT;
+             ALTER TABLE popups  ADD COLUMN position_vertical REAL;
+             INSERT INTO schema_version VALUES (14);",
+        )?;
+    }
+
     Ok(())
 }
